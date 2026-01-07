@@ -1,0 +1,32 @@
+# MLOps Agent Requirements
+# Core MCP dependencies
+mcp>=0.9.0
+pydantic>=2.0.0
+
+# Configuration Management
+hydra-core>=1.3.0
+omegaconf>=2.3.0
+
+# Experiment Tracking
+mlflow>=2.10.0
+
+# Data Versioning
+dvc>=3.40.0
+dvc-s3>=3.0.0  # For S3 remote
+# dvc-gdrive>=3.0.0  # For Google Drive remote (optional)
+# dvc-azure>=3.0.0  # For Azure remote (optional)
+
+# ML Frameworks (install what you need)
+torch>=2.0.0
+torchvision>=0.15.0
+# tensorflow>=2.15.0  # Alternative to PyTorch
+
+# Utilities
+pyyaml>=6.0
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

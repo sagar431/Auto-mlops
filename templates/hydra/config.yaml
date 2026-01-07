@@ -1,0 +1,21 @@
+# Hydra Configuration Template
+# This is a template that the agent uses to create Hydra configs for ML projects
+
+defaults:
+  - _self_
+  - model: default
+  - data: default
+  - training: default
+  - paths: default
+
+# Project metadata
+project:
+  name: "${project_name}"
+  seed: 42
+
+# Hydra settings
+hydra:
+  run:
+    dir: ${paths.output_dir}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${paths.output_dir}/multirun/${now:%Y-%m-%d_%H-%M-%S}

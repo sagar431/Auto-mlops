@@ -1,0 +1,64 @@
+# GitHub Actions Training Workflow Template
+# Used by agent to create CI/CD workflows
+
+name: ML Pipeline
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      accuracy_threshold:
+        description: 'Minimum accuracy threshold'
+        required: false
+        default: '0.85'
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Setup DVC
+        uses: iterative/setup-dvc@v1
+
+      - name: Pull data from DVC
+        run: dvc pull
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Run training
+        run: python src/train.py
+
+      - name: Check accuracy threshold
+        run: |
+          ACCURACY=$(cat metrics.json | jq -r '.accuracy')
+          THRESHOLD=${{ github.event.inputs.accuracy_threshold || '0.85' }}
+          if (( $(echo "$ACCURACY >= $THRESHOLD" | bc -l) )); then
+            echo "✅ Accuracy $ACCURACY meets threshold $THRESHOLD"
+          else
+            echo "❌ Accuracy $ACCURACY below threshold $THRESHOLD"
+            exit 1
+          fi
+
+      - name: Upload model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-model
+          path: models/

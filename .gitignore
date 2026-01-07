@@ -1,0 +1,47 @@
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Environment files
+.env
+
+# UV lock file (keep this in git)
+# uv.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# MLflow artifacts (local runs)
+mlruns/
+mlartifacts/
+
+# DVC cache (not tracked)
+.dvc/cache/
+.dvc/tmp/
+
+# Session and experiment logs (generated)
+memory/session_logs/*.json
+memory/experiment_logs/*/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/

@@ -1,0 +1,55 @@
+# MLOps Agent Profiles
+# Default configurations for different use cases
+
+profiles:
+  default:
+    # Pipeline stages to automate
+    stages:
+      - hydra_setup
+      - mlflow_init
+      - dvc_setup
+      - docker_build
+      - github_actions
+    
+    # Training configuration
+    training:
+      max_improvement_attempts: 3
+      default_accuracy_threshold: 0.85
+      timeout_minutes: 60
+    
+    # DVC remote storage
+    dvc:
+      remote_name: "s3remote"
+      remote_type: "s3"
+      # remote_url set via environment variable
+    
+    # Docker configuration
+    docker:
+      base_image: "python:3.10-slim"
+      registry: "ghcr.io"
+
+  quick:
+    # Minimal setup for testing
+    stages:
+      - hydra_setup
+      - mlflow_init
+    training:
+      max_improvement_attempts: 1
+      default_accuracy_threshold: 0.70
+      timeout_minutes: 10
+
+  production:
+    # Full production pipeline
+    stages:
+      - hydra_setup
+      - mlflow_init
+      - dvc_setup
+      - docker_build
+      - github_actions
+    training:
+      max_improvement_attempts: 5
+      default_accuracy_threshold: 0.90
+      timeout_minutes: 180
+    docker:
+      multi_stage: true
+      optimize_size: true

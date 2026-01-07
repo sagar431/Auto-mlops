@@ -1,0 +1,39 @@
+# DVC Pipeline Template
+# This is used as a template when agent creates DVC pipelines
+
+stages:
+  prepare_data:
+    cmd: python src/prepare_data.py
+    deps:
+      - src/prepare_data.py
+      - data/raw
+    outs:
+      - data/processed
+
+  train:
+    cmd: python src/train.py
+    deps:
+      - src/train.py
+      - data/processed
+      - configs/
+    params:
+      - configs/config.yaml:
+          - model
+          - training
+    outs:
+      - models/
+    metrics:
+      - metrics.json:
+          cache: false
+
+  evaluate:
+    cmd: python src/evaluate.py
+    deps:
+      - src/evaluate.py
+      - models/
+      - data/processed
+    metrics:
+      - reports/metrics.json:
+          cache: false
+    plots:
+      - reports/confusion_matrix.png

@@ -1,0 +1,26 @@
+# Training Dockerfile Template
+# Used by agent to create Dockerfiles for ML training
+
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for fast dependency management
+RUN pip install uv
+
+# Copy dependency files
+COPY pyproject.toml uv.lock* ./
+
+# Install dependencies
+RUN uv sync --frozen
+
+# Copy source code
+COPY . .
+
+# Default command
+CMD ["python", "src/train.py"]

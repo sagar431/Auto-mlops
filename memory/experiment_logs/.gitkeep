@@ -1,0 +1,3 @@
+# Experiment Logs Directory
+# This folder stores MLflow-style experiment history
+# Each experiment run creates a subfolder with metrics, params, and artifacts
