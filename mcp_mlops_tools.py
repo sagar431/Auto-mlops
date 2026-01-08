@@ -81,7 +81,7 @@ class CreateHydraConfigInput(BaseModel):
     """Create Hydra configuration structure."""
     project_path: str = Field(..., description="Path to the ML project")
     config_name: str = Field(default="config", description="Name of main config file")
-    model_config: Optional[Dict[str, Any]] = Field(default=None, description="Model configuration")
+    ml_model_config: Optional[Dict[str, Any]] = Field(default=None, description="Model configuration")
     training_config: Optional[Dict[str, Any]] = Field(default=None, description="Training configuration")
     data_config: Optional[Dict[str, Any]] = Field(default=None, description="Data configuration")
 
@@ -1753,7 +1753,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             result = create_hydra_config(
                 input_data.project_path,
                 input_data.config_name,
-                input_data.model_config,
+                input_data.ml_model_config,
                 input_data.training_config,
                 input_data.data_config
             )
