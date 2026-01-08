@@ -53,7 +53,8 @@ dev = [
 ]
 
 [project.scripts]
-mlops-agent = "agent:main"
+mlops-agent = "cli:main"
+mlops-server = "api_server:main"
 
 [build-system]
 requires = ["hatchling"]

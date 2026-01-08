@@ -114,6 +114,38 @@ Perception routes to:
 
 ## Running the Agent
 
+### CLI Mode
+```bash
+# Single command
+python cli.py "Set up MLOps pipeline for my cat-dog classifier"
+python cli.py --project ./my_project --threshold 0.90 "Train until accuracy target"
+
+# Interactive REPL
+python cli.py --interactive
+python cli.py -i --project ./my_project
+
+# Using installed command
+mlops-agent "Set up MLOps pipeline"
+mlops-agent -i --project ./my_project
+```
+
+### API Server
+```bash
+# Start server
+python api_server.py
+# Or with uvicorn
+uvicorn api_server:app --reload --port 8000
+
+# Endpoints:
+# POST /run           - Start agent with query
+# GET  /status/{id}   - Get session status
+# GET  /sessions      - List past sessions
+# GET  /tools         - List available tools
+# GET  /health        - Health check
+# WS   /ws/{id}       - WebSocket for real-time events
+```
+
+### Python API
 ```python
 from agent import AgentLoop
 import asyncio
@@ -121,7 +153,7 @@ import asyncio
 async def main():
     agent = AgentLoop()
     result = await agent.run(
-        query="Set up MLOps pipeline for my cat-dog classifier with accuracy threshold 0.85",
+        query="Set up MLOps pipeline for my cat-dog classifier",
         project_path="/path/to/project",
         accuracy_threshold=0.85
     )
@@ -130,19 +162,10 @@ async def main():
 asyncio.run(main())
 ```
 
-Or use the convenience function:
-```python
-from agent.agent_loop import run_mlops_agent
-
-result = await run_mlops_agent(
-    query="Deploy my model with DVC and GitHub Actions",
-    project_path="/path/to/project"
-)
-```
-
 ## Environment Variables
 ```
-OPENAI_API_KEY, GOOGLE_API_KEY         # LLM providers
+GOOGLE_API_KEY                         # Google Gemini (default LLM)
+OPENAI_API_KEY                         # OpenAI GPT-4 (alternative)
 AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, DVC_REMOTE_URL  # DVC S3
 DOCKER_REGISTRY, DOCKER_USERNAME       # Docker
 DEFAULT_ACCURACY_THRESHOLD=0.85        # Training target
@@ -151,8 +174,8 @@ MAX_IMPROVEMENT_ATTEMPTS=3             # Retry limit
 
 ## Development Status
 
-**Phase 2 Complete** - Core agent architecture implemented:
-- Agent loop with perception-decision-action cycle
-- Graph-based execution tracking with NetworkX
-- Self-improvement loop for training optimization
-- Memory search for learning from past experiments
+**Phase 3 Complete** - Full pipeline integration:
+- CLI with interactive REPL and single command mode
+- FastAPI server with REST and WebSocket endpoints
+- Rich console output with progress tracking
+- Real-time event streaming for UI integration
