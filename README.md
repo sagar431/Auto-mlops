@@ -13,6 +13,16 @@
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [Tools](#-available-mcp-tools-28) • [Contributing](#-contributing)
 
+## 🎬 Demo
+
+![Auto-MLOps Demo](ezgif-231cd63112f33ccb.gif)
+
+### 📺 Video Tutorial
+
+[![Watch the Tutorial](https://img.shields.io/badge/YouTube-Watch%20Tutorial-red?logo=youtube)](https://www.youtube.com/watch?v=yYLG49bwOMM)
+
+▶️ **[Watch the Full Tutorial on YouTube](https://www.youtube.com/watch?v=yYLG49bwOMM)**
+
 </div>
 
 ---
