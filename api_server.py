@@ -28,6 +28,14 @@ from pydantic import BaseModel, Field
 
 from agent.agent_loop import AgentLoop
 from memory.memory_search import MemorySearch
+from metrics.collector import metrics_collector
+from metrics.models import (
+    SystemMetrics,
+    AgentMetrics,
+    PipelineMetrics,
+    MetricsSummary,
+    LogsResponse
+)
 
 
 # ============================================================================
@@ -440,6 +448,130 @@ async def list_available_tools():
             "training": ["analyze_training_results", "suggest_improvements", "check_accuracy_threshold"]
         }
     }
+
+
+# ============================================================================
+# Metrics Endpoints
+# ============================================================================
+
+@app.get("/metrics", response_model=MetricsSummary, tags=["Metrics"])
+async def get_metrics():
+    """
+    Get complete metrics summary for the dashboard.
+
+    Returns system metrics, agent performance, pipeline stats,
+    and time series data for charts.
+    """
+    return metrics_collector.get_metrics_summary()
+
+
+@app.get("/metrics/system", response_model=SystemMetrics, tags=["Metrics"])
+async def get_system_metrics():
+    """Get system resource metrics (CPU, memory, disk)."""
+    return metrics_collector.get_system_metrics()
+
+
+@app.get("/metrics/agent", response_model=AgentMetrics, tags=["Metrics"])
+async def get_agent_metrics():
+    """Get agent performance metrics (sessions, success rate, execution time)."""
+    return metrics_collector.get_agent_metrics()
+
+
+@app.get("/metrics/pipeline", response_model=PipelineMetrics, tags=["Metrics"])
+async def get_pipeline_metrics():
+    """Get pipeline and tool usage metrics."""
+    return metrics_collector.get_pipeline_metrics()
+
+
+@app.get("/metrics/demo", tags=["Metrics"])
+async def generate_demo_metrics():
+    """Generate demo data for frontend testing."""
+    metrics_collector.generate_demo_data()
+    return {"status": "ok", "message": "Demo data generated"}
+
+
+# ============================================================================
+# Logs Endpoints
+# ============================================================================
+
+@app.get("/logs", response_model=LogsResponse, tags=["Logs"])
+async def get_logs(
+    page: int = 1,
+    page_size: int = 50,
+    level: str = None,
+    source: str = None,
+    session_id: str = None
+):
+    """
+    Get execution logs with pagination and filtering.
+
+    Parameters:
+    - page: Page number (1-indexed)
+    - page_size: Number of logs per page (max 100)
+    - level: Filter by log level (info, warning, error, debug)
+    - source: Filter by source component
+    - session_id: Filter by session ID
+    """
+    page_size = min(page_size, 100)  # Cap at 100
+    return metrics_collector.get_logs(
+        page=page,
+        page_size=page_size,
+        level=level,
+        source=source,
+        session_id=session_id
+    )
+
+
+@app.post("/logs", tags=["Logs"])
+async def create_log(
+    level: str,
+    source: str,
+    message: str,
+    session_id: str = None
+):
+    """Create a new log entry (for internal use)."""
+    metrics_collector.log(level, source, message, session_id)
+    return {"status": "ok"}
+
+
+# ============================================================================
+# Real-time Metrics WebSocket
+# ============================================================================
+
+@app.websocket("/ws/metrics")
+async def metrics_websocket(websocket: WebSocket):
+    """
+    WebSocket for real-time metrics updates.
+
+    Sends metrics updates every 5 seconds:
+    - system: CPU, memory, disk usage
+    - agent: Session counts, success rate
+    - pipeline: Pipeline stats
+
+    Also broadcasts log entries as they occur.
+    """
+    await websocket.accept()
+
+    try:
+        while True:
+            # Send current metrics
+            metrics = metrics_collector.get_metrics_summary()
+            await websocket.send_json({
+                "type": "metrics_update",
+                "timestamp": datetime.utcnow().isoformat(),
+                "data": metrics.model_dump()
+            })
+
+            # Wait 5 seconds before next update
+            await asyncio.sleep(5)
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try:
+            await websocket.close(code=1011, reason=str(e))
+        except Exception:
+            pass
 
 
 # ============================================================================

@@ -42,6 +42,9 @@ dependencies = [
     
     # Memory search
     "rapidfuzz>=3.0.0",
+
+    # System monitoring
+    "psutil>=5.9.0",
 ]
 
 [project.optional-dependencies]

@@ -1,5 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+
+// API Configuration
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 // Icons
 const Icons = {
@@ -27,6 +30,13 @@ const Icons = {
   GitBranch: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 3v12m0 0a3 3 0 103 3 3 3 0 00-3-3zm12-3a3 3 0 11-6 0 3 3 0 016 0zm-3 0v-6a3 3 0 00-3-3H9" /></svg>,
   BarChart: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
   Sparkles: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>,
+  Server: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg>,
+  Cpu: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" /></svg>,
+  HardDrive: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" /></svg>,
+  AlertCircle: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  Info: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  Wifi: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" /></svg>,
+  WifiOff: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
 };
 
 // Mock data
@@ -104,6 +114,110 @@ export default function MLOpsAgent() {
   const [agentThinking, setAgentThinking] = useState('');
   const [selectedRun, setSelectedRun] = useState(null);
   const messagesEndRef = useRef(null);
+
+  // Backend metrics state
+  const [backendMetrics, setBackendMetrics] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [isConnected, setIsConnected] = useState(false);
+  const [rightSidebarTab, setRightSidebarTab] = useState('Metrics');
+  const wsRef = useRef(null);
+
+  // Fetch metrics from backend
+  const fetchMetrics = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/metrics`);
+      if (response.ok) {
+        const data = await response.json();
+        setBackendMetrics(data);
+        setIsConnected(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch metrics:', error);
+      setIsConnected(false);
+    }
+  }, []);
+
+  // Fetch logs from backend
+  const fetchLogs = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/logs?page_size=50`);
+      if (response.ok) {
+        const data = await response.json();
+        setLogs(data.logs || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch logs:', error);
+    }
+  }, []);
+
+  // Initialize demo data on backend
+  const initDemoData = useCallback(async () => {
+    try {
+      await fetch(`${API_BASE_URL}/metrics/demo`);
+      fetchMetrics();
+      fetchLogs();
+    } catch (error) {
+      console.error('Failed to init demo data:', error);
+    }
+  }, [fetchMetrics, fetchLogs]);
+
+  // WebSocket connection for real-time updates
+  useEffect(() => {
+    const connectWebSocket = () => {
+      const wsUrl = API_BASE_URL.replace('http', 'ws') + '/ws/metrics';
+      wsRef.current = new WebSocket(wsUrl);
+
+      wsRef.current.onopen = () => {
+        console.log('WebSocket connected');
+        setIsConnected(true);
+      };
+
+      wsRef.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'metrics_update') {
+            setBackendMetrics(data.data);
+          }
+        } catch (e) {
+          console.error('WebSocket message error:', e);
+        }
+      };
+
+      wsRef.current.onclose = () => {
+        console.log('WebSocket disconnected');
+        setIsConnected(false);
+        // Reconnect after 5 seconds
+        setTimeout(connectWebSocket, 5000);
+      };
+
+      wsRef.current.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setIsConnected(false);
+      };
+    };
+
+    // Initial fetch
+    fetchMetrics();
+    fetchLogs();
+
+    // Try WebSocket connection
+    connectWebSocket();
+
+    // Fallback polling every 10 seconds if WebSocket fails
+    const pollInterval = setInterval(() => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        fetchMetrics();
+      }
+      fetchLogs();
+    }, 10000);
+
+    return () => {
+      clearInterval(pollInterval);
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [fetchMetrics, fetchLogs]);
 
   useEffect(() => {
     if (isProcessing && pipelineStage === 'training') {
@@ -562,13 +676,37 @@ export default function MLOpsAgent() {
 
       {/* Right Sidebar - Metrics */}
       <div className="w-80 bg-[#111] border-l border-white/5 flex flex-col">
+        {/* Connection Status */}
+        <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs">
+            {isConnected ? (
+              <>
+                <Icons.Wifi />
+                <span className="text-green-400">Connected</span>
+              </>
+            ) : (
+              <>
+                <Icons.WifiOff />
+                <span className="text-red-400">Disconnected</span>
+              </>
+            )}
+          </div>
+          <button
+            onClick={initDemoData}
+            className="text-xs text-gray-500 hover:text-orange-400 transition-colors"
+          >
+            Load Demo Data
+          </button>
+        </div>
+
         {/* Tabs */}
         <div className="flex border-b border-white/5">
-          {['Metrics', 'Config', 'Logs'].map(tab => (
+          {['Metrics', 'System', 'Logs'].map(tab => (
             <button
               key={tab}
+              onClick={() => setRightSidebarTab(tab)}
               className={`flex-1 py-4 text-sm font-medium transition-all ${
-                tab === 'Metrics' ? 'text-orange-400 border-b-2 border-orange-400' : 'text-gray-500 hover:text-gray-300'
+                rightSidebarTab === tab ? 'text-orange-400 border-b-2 border-orange-400' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               {tab}
@@ -577,88 +715,269 @@ export default function MLOpsAgent() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: 'Accuracy', value: `${(currentAccuracy * 100).toFixed(1)}%`, color: 'text-green-400', bg: 'bg-green-500/10' },
-              { label: 'Target', value: `${(targetAccuracy * 100).toFixed(0)}%`, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-              { label: 'Epoch', value: `${metricsData.length}/8`, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-              { label: 'Loss', value: metricsData.length > 0 ? metricsData[metricsData.length - 1].loss.toFixed(2) : '—', color: 'text-orange-400', bg: 'bg-orange-500/10' },
-            ].map((stat, i) => (
-              <div key={i} className={`p-4 rounded-xl ${stat.bg}`}>
-                <div className="text-xs text-gray-400 mb-1">{stat.label}</div>
-                <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+          {rightSidebarTab === 'Metrics' && (
+            <>
+              {/* Agent Stats Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  {
+                    label: 'Sessions',
+                    value: backendMetrics?.agent?.total_sessions || 0,
+                    color: 'text-blue-400',
+                    bg: 'bg-blue-500/10'
+                  },
+                  {
+                    label: 'Success Rate',
+                    value: `${backendMetrics?.agent?.success_rate?.toFixed(1) || 0}%`,
+                    color: 'text-green-400',
+                    bg: 'bg-green-500/10'
+                  },
+                  {
+                    label: 'Pipelines',
+                    value: backendMetrics?.pipeline?.total_pipelines_run || 0,
+                    color: 'text-purple-400',
+                    bg: 'bg-purple-500/10'
+                  },
+                  {
+                    label: 'Tools',
+                    value: backendMetrics?.pipeline?.tools_available || 28,
+                    color: 'text-orange-400',
+                    bg: 'bg-orange-500/10'
+                  },
+                ].map((stat, i) => (
+                  <div key={i} className={`p-4 rounded-xl ${stat.bg}`}>
+                    <div className="text-xs text-gray-400 mb-1">{stat.label}</div>
+                    <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* Chart */}
-          {metricsData.length > 0 && (
-            <div className="bg-white/5 rounded-xl p-4">
-              <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
-                <Icons.TrendingUp /> Training Progress
-              </h4>
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={metricsData}>
-                    <defs>
-                      <linearGradient id="colorAcc" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                    <XAxis dataKey="epoch" stroke="#4b5563" fontSize={10} />
-                    <YAxis stroke="#4b5563" fontSize={10} domain={[0, 1]} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '12px' }}
-                      labelStyle={{ color: '#9ca3af' }}
-                    />
-                    <Area type="monotone" dataKey="accuracy" stroke="#f97316" strokeWidth={2} fillOpacity={1} fill="url(#colorAcc)" />
-                    <Line type="monotone" dataKey="val_accuracy" stroke="#06b6d4" strokeDasharray="5 5" strokeWidth={2} dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex items-center justify-center gap-6 mt-3 text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-orange-500" />
-                  <span className="text-gray-400">Train Acc</span>
+              {/* Training Chart */}
+              {metricsData.length > 0 && (
+                <div className="bg-white/5 rounded-xl p-4">
+                  <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                    <Icons.TrendingUp /> Training Progress
+                  </h4>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={metricsData}>
+                        <defs>
+                          <linearGradient id="colorAcc" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                        <XAxis dataKey="epoch" stroke="#4b5563" fontSize={10} />
+                        <YAxis stroke="#4b5563" fontSize={10} domain={[0, 1]} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '12px' }}
+                          labelStyle={{ color: '#9ca3af' }}
+                        />
+                        <Area type="monotone" dataKey="accuracy" stroke="#f97316" strokeWidth={2} fillOpacity={1} fill="url(#colorAcc)" />
+                        <Line type="monotone" dataKey="val_accuracy" stroke="#06b6d4" strokeDasharray="5 5" strokeWidth={2} dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-0.5 bg-cyan-500" style={{width: '12px'}} />
-                  <span className="text-gray-400">Val Acc</span>
+              )}
+
+              {/* Tool Usage */}
+              {backendMetrics?.pipeline?.most_used_tools?.length > 0 && (
+                <div className="bg-white/5 rounded-xl p-4">
+                  <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                    <Icons.Activity /> Most Used Tools
+                  </h4>
+                  <div className="space-y-3">
+                    {backendMetrics.pipeline.most_used_tools.slice(0, 5).map((tool, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <div className="text-sm font-medium truncate">{tool.tool_name}</div>
+                          <div className="text-xs text-gray-500">{tool.invocations} calls</div>
+                        </div>
+                        <div className="w-20 h-2 bg-white/10 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-orange-500 to-amber-500"
+                            style={{ width: `${(tool.success_count / tool.invocations) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Threshold Progress */}
+              <div className="bg-white/5 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium">Accuracy Target</span>
+                  <span className={`text-sm font-medium ${
+                    currentAccuracy >= targetAccuracy ? 'text-green-400' : 'text-orange-400'
+                  }`}>
+                    {currentAccuracy >= targetAccuracy ? '✓ Achieved' : 'In Progress'}
+                  </span>
+                </div>
+                <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 ${
+                      currentAccuracy >= targetAccuracy
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                        : 'bg-gradient-to-r from-orange-500 to-amber-500'
+                    }`}
+                    style={{ width: `${Math.min((currentAccuracy / targetAccuracy) * 100, 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between mt-2 text-xs text-gray-500">
+                  <span>{(currentAccuracy * 100).toFixed(1)}%</span>
+                  <span>{(targetAccuracy * 100).toFixed(0)}% target</span>
                 </div>
               </div>
-            </div>
+            </>
           )}
 
-          {/* Threshold Progress */}
-          <div className="bg-white/5 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium">Target Threshold</span>
-              <span className={`text-sm font-medium ${
-                currentAccuracy >= targetAccuracy ? 'text-green-400' : 'text-orange-400'
-              }`}>
-                {currentAccuracy >= targetAccuracy ? '✓ Achieved' : 'In Progress'}
-              </span>
-            </div>
-            <div className="h-3 bg-white/10 rounded-full overflow-hidden">
-              <div
-                className={`h-full transition-all duration-500 ${
-                  currentAccuracy >= targetAccuracy
-                    ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                    : 'bg-gradient-to-r from-orange-500 to-amber-500'
-                }`}
-                style={{ width: `${Math.min((currentAccuracy / targetAccuracy) * 100, 100)}%` }}
-              />
-            </div>
-            <div className="flex justify-between mt-2 text-xs text-gray-500">
-              <span>0%</span>
-              <span>{(targetAccuracy * 100).toFixed(0)}% target</span>
-            </div>
-          </div>
+          {rightSidebarTab === 'System' && (
+            <>
+              {/* System Metrics */}
+              <div className="space-y-4">
+                {/* CPU */}
+                <div className="bg-white/5 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Icons.Cpu />
+                      <span className="text-sm font-medium">CPU Usage</span>
+                    </div>
+                    <span className="text-lg font-bold text-cyan-400">
+                      {backendMetrics?.system?.cpu_percent?.toFixed(1) || 0}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-500"
+                      style={{ width: `${backendMetrics?.system?.cpu_percent || 0}%` }}
+                    />
+                  </div>
+                </div>
 
-          {/* Quick Info */}
+                {/* Memory */}
+                <div className="bg-white/5 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Icons.Server />
+                      <span className="text-sm font-medium">Memory</span>
+                    </div>
+                    <span className="text-lg font-bold text-purple-400">
+                      {backendMetrics?.system?.memory_percent?.toFixed(1) || 0}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
+                      style={{ width: `${backendMetrics?.system?.memory_percent || 0}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-2 text-xs text-gray-500">
+                    <span>{backendMetrics?.system?.memory_used_gb?.toFixed(1) || 0} GB used</span>
+                    <span>{backendMetrics?.system?.memory_total_gb?.toFixed(1) || 0} GB total</span>
+                  </div>
+                </div>
+
+                {/* Disk */}
+                <div className="bg-white/5 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Icons.HardDrive />
+                      <span className="text-sm font-medium">Disk</span>
+                    </div>
+                    <span className="text-lg font-bold text-green-400">
+                      {backendMetrics?.system?.disk_percent?.toFixed(1) || 0}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-500"
+                      style={{ width: `${backendMetrics?.system?.disk_percent || 0}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-2 text-xs text-gray-500">
+                    <span>{backendMetrics?.system?.disk_used_gb?.toFixed(0) || 0} GB used</span>
+                    <span>{backendMetrics?.system?.disk_total_gb?.toFixed(0) || 0} GB total</span>
+                  </div>
+                </div>
+
+                {/* System Info */}
+                <div className="bg-white/5 rounded-xl p-4 space-y-3">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    <Icons.Info /> System Info
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Platform</span>
+                      <span>{backendMetrics?.system?.platform || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Python</span>
+                      <span>{backendMetrics?.system?.python_version || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Uptime</span>
+                      <span>{backendMetrics?.system?.uptime_seconds
+                        ? `${Math.floor(backendMetrics.system.uptime_seconds / 60)}m`
+                        : 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {rightSidebarTab === 'Logs' && (
+            <>
+              {/* Logs List */}
+              <div className="space-y-2">
+                {logs.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Icons.Terminal />
+                    <p className="mt-2 text-sm">No logs yet</p>
+                    <button
+                      onClick={initDemoData}
+                      className="mt-2 text-xs text-orange-400 hover:underline"
+                    >
+                      Load demo data
+                    </button>
+                  </div>
+                ) : (
+                  logs.map((log, i) => (
+                    <div
+                      key={log.id || i}
+                      className={`p-3 rounded-lg text-sm ${
+                        log.level === 'error' ? 'bg-red-500/10 border border-red-500/20' :
+                        log.level === 'warning' ? 'bg-yellow-500/10 border border-yellow-500/20' :
+                        'bg-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          log.level === 'error' ? 'bg-red-500/20 text-red-400' :
+                          log.level === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
+                          log.level === 'info' ? 'bg-blue-500/20 text-blue-400' :
+                          'bg-gray-500/20 text-gray-400'
+                        }`}>
+                          {log.level}
+                        </span>
+                        <span className="text-xs text-gray-500">{log.source}</span>
+                        <span className="text-xs text-gray-600 ml-auto">
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <p className="text-gray-300 text-xs leading-relaxed">{log.message}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Self-Improvement Info (always visible at bottom) */}
           <div className="bg-gradient-to-br from-orange-500/10 to-amber-500/10 border border-orange-500/20 rounded-xl p-4">
             <div className="flex items-center gap-2 text-orange-400 mb-2">
               <Icons.Sparkles />
