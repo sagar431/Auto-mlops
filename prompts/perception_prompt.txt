@@ -17,7 +17,8 @@ Analyze the user query and current experiment context to understand:
 - **training**: Running training, logging to MLflow
 - **evaluation**: Checking metrics against threshold
 - **improvement**: Adjusting hyperparameters for retry
-- **deploy**: Docker build, GitHub Actions CI/CD
+- **cicd**: Docker build, GitHub Actions CI/CD
+- **deploy**: Model deployment (LitServe, Gradio, Lambda, TorchServe, KServe)
 
 ## Input Context
 - User Query: {query}
@@ -37,15 +38,16 @@ Analyze the user query and current experiment context to understand:
     "model_type": "resnet18, custom, etc or null",
     "accuracy_threshold": 0.85,
     "current_accuracy": null,
-    "data_path": "path to data or null"
+    "data_path": "path to data or null",
+    "deployment_target": "litserve|gradio|fastapi_lambda|torchserve|kserve|null"
   },
-  "pipeline_stage": "setup|config|data|training|evaluation|improvement|deploy",
+  "pipeline_stage": "setup|config|data|training|evaluation|improvement|cicd|deploy",
   "required_tools": ["tool1", "tool2"],
   "result_requirement": "What needs to be achieved in next step",
   "original_goal_achieved": false,
   "local_goal_achieved": false,
   "missing_requirements": ["list of missing items to proceed"],
-  "route": "decision|summarize|improve",
+  "route": "decision|summarize|improve|deploy",
   "confidence": 0.85,
   "reasoning": "Brief explanation of analysis"
 }
@@ -71,6 +73,20 @@ Analyze the user query and current experiment context to understand:
 - Previous training attempt failed to meet target
 - Max improvement attempts NOT exceeded
 
+### Route to "deploy" when:
+- User explicitly requests deployment (e.g., "deploy to Lambda", "create Gradio demo")
+- Model training complete and ready for serving
+- User mentions: litserve, gradio, lambda, torchserve, kserve, serverless, kubernetes, demo, inference, serving
+
+## Deployment Target Detection
+
+Detect deployment_target from keywords in query:
+- **litserve**: "litserve", "high throughput", "batching", "gpu scaling", "fast inference"
+- **gradio**: "gradio", "demo", "prototype", "ui", "interface", "hugging face", "hf spaces"
+- **fastapi_lambda**: "lambda", "serverless", "aws", "pay per use", "fastapi", "cdk"
+- **torchserve**: "torchserve", "production", "model versioning", "enterprise", "mar"
+- **kserve**: "kserve", "kubernetes", "k8s", "inference service", "canary", "knative"
+
 ## Stage Detection Rules
 
 1. **setup** → No configs/ directory, no .dvc, first interaction
@@ -79,7 +95,8 @@ Analyze the user query and current experiment context to understand:
 4. **training** → MLflow run active, training in progress
 5. **evaluation** → Training complete, checking metrics
 6. **improvement** → Accuracy below threshold, suggesting changes
-7. **deploy** → Building Docker, creating GitHub workflow
+7. **cicd** → Building Docker, creating GitHub workflow
+8. **deploy** → Creating deployment artifacts (LitServe, Gradio, Lambda, TorchServe, KServe)
 
 ## Important Guidelines
 

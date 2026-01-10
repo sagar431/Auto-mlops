@@ -53,3 +53,55 @@ profiles:
     docker:
       multi_stage: true
       optimize_size: true
+
+# Deployment configuration (Phase 4)
+deployment:
+  targets:
+    litserve:
+      default_batch_size: 64
+      default_workers: 4
+      batch_timeout: 0.05
+      accelerator: "auto"  # cpu, gpu, auto
+      port: 8000
+
+    gradio:
+      share: false
+      server_port: 7860
+      cache_examples: true
+      theme: "default"
+
+    fastapi_lambda:
+      memory_size: 1024
+      timeout: 30
+      runtime: "python3.11"
+      port: 8080
+      stage: "prod"
+
+    torchserve:
+      inference_port: 8080
+      management_port: 8081
+      metrics_port: 8082
+      default_workers: 1
+      batch_size: 1
+
+    kserve:
+      min_replicas: 1
+      max_replicas: 5
+      target_utilization: 80
+      scale_to_zero: true
+      scale_to_zero_grace_period: "30s"
+      cpu_request: "100m"
+      cpu_limit: "1"
+      memory_request: "256Mi"
+      memory_limit: "1Gi"
+
+  # Version defaults
+  versions:
+    litserve: "0.2.0"
+    gradio: "4.0.0"
+    fastapi: "0.109.0"
+    uvicorn: "0.27.0"
+    torchserve: "0.9.0"
+    torch_model_archiver: "0.9.0"
+    torch: "2.1.0"
+    torchvision: "0.16.0"

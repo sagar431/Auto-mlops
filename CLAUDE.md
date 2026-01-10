@@ -18,13 +18,13 @@ cp .env.example .env       # Set up environment variables
 ### Testing
 ```bash
 python test_mlops_tools.py                  # Run all MCP tool tests
-python test_mlops_tools.py --tool hydra     # Test specific category: hydra, mlflow, dvc, docker, github, training
+python test_mlops_tools.py --tool hydra     # Test specific category: hydra, mlflow, dvc, docker, github, training, deployment
 pytest                                       # Run pytest suite
 ```
 
 ### Running the MCP Server
 ```bash
-python mcp_mlops_tools.py   # Runs the MCP server with 28 MLOps tools
+python mcp_mlops_tools.py   # Runs the MCP server with 39 MLOps tools (28 core + 11 deployment)
 ```
 
 ### Linting
@@ -50,15 +50,37 @@ Uses NetworkX DiGraph to track execution state:
 - Graph nodes represent steps with edges for dependencies
 
 ### MCP Tools (`mcp_mlops_tools.py`)
-28 tools organized by category:
+39 tools organized by category:
 - **Hydra (4)**: analyze_project_config, create_hydra_config, update_hydra_config, validate_hydra_config
 - **MLflow (8)**: init_mlflow_experiment, start_mlflow_run, log_mlflow_params/metrics/artifact, register_mlflow_model, get_best_mlflow_run, end_mlflow_run
 - **DVC (7)**: init_dvc_repo, configure_dvc_remote, add_data_to_dvc, create_dvc_pipeline, dvc_push/pull/reproduce
 - **Docker (4)**: create_ml_dockerfile, build_ml_docker_image, run_training_container, push_docker_image
 - **GitHub Actions (2)**: create_github_workflow, add_workflow_step
 - **Training Control (3)**: analyze_training_results, suggest_improvements, check_accuracy_threshold
+- **Deployment (11)**: See Deployment Tools section below
 
 Each tool uses Pydantic models for input validation (e.g., `CreateHydraConfigInput`).
+
+### Deployment Tools (Phase 4)
+11 new tools for multi-target deployment:
+
+| Target | Tools | Use Case |
+|--------|-------|----------|
+| **LitServe** | create_litserve_api, configure_litserver | High-throughput inference, batching, GPU autoscaling |
+| **Gradio** | create_gradio_interface, deploy_to_huggingface | Quick demos, prototypes, HF Spaces |
+| **FastAPI+Lambda** | create_fastapi_app, create_lambda_dockerfile, generate_cdk_stack | Serverless, pay-per-use, AWS deployment |
+| **TorchServe** | create_torchserve_handler, create_mar_archive, generate_torchserve_config | Enterprise production, model versioning |
+| **KServe** | create_inference_service_yaml, generate_kserve_config | Kubernetes-native, auto-scaling |
+
+### Deployment Templates (`templates/deployment/`)
+```
+templates/deployment/
+├── litserve/          # LitAPI server templates
+├── gradio/            # Gradio interface templates
+├── fastapi_lambda/    # FastAPI + Lambda + CDK templates
+├── torchserve/        # Handler + MAR packaging templates
+└── kserve/            # InferenceService YAML templates
+```
 
 ### Prompt Templates (`prompts/`)
 LLM prompts that drive agent behavior:
@@ -66,6 +88,7 @@ LLM prompts that drive agent behavior:
 - `decision_prompt.txt` - Execution plan generation with tool dependencies
 - `improvement_prompt.txt` - Hyperparameter adjustment suggestions
 - `summarizer_prompt.txt` - Final report generation
+- `deployment_selector_prompt.txt` - Deployment target recommendation based on model/infra requirements
 
 ### Model Manager (`agent/model_manager.py`)
 Handles LLM provider abstraction (OpenAI, Google). Use `get_model_manager()` to get singleton instance.
@@ -111,6 +134,14 @@ Perception routes to:
 - `decision` - Need to plan/execute steps
 - `summarize` - Goal achieved or accuracy threshold met
 - `improve` - Training complete but below threshold
+- `deploy` - Model ready, user requests deployment
+
+### Deployment Flow
+When `pipeline_stage == "deploy"`:
+1. Perception detects deployment intent and target (litserve/gradio/lambda/torchserve/kserve)
+2. Decision generates tool chain for chosen target
+3. Action executes deployment tools (create templates, configs, Dockerfiles)
+4. Summarization provides deployment instructions and next steps
 
 ## Running the Agent
 
@@ -170,6 +201,10 @@ AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, DVC_REMOTE_URL  # DVC S3
 DOCKER_REGISTRY, DOCKER_USERNAME       # Docker
 DEFAULT_ACCURACY_THRESHOLD=0.85        # Training target
 MAX_IMPROVEMENT_ATTEMPTS=3             # Retry limit
+
+# Deployment (Phase 4)
+HF_TOKEN                               # Hugging Face token for Spaces deployment
+AWS_ACCOUNT_ID, AWS_REGION             # AWS Lambda/CDK deployment
 ```
 
 ## Development Status
@@ -179,3 +214,31 @@ MAX_IMPROVEMENT_ATTEMPTS=3             # Retry limit
 - FastAPI server with REST and WebSocket endpoints
 - Rich console output with progress tracking
 - Real-time event streaming for UI integration
+
+**Phase 4 Complete** - Multi-Deployment Target Selection:
+- [x] Templates: LitServe, Gradio, FastAPI+Lambda, TorchServe, KServe
+- [x] 11 new deployment MCP tools
+- [x] deployment_selector_prompt.txt for target recommendation
+- [x] Perception updates for deployment intent detection
+- [x] Decision updates with deployment tool chains
+- [ ] End-to-end: train → deploy flow (testing)
+
+### Deployment Targets
+
+| Target | Best For | Key Features |
+|--------|----------|--------------|
+| **LitServe** | High-throughput (1000+ req/sec) | Batching, GPU autoscaling, streaming |
+| **Gradio** | Demos & prototypes | Simple UI, instant sharing, HF Spaces |
+| **FastAPI+Lambda** | Serverless, variable traffic | Pay-per-use, auto-scaling, CPU-only |
+| **TorchServe** | Enterprise production | Model versioning, .mar packaging, hot-swap |
+| **KServe** | Kubernetes-native | InferenceService, canary deployments |
+
+### Example Deployment Flow
+```
+User: "Deploy my cat-dog classifier to AWS Lambda"
+
+Perception → {pipeline_stage: "deploy", deployment_target: "fastapi_lambda"}
+Decision  → [create_fastapi_app, create_lambda_dockerfile, generate_cdk_stack]
+Action    → Creates app.py, Dockerfile, cdk.py
+Summary   → "Run `cdk deploy` to deploy to AWS Lambda"
+```

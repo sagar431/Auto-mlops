@@ -301,6 +301,130 @@ class CheckAccuracyThresholdInput(BaseModel):
     metric_name: str = Field(default="accuracy", description="Metric name to check")
 
 
+# --- Deployment Tools (Phase 4) ---
+
+# LitServe Tools
+class CreateLitserveAPIInput(BaseModel):
+    """Create LitServe API for model serving."""
+    project_path: str = Field(..., description="Path to the project")
+    model_path: str = Field(..., description="Path to the model file (relative to project)")
+    model_name: str = Field(..., description="Name for the model/API")
+    model_type: str = Field(default="image_classifier", description="Model type: image_classifier, text_classifier, object_detection")
+    class_labels: Optional[List[str]] = Field(default=None, description="List of class labels")
+
+
+class ConfigureLitserverInput(BaseModel):
+    """Configure LitServe server settings."""
+    project_path: str = Field(..., description="Path to the project")
+    max_batch_size: int = Field(default=64, description="Maximum batch size for inference")
+    batch_timeout: float = Field(default=0.05, description="Batch timeout in seconds")
+    workers_per_device: int = Field(default=4, description="Number of workers per device")
+    accelerator: str = Field(default="auto", description="Accelerator: cpu, gpu, auto")
+    port: int = Field(default=8000, description="Server port")
+
+
+# Gradio Tools
+class CreateGradioInterfaceInput(BaseModel):
+    """Create Gradio interface for model demo."""
+    project_path: str = Field(..., description="Path to the project")
+    model_path: str = Field(..., description="Path to the model file")
+    model_name: str = Field(..., description="Name for the model")
+    interface_type: str = Field(default="image_classifier", description="Interface type: image_classifier, text_classifier, audio, custom")
+    title: str = Field(default="ML Model Demo", description="Interface title")
+    description: Optional[str] = Field(default=None, description="Interface description")
+    examples: Optional[List[str]] = Field(default=None, description="Example inputs")
+    share: bool = Field(default=False, description="Create public share link")
+
+
+class DeployToHuggingfaceInput(BaseModel):
+    """Deploy Gradio app to Hugging Face Spaces."""
+    project_path: str = Field(..., description="Path to the project")
+    space_name: str = Field(..., description="Name for the HF Space")
+    hf_token: Optional[str] = Field(default=None, description="HF token (uses env var if not provided)")
+    private: bool = Field(default=False, description="Create private space")
+
+
+# FastAPI + Lambda Tools
+class CreateFastAPIAppInput(BaseModel):
+    """Create FastAPI application for model serving."""
+    project_path: str = Field(..., description="Path to the project")
+    model_path: str = Field(..., description="Path to the model file")
+    model_name: str = Field(..., description="Name for the model")
+    endpoint_type: str = Field(default="image", description="Endpoint type: image, text, json")
+    title: str = Field(default="ML Inference API", description="API title")
+
+
+class CreateLambdaDockerfileInput(BaseModel):
+    """Create Dockerfile for AWS Lambda deployment."""
+    project_path: str = Field(..., description="Path to the project")
+    python_version: str = Field(default="3.11", description="Python version")
+    model_file: str = Field(default="model.pt", description="Model file name")
+    port: int = Field(default=8080, description="Container port")
+
+
+class GenerateCDKStackInput(BaseModel):
+    """Generate AWS CDK stack for Lambda deployment."""
+    project_path: str = Field(..., description="Path to the project")
+    stack_name: str = Field(..., description="CDK stack name")
+    model_name: str = Field(..., description="Model name")
+    memory_size: int = Field(default=1024, description="Lambda memory in MB")
+    timeout: int = Field(default=30, description="Lambda timeout in seconds")
+    stage: str = Field(default="prod", description="Deployment stage")
+
+
+# TorchServe Tools
+class CreateTorchserveHandlerInput(BaseModel):
+    """Create TorchServe custom handler."""
+    project_path: str = Field(..., description="Path to the project")
+    model_path: str = Field(..., description="Path to the model file")
+    model_name: str = Field(..., description="Name for the model")
+    handler_type: str = Field(default="image_classifier", description="Handler type: image_classifier, text_classifier, object_detection")
+
+
+class CreateMARArchiveInput(BaseModel):
+    """Create TorchServe MAR (Model Archive) file."""
+    project_path: str = Field(..., description="Path to the project")
+    model_name: str = Field(..., description="Model name")
+    model_file: str = Field(..., description="Model file path")
+    handler_file: str = Field(default="handler.py", description="Handler file path")
+    version: str = Field(default="1.0", description="Model version")
+    extra_files: Optional[List[str]] = Field(default=None, description="Extra files to include")
+
+
+class GenerateTorchserveConfigInput(BaseModel):
+    """Generate TorchServe configuration."""
+    project_path: str = Field(..., description="Path to the project")
+    model_name: str = Field(..., description="Model name")
+    inference_port: int = Field(default=8080, description="Inference API port")
+    management_port: int = Field(default=8081, description="Management API port")
+    metrics_port: int = Field(default=8082, description="Metrics port")
+    workers: int = Field(default=1, description="Number of workers per model")
+
+
+# KServe Tools
+class CreateInferenceServiceYAMLInput(BaseModel):
+    """Create KServe InferenceService YAML."""
+    project_path: str = Field(..., description="Path to the project")
+    service_name: str = Field(..., description="InferenceService name")
+    model_name: str = Field(..., description="Model name")
+    storage_uri: str = Field(..., description="Model storage URI (gs://, s3://, etc.)")
+    namespace: str = Field(default="default", description="Kubernetes namespace")
+    runtime: str = Field(default="pytorch", description="Runtime: pytorch, tensorflow, sklearn, custom")
+    min_replicas: int = Field(default=1, description="Minimum replicas")
+    max_replicas: int = Field(default=5, description="Maximum replicas")
+
+
+class GenerateKServeConfigInput(BaseModel):
+    """Generate KServe configuration."""
+    project_path: str = Field(..., description="Path to the project")
+    service_name: str = Field(..., description="Service name")
+    min_replicas: int = Field(default=1, description="Minimum replicas")
+    max_replicas: int = Field(default=5, description="Maximum replicas")
+    target_utilization: int = Field(default=80, description="Target CPU utilization %")
+    gpu_enabled: bool = Field(default=False, description="Enable GPU")
+    gpu_count: int = Field(default=1, description="Number of GPUs")
+
+
 # ============================================================================
 # Tool Implementation Functions
 # ============================================================================
@@ -1566,11 +1690,1035 @@ def check_accuracy_threshold(
             "gap": threshold - current_value if not threshold_met else 0,
             "message": f"{'✅ Threshold met!' if threshold_met else f'❌ Below threshold by {threshold - current_value:.2%}'}"
         }
-        
+
     except ImportError:
         return {"success": False, "error": "MLflow not installed"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+# --- Deployment Tools (Phase 4) ---
+
+def load_template(template_path: str) -> str:
+    """Load a template file."""
+    path = Path(__file__).parent / template_path
+    if path.exists():
+        return path.read_text()
+    return ""
+
+
+def render_template(template: str, variables: Dict[str, Any]) -> str:
+    """Simple template rendering with ${var} syntax."""
+    result = template
+    for key, value in variables.items():
+        result = result.replace(f"${{{key}}}", str(value))
+    return result
+
+
+# LitServe Tools
+def create_litserve_api(
+    project_path: str,
+    model_path: str,
+    model_name: str,
+    model_type: str = "image_classifier",
+    class_labels: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """Create LitServe API for model serving."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    # Create deployment directory
+    deploy_dir = ensure_directory(path / "deployment" / "litserve")
+
+    # Generate class name from model name
+    class_name = "".join(word.capitalize() for word in model_name.replace("-", "_").split("_"))
+
+    # Prepare template variables based on model type
+    if model_type == "image_classifier":
+        transforms_code = """from torchvision import transforms
+        self.transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])"""
+        decode_code = """image_data = request.get("image")
+        if isinstance(image_data, str):
+            image_bytes = base64.b64decode(image_data)
+            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        else:
+            image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        return self.transform(image).unsqueeze(0).to(self.device)"""
+        encode_code = """probs = torch.softmax(output, dim=1)
+        confidence, predicted = torch.max(probs, 1)
+        label = self.labels[predicted.item()] if self.labels else str(predicted.item())
+        return {"class": label, "confidence": confidence.item()}"""
+        labels_code = f"self.labels = {class_labels or []}"
+    else:
+        transforms_code = "# Add custom transforms here"
+        decode_code = "return request"
+        encode_code = "return {'output': output.tolist()}"
+        labels_code = "self.labels = None"
+
+    # Generate server code
+    server_code = f'''"""LitServe Server for {model_name}
+
+Auto-generated by MLOps Agent
+"""
+import torch
+import litserve as ls
+from PIL import Image
+import io
+import base64
+from typing import Any
+
+
+class {class_name}API(ls.LitAPI):
+    """LitServe API for {model_name}"""
+
+    def setup(self, device: str) -> None:
+        """Initialize model and components."""
+        self.device = device
+        self.model = torch.jit.load("{model_path}")
+        self.model = self.model.to(device)
+        self.model.eval()
+
+        {transforms_code}
+        {labels_code}
+
+    def decode_request(self, request: dict) -> Any:
+        """Convert HTTP request to model input."""
+        {decode_code}
+
+    def predict(self, x: torch.Tensor) -> torch.Tensor:
+        """Run model inference."""
+        with torch.no_grad():
+            return self.model(x)
+
+    def encode_response(self, output: torch.Tensor) -> dict:
+        """Convert model output to HTTP response."""
+        {encode_code}
+
+
+if __name__ == "__main__":
+    api = {class_name}API()
+    server = ls.LitServer(
+        api,
+        accelerator="auto",
+        max_batch_size=64,
+        batch_timeout=0.05,
+        workers_per_device=4
+    )
+    server.run(port=8000)
+'''
+
+    # Write server file
+    server_path = deploy_dir / "server.py"
+    with open(server_path, "w") as f:
+        f.write(server_code)
+
+    # Write requirements
+    requirements = """litserve>=0.2.0
+torch>=2.1.0
+torchvision>=0.16.0
+Pillow>=10.0.0
+"""
+    req_path = deploy_dir / "requirements.txt"
+    with open(req_path, "w") as f:
+        f.write(requirements)
+
+    return {
+        "success": True,
+        "server_path": str(server_path),
+        "requirements_path": str(req_path),
+        "class_name": f"{class_name}API",
+        "message": f"LitServe API created at {deploy_dir}"
+    }
+
+
+def configure_litserver(
+    project_path: str,
+    max_batch_size: int = 64,
+    batch_timeout: float = 0.05,
+    workers_per_device: int = 4,
+    accelerator: str = "auto",
+    port: int = 8000
+) -> Dict[str, Any]:
+    """Configure LitServe server settings."""
+    path = Path(project_path)
+    deploy_dir = path / "deployment" / "litserve"
+    server_path = deploy_dir / "server.py"
+
+    if not server_path.exists():
+        return {"success": False, "error": "LitServe server.py not found. Run create_litserve_api first."}
+
+    # Read and update server configuration
+    content = server_path.read_text()
+
+    # Update server configuration
+    old_config = 'accelerator="auto"'
+    new_config = f'accelerator="{accelerator}"'
+    content = content.replace(old_config, new_config)
+
+    content = content.replace("max_batch_size=64", f"max_batch_size={max_batch_size}")
+    content = content.replace("batch_timeout=0.05", f"batch_timeout={batch_timeout}")
+    content = content.replace("workers_per_device=4", f"workers_per_device={workers_per_device}")
+    content = content.replace("port=8000", f"port={port}")
+
+    with open(server_path, "w") as f:
+        f.write(content)
+
+    return {
+        "success": True,
+        "server_path": str(server_path),
+        "config": {
+            "max_batch_size": max_batch_size,
+            "batch_timeout": batch_timeout,
+            "workers_per_device": workers_per_device,
+            "accelerator": accelerator,
+            "port": port
+        },
+        "message": "LitServe configuration updated"
+    }
+
+
+# Gradio Tools
+def create_gradio_interface(
+    project_path: str,
+    model_path: str,
+    model_name: str,
+    interface_type: str = "image_classifier",
+    title: str = "ML Model Demo",
+    description: Optional[str] = None,
+    examples: Optional[List[str]] = None,
+    share: bool = False
+) -> Dict[str, Any]:
+    """Create Gradio interface for model demo."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    deploy_dir = ensure_directory(path / "deployment" / "gradio")
+    class_name = "".join(word.capitalize() for word in model_name.replace("-", "_").split("_"))
+
+    # Configure based on interface type
+    if interface_type == "image_classifier":
+        inputs = 'gr.Image(type="pil")'
+        outputs = 'gr.Label(num_top_classes=5)'
+        predict_code = """image = self.transform(image).unsqueeze(0).to(self.device)
+        output = self.model(image)
+        probs = torch.softmax(output, dim=1)[0]
+        return {self.labels[i]: float(probs[i]) for i in range(len(self.labels))}"""
+        setup_code = """from torchvision import transforms
+        self.transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+        self.labels = ["class_0", "class_1"]  # Update with actual labels"""
+        input_params = "image"
+    elif interface_type == "text_classifier":
+        inputs = 'gr.Textbox(lines=3, placeholder="Enter text...")'
+        outputs = 'gr.Label(num_top_classes=5)'
+        predict_code = """# Tokenize and predict
+        return {"positive": 0.8, "negative": 0.2}  # Update with actual prediction"""
+        setup_code = "# Add tokenizer setup here"
+        input_params = "text"
+    else:
+        inputs = 'gr.Textbox()'
+        outputs = 'gr.JSON()'
+        predict_code = "return {'result': 'prediction'}"
+        setup_code = "pass"
+        input_params = "input_data"
+
+    app_code = f'''"""Gradio Interface for {model_name}
+
+Auto-generated by MLOps Agent
+"""
+import gradio as gr
+import torch
+from PIL import Image
+from typing import Any
+
+
+class {class_name}:
+    """Model wrapper for Gradio interface"""
+
+    def __init__(self, model_path: str = "{model_path}"):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = torch.jit.load(model_path)
+        self.model = self.model.to(self.device)
+        self.model.eval()
+        {setup_code}
+
+    @torch.no_grad()
+    def predict(self, {input_params}) -> Any:
+        """Run prediction."""
+        {predict_code}
+
+
+# Create model instance
+model = {class_name}()
+
+# Create Gradio interface
+demo = gr.Interface(
+    fn=model.predict,
+    inputs={inputs},
+    outputs={outputs},
+    title="{title}",
+    description="{description or f'Demo for {model_name}'}",
+    examples={examples or []},
+    cache_examples=True
+)
+
+if __name__ == "__main__":
+    demo.launch(server_name="0.0.0.0", server_port=7860, share={share})
+'''
+
+    app_path = deploy_dir / "app.py"
+    with open(app_path, "w") as f:
+        f.write(app_code)
+
+    # Requirements
+    requirements = """gradio>=4.0.0
+torch>=2.1.0
+torchvision>=0.16.0
+Pillow>=10.0.0
+"""
+    req_path = deploy_dir / "requirements.txt"
+    with open(req_path, "w") as f:
+        f.write(requirements)
+
+    return {
+        "success": True,
+        "app_path": str(app_path),
+        "requirements_path": str(req_path),
+        "interface_type": interface_type,
+        "message": f"Gradio interface created at {deploy_dir}"
+    }
+
+
+def deploy_to_huggingface(
+    project_path: str,
+    space_name: str,
+    hf_token: Optional[str] = None,
+    private: bool = False
+) -> Dict[str, Any]:
+    """Deploy Gradio app to Hugging Face Spaces."""
+    path = Path(project_path)
+    deploy_dir = path / "deployment" / "gradio"
+
+    if not (deploy_dir / "app.py").exists():
+        return {"success": False, "error": "Gradio app.py not found. Run create_gradio_interface first."}
+
+    token = hf_token or os.environ.get("HF_TOKEN")
+    if not token:
+        return {"success": False, "error": "HF_TOKEN not provided. Set environment variable or pass hf_token."}
+
+    # Create README for HF Spaces
+    readme_content = f"""---
+title: {space_name}
+emoji: 🤖
+colorFrom: blue
+colorTo: purple
+sdk: gradio
+sdk_version: 4.0.0
+app_file: app.py
+pinned: false
+---
+
+# {space_name}
+
+Auto-generated by MLOps Agent.
+"""
+
+    readme_path = deploy_dir / "README.md"
+    with open(readme_path, "w") as f:
+        f.write(readme_content)
+
+    # Create deployment script
+    deploy_script = f"""#!/bin/bash
+# Deploy to Hugging Face Spaces
+# Run: bash deploy_hf.sh
+
+cd {deploy_dir}
+
+# Initialize git if needed
+if [ ! -d .git ]; then
+    git init
+    git branch -M main
+fi
+
+# Add HF remote
+git remote remove hf 2>/dev/null || true
+git remote add hf https://huggingface.co/spaces/$HF_USERNAME/{space_name}
+
+# Add and commit
+git add .
+git commit -m "Deploy to HF Spaces"
+
+# Push
+git push hf main --force
+
+echo "Deployed to: https://huggingface.co/spaces/$HF_USERNAME/{space_name}"
+"""
+
+    script_path = deploy_dir / "deploy_hf.sh"
+    with open(script_path, "w") as f:
+        f.write(deploy_script)
+
+    return {
+        "success": True,
+        "space_name": space_name,
+        "deploy_dir": str(deploy_dir),
+        "deploy_script": str(script_path),
+        "readme_path": str(readme_path),
+        "message": f"HF Spaces deployment prepared. Run: bash {script_path}"
+    }
+
+
+# FastAPI + Lambda Tools
+def create_fastapi_app(
+    project_path: str,
+    model_path: str,
+    model_name: str,
+    endpoint_type: str = "image",
+    title: str = "ML Inference API"
+) -> Dict[str, Any]:
+    """Create FastAPI application for model serving."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    deploy_dir = ensure_directory(path / "deployment" / "fastapi_lambda")
+
+    # Configure based on endpoint type
+    if endpoint_type == "image":
+        endpoint_code = """@app.post("/predict")
+async def predict(file: UploadFile = File(...)):
+    \"\"\"Run prediction on uploaded image.\"\"\"
+    try:
+        image_bytes = await file.read()
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        input_tensor = transform(image).unsqueeze(0).to(device)
+
+        with torch.no_grad():
+            output = model(input_tensor)
+            probs = torch.softmax(output, dim=1)[0]
+            confidence, predicted = torch.max(probs, 0)
+
+        return {
+            "class": int(predicted),
+            "confidence": float(confidence),
+            "probabilities": probs.tolist()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))"""
+        setup_code = """from torchvision import transforms
+
+transform = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])"""
+    else:
+        endpoint_code = """@app.post("/predict")
+async def predict(data: dict):
+    \"\"\"Run prediction on input data.\"\"\"
+    try:
+        # Process input
+        with torch.no_grad():
+            output = model(data)
+        return {"result": output}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))"""
+        setup_code = "# Add custom preprocessing here"
+
+    app_code = f'''"""FastAPI Application for {model_name} - Lambda Ready
+
+Auto-generated by MLOps Agent
+"""
+import io
+import torch
+from PIL import Image
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(title="{title}", description="Inference API for {model_name}")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Load model
+device = torch.device("cpu")  # Lambda is CPU-only
+model = torch.jit.load("{model_path}")
+model.to(device)
+model.eval()
+
+{setup_code}
+
+
+@app.get("/health")
+async def health():
+    """Health check endpoint."""
+    return {{"status": "healthy", "model": "{model_name}"}}
+
+
+{endpoint_code}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8080)
+'''
+
+    app_path = deploy_dir / "app.py"
+    with open(app_path, "w") as f:
+        f.write(app_code)
+
+    # Requirements
+    requirements = """fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+mangum>=0.17.0
+torch>=2.1.0
+torchvision>=0.16.0
+Pillow>=10.0.0
+python-multipart>=0.0.6
+"""
+    req_path = deploy_dir / "requirements.txt"
+    with open(req_path, "w") as f:
+        f.write(requirements)
+
+    return {
+        "success": True,
+        "app_path": str(app_path),
+        "requirements_path": str(req_path),
+        "endpoint_type": endpoint_type,
+        "message": f"FastAPI app created at {deploy_dir}"
+    }
+
+
+def create_lambda_dockerfile(
+    project_path: str,
+    python_version: str = "3.11",
+    model_file: str = "model.pt",
+    port: int = 8080
+) -> Dict[str, Any]:
+    """Create Dockerfile for AWS Lambda deployment."""
+    path = Path(project_path)
+    deploy_dir = path / "deployment" / "fastapi_lambda"
+
+    if not deploy_dir.exists():
+        return {"success": False, "error": "FastAPI deployment directory not found."}
+
+    dockerfile_content = f"""# Lambda-ready Dockerfile
+# Auto-generated by MLOps Agent
+
+FROM public.ecr.aws/docker/library/python:{python_version}-slim
+
+# Copy Lambda Web Adapter
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
+
+ENV PORT={port}
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /var/task
+
+# Install dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application
+COPY app.py ./
+COPY {model_file} ./
+
+CMD exec uvicorn --host 0.0.0.0 --port $PORT app:app
+"""
+
+    dockerfile_path = deploy_dir / "Dockerfile"
+    with open(dockerfile_path, "w") as f:
+        f.write(dockerfile_content)
+
+    # Create .dockerignore
+    dockerignore = """__pycache__/
+*.pyc
+.git/
+.env
+*.log
+"""
+    with open(deploy_dir / ".dockerignore", "w") as f:
+        f.write(dockerignore)
+
+    return {
+        "success": True,
+        "dockerfile_path": str(dockerfile_path),
+        "python_version": python_version,
+        "port": port,
+        "message": f"Lambda Dockerfile created at {dockerfile_path}"
+    }
+
+
+def generate_cdk_stack(
+    project_path: str,
+    stack_name: str,
+    model_name: str,
+    memory_size: int = 1024,
+    timeout: int = 30,
+    stage: str = "prod"
+) -> Dict[str, Any]:
+    """Generate AWS CDK stack for Lambda deployment."""
+    path = Path(project_path)
+    deploy_dir = path / "deployment" / "fastapi_lambda"
+
+    if not deploy_dir.exists():
+        return {"success": False, "error": "FastAPI deployment directory not found."}
+
+    stack_class = "".join(word.capitalize() for word in stack_name.replace("-", "_").split("_"))
+
+    cdk_code = f'''"""AWS CDK Stack for {model_name} Lambda Deployment
+
+Auto-generated by MLOps Agent
+Deploy with: cdk deploy
+"""
+from aws_cdk import (
+    Stack,
+    Duration,
+    aws_lambda as lambda_,
+    aws_ecr_assets as ecr_assets,
+    aws_apigateway as apigw,
+    aws_logs as logs,
+    CfnOutput,
+)
+from constructs import Construct
+
+
+class {stack_class}Stack(Stack):
+    """CDK Stack for {model_name}"""
+
+    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+        super().__init__(scope, construct_id, **kwargs)
+
+        # Build Docker image
+        docker_image = ecr_assets.DockerImageAsset(
+            self, "{model_name}Image",
+            directory=".",
+        )
+
+        # Lambda function
+        inference_function = lambda_.DockerImageFunction(
+            self, "{model_name}Function",
+            code=lambda_.DockerImageCode.from_ecr(
+                repository=docker_image.repository,
+                tag_or_digest=docker_image.asset_hash,
+            ),
+            memory_size={memory_size},
+            timeout=Duration.seconds({timeout}),
+            environment={{"MODEL_NAME": "{model_name}"}},
+            log_retention=logs.RetentionDays.ONE_WEEK,
+        )
+
+        # API Gateway
+        api = apigw.LambdaRestApi(
+            self, "{model_name}Api",
+            handler=inference_function,
+            proxy=True,
+            deploy_options=apigw.StageOptions(stage_name="{stage}"),
+        )
+
+        CfnOutput(self, "ApiEndpoint", value=api.url)
+        CfnOutput(self, "FunctionArn", value=inference_function.function_arn)
+'''
+
+    cdk_path = deploy_dir / "cdk_stack.py"
+    with open(cdk_path, "w") as f:
+        f.write(cdk_code)
+
+    # Create cdk.json
+    cdk_json = {
+        "app": f"python3 cdk_stack.py",
+        "context": {
+            "@aws-cdk/core:stackRelativeExports": True
+        }
+    }
+    with open(deploy_dir / "cdk.json", "w") as f:
+        json.dump(cdk_json, f, indent=2)
+
+    return {
+        "success": True,
+        "cdk_stack_path": str(cdk_path),
+        "stack_name": stack_name,
+        "memory_size": memory_size,
+        "timeout": timeout,
+        "message": f"CDK stack created. Deploy with: cd {deploy_dir} && cdk deploy"
+    }
+
+
+# TorchServe Tools
+def create_torchserve_handler(
+    project_path: str,
+    model_path: str,
+    model_name: str,
+    handler_type: str = "image_classifier"
+) -> Dict[str, Any]:
+    """Create TorchServe custom handler."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    deploy_dir = ensure_directory(path / "deployment" / "torchserve")
+    class_name = "".join(word.capitalize() for word in model_name.replace("-", "_").split("_"))
+    model_file = Path(model_path).name
+
+    # Configure based on handler type
+    if handler_type == "image_classifier":
+        init_code = """from torchvision import transforms
+        self.transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])"""
+        preprocess_code = """images = []
+        for row in data:
+            image = row.get("data") or row.get("body")
+            if isinstance(image, (bytes, bytearray)):
+                image = Image.open(io.BytesIO(image)).convert("RGB")
+            images.append(self.transform(image))
+        return torch.stack(images).to(self.device)"""
+        postprocess_code = """probs = torch.softmax(inference_output, dim=1)
+        results = []
+        for prob in probs:
+            conf, pred = torch.max(prob, 0)
+            results.append({"class": int(pred), "confidence": float(conf)})
+        return results"""
+    else:
+        init_code = "pass"
+        preprocess_code = "return data"
+        postprocess_code = "return inference_output.tolist()"
+
+    handler_code = f'''"""TorchServe Handler for {model_name}
+
+Auto-generated by MLOps Agent
+"""
+import torch
+import io
+import logging
+from PIL import Image
+from ts.torch_handler.base_handler import BaseHandler
+from typing import List, Dict, Any
+
+logger = logging.getLogger(__name__)
+
+
+class {class_name}Handler(BaseHandler):
+    """TorchServe handler for {model_name}"""
+
+    def __init__(self):
+        super().__init__()
+        self.initialized = False
+
+    def initialize(self, context) -> None:
+        """Initialize model."""
+        self.manifest = context.manifest
+        properties = context.system_properties
+        model_dir = properties.get("model_dir")
+
+        self.device = torch.device(
+            "cuda:" + str(properties.get("gpu_id"))
+            if torch.cuda.is_available() and properties.get("gpu_id") is not None
+            else "cpu"
+        )
+
+        self.model = torch.jit.load(f"{{model_dir}}/{model_file}")
+        self.model.to(self.device)
+        self.model.eval()
+
+        {init_code}
+
+        self.initialized = True
+        logger.info(f"Model loaded on {{self.device}}")
+
+    def preprocess(self, data: List[Dict]) -> torch.Tensor:
+        """Preprocess input data."""
+        {preprocess_code}
+
+    def inference(self, data: torch.Tensor, *args, **kwargs) -> torch.Tensor:
+        """Run inference."""
+        with torch.no_grad():
+            return self.model(data)
+
+    def postprocess(self, inference_output: torch.Tensor) -> List[Dict[str, Any]]:
+        """Postprocess output."""
+        {postprocess_code}
+'''
+
+    handler_path = deploy_dir / "handler.py"
+    with open(handler_path, "w") as f:
+        f.write(handler_code)
+
+    return {
+        "success": True,
+        "handler_path": str(handler_path),
+        "handler_type": handler_type,
+        "class_name": f"{class_name}Handler",
+        "message": f"TorchServe handler created at {handler_path}"
+    }
+
+
+def create_mar_archive(
+    project_path: str,
+    model_name: str,
+    model_file: str,
+    handler_file: str = "handler.py",
+    version: str = "1.0",
+    extra_files: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """Create TorchServe MAR (Model Archive) file."""
+    path = Path(project_path)
+    deploy_dir = path / "deployment" / "torchserve"
+
+    if not deploy_dir.exists():
+        return {"success": False, "error": "TorchServe deployment directory not found."}
+
+    # Create MAR build script
+    extra_files_arg = ""
+    if extra_files:
+        extra_files_arg = f'--extra-files "{",".join(extra_files)}"'
+
+    script_content = f"""#!/bin/bash
+# Create MAR archive for {model_name}
+# Auto-generated by MLOps Agent
+
+set -e
+
+MODEL_NAME="{model_name}"
+VERSION="{version}"
+MODEL_FILE="{model_file}"
+HANDLER="{handler_file}"
+EXPORT_PATH="./model-store"
+
+mkdir -p $EXPORT_PATH
+
+echo "Creating MAR archive..."
+torch-model-archiver \\
+    --model-name "$MODEL_NAME" \\
+    --version "$VERSION" \\
+    --serialized-file "$MODEL_FILE" \\
+    --handler "$HANDLER" \\
+    --export-path "$EXPORT_PATH" \\
+    {extra_files_arg} \\
+    --force
+
+echo "MAR created: $EXPORT_PATH/$MODEL_NAME.mar"
+echo "Run: torchserve --start --model-store $EXPORT_PATH --models $MODEL_NAME=$MODEL_NAME.mar"
+"""
+
+    script_path = deploy_dir / "create_mar.sh"
+    with open(script_path, "w") as f:
+        f.write(script_content)
+
+    # Make executable
+    os.chmod(script_path, 0o755)
+
+    return {
+        "success": True,
+        "script_path": str(script_path),
+        "model_name": model_name,
+        "version": version,
+        "message": f"MAR build script created. Run: bash {script_path}"
+    }
+
+
+def generate_torchserve_config(
+    project_path: str,
+    model_name: str,
+    inference_port: int = 8080,
+    management_port: int = 8081,
+    metrics_port: int = 8082,
+    workers: int = 1
+) -> Dict[str, Any]:
+    """Generate TorchServe configuration."""
+    path = Path(project_path)
+    deploy_dir = path / "deployment" / "torchserve"
+
+    if not deploy_dir.exists():
+        ensure_directory(deploy_dir)
+
+    config_content = f"""# TorchServe Configuration for {model_name}
+# Auto-generated by MLOps Agent
+
+inference_address=http://0.0.0.0:{inference_port}
+management_address=http://0.0.0.0:{management_port}
+metrics_address=http://0.0.0.0:{metrics_port}
+
+number_of_netty_threads=4
+job_queue_size=100
+model_store=./model-store
+load_models={model_name}
+
+default_workers_per_model={workers}
+max_request_size=6553500
+
+async_logging=true
+"""
+
+    config_path = deploy_dir / "config.properties"
+    with open(config_path, "w") as f:
+        f.write(config_content)
+
+    return {
+        "success": True,
+        "config_path": str(config_path),
+        "ports": {
+            "inference": inference_port,
+            "management": management_port,
+            "metrics": metrics_port
+        },
+        "message": f"TorchServe config created at {config_path}"
+    }
+
+
+# KServe Tools
+def create_inference_service_yaml(
+    project_path: str,
+    service_name: str,
+    model_name: str,
+    storage_uri: str,
+    namespace: str = "default",
+    runtime: str = "pytorch",
+    min_replicas: int = 1,
+    max_replicas: int = 5
+) -> Dict[str, Any]:
+    """Create KServe InferenceService YAML."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    deploy_dir = ensure_directory(path / "deployment" / "kserve")
+
+    # Map runtime to KServe predictor
+    runtime_map = {
+        "pytorch": "pytorch",
+        "tensorflow": "tensorflow",
+        "sklearn": "sklearn",
+        "xgboost": "xgboost",
+        "onnx": "onnx"
+    }
+    predictor_runtime = runtime_map.get(runtime, "pytorch")
+
+    yaml_content = f"""# KServe InferenceService for {model_name}
+# Auto-generated by MLOps Agent
+
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: {service_name}
+  namespace: {namespace}
+  labels:
+    app: {service_name}
+spec:
+  predictor:
+    minReplicas: {min_replicas}
+    maxReplicas: {max_replicas}
+    {predictor_runtime}:
+      storageUri: "{storage_uri}"
+      resources:
+        limits:
+          cpu: "1"
+          memory: "2Gi"
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
+"""
+
+    yaml_path = deploy_dir / "inference_service.yaml"
+    with open(yaml_path, "w") as f:
+        f.write(yaml_content)
+
+    return {
+        "success": True,
+        "yaml_path": str(yaml_path),
+        "service_name": service_name,
+        "namespace": namespace,
+        "runtime": predictor_runtime,
+        "message": f"KServe InferenceService YAML created. Apply with: kubectl apply -f {yaml_path}"
+    }
+
+
+def generate_kserve_config(
+    project_path: str,
+    service_name: str,
+    min_replicas: int = 1,
+    max_replicas: int = 5,
+    target_utilization: int = 80,
+    gpu_enabled: bool = False,
+    gpu_count: int = 1
+) -> Dict[str, Any]:
+    """Generate KServe configuration."""
+    path = Path(project_path)
+    deploy_dir = path / "deployment" / "kserve"
+
+    if not deploy_dir.exists():
+        ensure_directory(deploy_dir)
+
+    gpu_config = ""
+    if gpu_enabled:
+        gpu_config = f"""
+gpu:
+  enabled: true
+  count: {gpu_count}
+  type: "nvidia.com/gpu"
+"""
+
+    config_content = f"""# KServe Configuration for {service_name}
+# Auto-generated by MLOps Agent
+
+service:
+  name: {service_name}
+
+scaling:
+  minReplicas: {min_replicas}
+  maxReplicas: {max_replicas}
+  targetUtilization: {target_utilization}
+  scaleToZero: true
+  scaleToZeroGracePeriod: "30s"
+
+resources:
+  cpu:
+    request: "100m"
+    limit: "1"
+  memory:
+    request: "256Mi"
+    limit: "2Gi"
+{gpu_config}
+"""
+
+    config_path = deploy_dir / "config.yaml"
+    with open(config_path, "w") as f:
+        f.write(config_content)
+
+    return {
+        "success": True,
+        "config_path": str(config_path),
+        "scaling": {
+            "min_replicas": min_replicas,
+            "max_replicas": max_replicas,
+            "target_utilization": target_utilization
+        },
+        "gpu_enabled": gpu_enabled,
+        "message": f"KServe config created at {config_path}"
+    }
 
 
 # ============================================================================
@@ -1734,6 +2882,77 @@ async def list_tools() -> list[Tool]:
             name="check_accuracy_threshold",
             description="Check if accuracy threshold is met in experiment",
             inputSchema=CheckAccuracyThresholdInput.model_json_schema()
+        ),
+
+        # Deployment Tools (Phase 4)
+        # LitServe
+        Tool(
+            name="create_litserve_api",
+            description="Create LitServe API for high-throughput model serving with batching and GPU support",
+            inputSchema=CreateLitserveAPIInput.model_json_schema()
+        ),
+        Tool(
+            name="configure_litserver",
+            description="Configure LitServe server settings (batch size, workers, accelerator)",
+            inputSchema=ConfigureLitserverInput.model_json_schema()
+        ),
+
+        # Gradio
+        Tool(
+            name="create_gradio_interface",
+            description="Create Gradio interface for quick model demos and prototypes",
+            inputSchema=CreateGradioInterfaceInput.model_json_schema()
+        ),
+        Tool(
+            name="deploy_to_huggingface",
+            description="Deploy Gradio app to Hugging Face Spaces",
+            inputSchema=DeployToHuggingfaceInput.model_json_schema()
+        ),
+
+        # FastAPI + Lambda
+        Tool(
+            name="create_fastapi_app",
+            description="Create FastAPI application for serverless model serving",
+            inputSchema=CreateFastAPIAppInput.model_json_schema()
+        ),
+        Tool(
+            name="create_lambda_dockerfile",
+            description="Create Dockerfile for AWS Lambda deployment with Lambda Web Adapter",
+            inputSchema=CreateLambdaDockerfileInput.model_json_schema()
+        ),
+        Tool(
+            name="generate_cdk_stack",
+            description="Generate AWS CDK stack for Lambda deployment with API Gateway",
+            inputSchema=GenerateCDKStackInput.model_json_schema()
+        ),
+
+        # TorchServe
+        Tool(
+            name="create_torchserve_handler",
+            description="Create TorchServe custom handler for enterprise model serving",
+            inputSchema=CreateTorchserveHandlerInput.model_json_schema()
+        ),
+        Tool(
+            name="create_mar_archive",
+            description="Create TorchServe MAR (Model Archive) build script",
+            inputSchema=CreateMARArchiveInput.model_json_schema()
+        ),
+        Tool(
+            name="generate_torchserve_config",
+            description="Generate TorchServe configuration (ports, workers)",
+            inputSchema=GenerateTorchserveConfigInput.model_json_schema()
+        ),
+
+        # KServe
+        Tool(
+            name="create_inference_service_yaml",
+            description="Create KServe InferenceService YAML for Kubernetes deployment",
+            inputSchema=CreateInferenceServiceYAMLInput.model_json_schema()
+        ),
+        Tool(
+            name="generate_kserve_config",
+            description="Generate KServe scaling and resource configuration",
+            inputSchema=GenerateKServeConfigInput.model_json_schema()
         ),
     ]
 
@@ -1958,7 +3177,142 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 input_data.threshold,
                 input_data.metric_name
             )
-        
+
+        # Deployment Tools (Phase 4)
+        # LitServe
+        elif name == "create_litserve_api":
+            input_data = CreateLitserveAPIInput(**arguments)
+            result = create_litserve_api(
+                input_data.project_path,
+                input_data.model_path,
+                input_data.model_name,
+                input_data.model_type,
+                input_data.class_labels
+            )
+
+        elif name == "configure_litserver":
+            input_data = ConfigureLitserverInput(**arguments)
+            result = configure_litserver(
+                input_data.project_path,
+                input_data.max_batch_size,
+                input_data.batch_timeout,
+                input_data.workers_per_device,
+                input_data.accelerator,
+                input_data.port
+            )
+
+        # Gradio
+        elif name == "create_gradio_interface":
+            input_data = CreateGradioInterfaceInput(**arguments)
+            result = create_gradio_interface(
+                input_data.project_path,
+                input_data.model_path,
+                input_data.model_name,
+                input_data.interface_type,
+                input_data.title,
+                input_data.description,
+                input_data.examples,
+                input_data.share
+            )
+
+        elif name == "deploy_to_huggingface":
+            input_data = DeployToHuggingfaceInput(**arguments)
+            result = deploy_to_huggingface(
+                input_data.project_path,
+                input_data.space_name,
+                input_data.hf_token,
+                input_data.private
+            )
+
+        # FastAPI + Lambda
+        elif name == "create_fastapi_app":
+            input_data = CreateFastAPIAppInput(**arguments)
+            result = create_fastapi_app(
+                input_data.project_path,
+                input_data.model_path,
+                input_data.model_name,
+                input_data.endpoint_type,
+                input_data.title
+            )
+
+        elif name == "create_lambda_dockerfile":
+            input_data = CreateLambdaDockerfileInput(**arguments)
+            result = create_lambda_dockerfile(
+                input_data.project_path,
+                input_data.python_version,
+                input_data.model_file,
+                input_data.port
+            )
+
+        elif name == "generate_cdk_stack":
+            input_data = GenerateCDKStackInput(**arguments)
+            result = generate_cdk_stack(
+                input_data.project_path,
+                input_data.stack_name,
+                input_data.model_name,
+                input_data.memory_size,
+                input_data.timeout,
+                input_data.stage
+            )
+
+        # TorchServe
+        elif name == "create_torchserve_handler":
+            input_data = CreateTorchserveHandlerInput(**arguments)
+            result = create_torchserve_handler(
+                input_data.project_path,
+                input_data.model_path,
+                input_data.model_name,
+                input_data.handler_type
+            )
+
+        elif name == "create_mar_archive":
+            input_data = CreateMARArchiveInput(**arguments)
+            result = create_mar_archive(
+                input_data.project_path,
+                input_data.model_name,
+                input_data.model_file,
+                input_data.handler_file,
+                input_data.version,
+                input_data.extra_files
+            )
+
+        elif name == "generate_torchserve_config":
+            input_data = GenerateTorchserveConfigInput(**arguments)
+            result = generate_torchserve_config(
+                input_data.project_path,
+                input_data.model_name,
+                input_data.inference_port,
+                input_data.management_port,
+                input_data.metrics_port,
+                input_data.workers
+            )
+
+        # KServe
+        elif name == "create_inference_service_yaml":
+            input_data = CreateInferenceServiceYAMLInput(**arguments)
+            result = create_inference_service_yaml(
+                input_data.project_path,
+                input_data.service_name,
+                input_data.model_name,
+                input_data.storage_uri,
+                input_data.namespace,
+                input_data.runtime,
+                input_data.min_replicas,
+                input_data.max_replicas
+            )
+
+        elif name == "generate_kserve_config":
+            input_data = GenerateKServeConfigInput(**arguments)
+            result = generate_kserve_config(
+                input_data.project_path,
+                input_data.service_name,
+                input_data.min_replicas,
+                input_data.max_replicas,
+                input_data.target_utilization,
+                input_data.gpu_enabled,
+                input_data.gpu_count
+            )
+
         else:
             result = {"error": f"Unknown tool: {name}"}
         
