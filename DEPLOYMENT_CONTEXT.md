@@ -511,7 +511,7 @@ deployment_patterns = {
 - [x] Create `prompts/deployment_selector_prompt.txt`
 - [x] Update perception prompt for deployment detection
 - [x] Update decision prompt with deployment tools
-- [ ] Add deployment stage to agent loop (requires agent_loop.py update)
+- [x] Add deployment stage to agent loop (agent_loop.py updated)
 
 ### Phase 4: Testing
 - [ ] Test each deployment template generation

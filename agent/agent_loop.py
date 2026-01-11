@@ -25,6 +25,7 @@ class Route:
     SUMMARIZE = "summarize"
     DECISION = "decision"
     IMPROVE = "improve"
+    DEPLOY = "deploy"
 
 
 class StepType:
@@ -32,6 +33,7 @@ class StepType:
     ROOT = "ROOT"
     CODE = "CODE"
     IMPROVE = "IMPROVE"
+    DEPLOY = "DEPLOY"
 
 
 class StepExecutionTracker:
@@ -139,12 +141,16 @@ class AgentLoop:
         
         # Phase 2: Decision + Execution Loop
         await self._run_decision_loop()
-        
-        # Phase 3: Check for improvement if training occurred
+
+        # Phase 3: Check for deployment if requested
+        if self._needs_deployment():
+            await self._run_deployment_loop()
+
+        # Phase 4: Check for improvement if training occurred
         if self._needs_improvement():
             await self._run_improvement_loop()
-        
-        # Phase 4: Final Summary
+
+        # Phase 5: Final Summary
         if self.status == "success" or self.ctx.experiment_state.threshold_met():
             return self.final_output
         
@@ -229,6 +235,14 @@ class AgentLoop:
             not exp.threshold_met() and
             exp.can_improve() and
             exp.stage in ["evaluation", "training"]
+        )
+
+    def _needs_deployment(self) -> bool:
+        """Check if deployment is requested."""
+        return (
+            self.p_out.get("route") == Route.DEPLOY or
+            self.p_out.get("pipeline_stage") == "deploy" or
+            self.p_out.get("entities", {}).get("deployment_target") is not None
         )
 
     async def _summarize(self) -> str:
@@ -366,6 +380,10 @@ class AgentLoop:
             if self.p_out.get("route") == Route.IMPROVE:
                 # Break to run improvement loop
                 return
+
+            if self.p_out.get("route") == Route.DEPLOY:
+                # Break to run deployment loop
+                return
             
             # Get next step
             self.next_step_id = self._pick_next_step()
@@ -457,6 +475,101 @@ class AgentLoop:
         else:
             self.status = "partial"
             self.final_output = await self._summarize()
+
+    async def _run_deployment_loop(self):
+        """Run the deployment workflow."""
+        await self._emit("phase", {"phase": "deployment", "message": "Setting up deployment..."})
+
+        # Get deployment target from perception
+        deployment_target = self.p_out.get("entities", {}).get("deployment_target", "gradio")
+
+        await self._emit("deployment_start", {
+            "target": deployment_target,
+            "project_path": self.ctx.project_path
+        })
+
+        # Build deployment-focused decision input
+        deploy_perception = {
+            **self.p_out,
+            "pipeline_stage": "deploy",
+            "route": Route.DEPLOY,
+            "deployment_target": deployment_target
+        }
+
+        d_input = build_decision_input(
+            ctx=self.ctx,
+            query=self.query,
+            perception=deploy_perception
+        )
+
+        # Get deployment plan
+        d_out = await self.decision.run(d_input, session=self.session)
+
+        if not d_out.get("plan_graph", {}).get("nodes"):
+            await self._emit("error", {"error": "No deployment plan generated"})
+            return
+
+        plan_nodes = d_out["plan_graph"]["nodes"]
+
+        await self._emit("deployment_plan", {
+            "target": deployment_target,
+            "steps": len(plan_nodes),
+            "nodes": plan_nodes
+        })
+
+        # Add deployment nodes to graph
+        for node in plan_nodes:
+            self.ctx.add_step(
+                step_id=f"deploy_{node['id']}",
+                description=node["description"],
+                step_type=StepType.DEPLOY,
+                tool=node.get("tool"),
+                args=node.get("args"),
+                from_node=StepType.ROOT
+            )
+
+        # Execute deployment steps
+        for node in plan_nodes:
+            step_id = f"deploy_{node['id']}"
+
+            await self._emit("step_start", {
+                "step_id": step_id,
+                "description": node["description"],
+                "tool": node.get("tool"),
+                "phase": "deployment"
+            })
+
+            success, result = await execute_step(
+                step_id=step_id,
+                tool=node.get("tool"),
+                args=node.get("args", {}),
+                ctx=self.ctx,
+                tools_module=self.tools_module
+            )
+
+            if success:
+                self.ctx.update_step_result(step_id, result)
+                await self._emit("step_complete", {
+                    "step_id": step_id,
+                    "success": True,
+                    "result_summary": str(result)[:300]
+                })
+            else:
+                self.ctx.mark_step_failed(step_id, str(result.get("error", "Unknown error")))
+                await self._emit("step_failed", {
+                    "step_id": step_id,
+                    "error": str(result.get("error", ""))[:200]
+                })
+
+        await self._emit("deployment_complete", {
+            "target": deployment_target,
+            "status": "success"
+        })
+
+        # Summarize deployment
+        self.status = "success"
+        await self._emit("phase", {"phase": "summary", "message": "Deployment complete!"})
+        self.final_output = await self._summarize()
 
     async def _get_improvement_suggestion(self) -> Dict[str, Any]:
         """Get improvement suggestions from LLM."""

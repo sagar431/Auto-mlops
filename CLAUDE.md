@@ -221,7 +221,8 @@ AWS_ACCOUNT_ID, AWS_REGION             # AWS Lambda/CDK deployment
 - [x] deployment_selector_prompt.txt for target recommendation
 - [x] Perception updates for deployment intent detection
 - [x] Decision updates with deployment tool chains
-- [ ] End-to-end: train → deploy flow (testing)
+- [x] Agent loop updated with DEPLOY route and _run_deployment_loop()
+- [ ] End-to-end testing: train → deploy flow
 
 ### Deployment Targets
 
