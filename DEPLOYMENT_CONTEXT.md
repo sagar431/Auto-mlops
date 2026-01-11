@@ -485,32 +485,33 @@ deployment_patterns = {
 ## 📋 Implementation Checklist
 
 ### Phase 1: Templates & Config
-- [ ] Create `templates/deployment/` directory structure
-- [ ] Add LitServe templates
-- [ ] Add Gradio templates
-- [ ] Add FastAPI + Lambda templates
-- [ ] Add TorchServe templates
-- [ ] Add KServe templates
-- [ ] Update `config/profiles.yaml` with deployment settings
+- [x] Create `templates/deployment/` directory structure
+- [x] Add LitServe templates (server.py, requirements.txt)
+- [x] Add Gradio templates (app.py, requirements.txt)
+- [x] Add FastAPI + Lambda templates (app.py, Dockerfile, cdk_stack.py, requirements.txt)
+- [x] Add TorchServe templates (handler.py, config.properties, create_mar.sh, requirements.txt)
+- [x] Add KServe templates (inference_service.yaml, config.yaml, kustomization.yaml)
+- [x] Update `config/profiles.yaml` with deployment settings
 
 ### Phase 2: MCP Tools
-- [ ] Add `create_litserve_api` tool
-- [ ] Add `configure_litserver` tool
-- [ ] Add `create_gradio_interface` tool
-- [ ] Add `deploy_to_huggingface` tool
-- [ ] Add `create_fastapi_app` tool
-- [ ] Add `create_lambda_dockerfile` tool
-- [ ] Add `generate_cdk_stack` tool
-- [ ] Add `create_torchserve_handler` tool
-- [ ] Add `create_mar_archive` tool
-- [ ] Add `generate_torchserve_config` tool
-- [ ] Add `create_inference_service_yaml` tool
+- [x] Add `create_litserve_api` tool
+- [x] Add `configure_litserver` tool
+- [x] Add `create_gradio_interface` tool
+- [x] Add `deploy_to_huggingface` tool
+- [x] Add `create_fastapi_app` tool
+- [x] Add `create_lambda_dockerfile` tool
+- [x] Add `generate_cdk_stack` tool
+- [x] Add `create_torchserve_handler` tool
+- [x] Add `create_mar_archive` tool
+- [x] Add `generate_torchserve_config` tool
+- [x] Add `create_inference_service_yaml` tool
+- [x] Add `generate_kserve_config` tool (bonus)
 
 ### Phase 3: Prompts & Integration
-- [ ] Create `prompts/deployment_selector_prompt.txt`
-- [ ] Update perception prompt for deployment detection
-- [ ] Update decision prompt with deployment tools
-- [ ] Add deployment stage to agent loop
+- [x] Create `prompts/deployment_selector_prompt.txt`
+- [x] Update perception prompt for deployment detection
+- [x] Update decision prompt with deployment tools
+- [ ] Add deployment stage to agent loop (requires agent_loop.py update)
 
 ### Phase 4: Testing
 - [ ] Test each deployment template generation
