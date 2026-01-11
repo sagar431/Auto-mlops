@@ -222,7 +222,14 @@ AWS_ACCOUNT_ID, AWS_REGION             # AWS Lambda/CDK deployment
 - [x] Perception updates for deployment intent detection
 - [x] Decision updates with deployment tool chains
 - [x] Agent loop updated with DEPLOY route and _run_deployment_loop()
+- [x] All 11 deployment tools tested and verified working
 - [ ] End-to-end testing: train → deploy flow
+
+**Frontend & Monitoring**:
+- React frontend with Dashboard component
+- Landing page with feature overview
+- Real-time pipeline monitoring via WebSocket
+- Demo GIF and YouTube tutorial in README
 
 ### Deployment Targets
 
