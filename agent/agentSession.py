@@ -3,10 +3,13 @@ Agent Session for MLOps Agent - Session management with experiment snapshots.
 """
 
 import json
+import logging
 import os
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class AgentSession:
@@ -216,12 +219,12 @@ class SessionManager:
     def list_sessions(self, status: Optional[str] = None) -> List[Dict]:
         """List all sessions, optionally filtered by status."""
         sessions = []
-        
+
         for session_file in self.logs_dir.glob("*.json"):
             try:
                 with open(session_file, "r") as f:
                     data = json.load(f)
-                
+
                 if status is None or data.get("status") == status:
                     sessions.append({
                         "session_id": data["session_id"],
@@ -229,7 +232,14 @@ class SessionManager:
                         "status": data["status"],
                         "created_at": data["created_at"]
                     })
-            except Exception:
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse session file {session_file}: {e}")
                 continue
-        
+            except KeyError as e:
+                logger.warning(f"Missing required field in session file {session_file}: {e}")
+                continue
+            except Exception as e:
+                logger.warning(f"Error loading session file {session_file}: {e}")
+                continue
+
         return sorted(sessions, key=lambda x: x["created_at"], reverse=True)

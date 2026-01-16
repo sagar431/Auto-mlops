@@ -177,7 +177,10 @@ class ContextManager:
 
     def update_step_result(self, step_id: str, result: Dict):
         """Update a step with execution result and mark as completed."""
-        node: MLOpsStepNode = self.graph.nodes[step_id]["data"]
+        node_data = self.graph.nodes.get(step_id, {}).get("data")
+        if node_data is None:
+            return  # Step not found, nothing to update
+        node: MLOpsStepNode = node_data
         node.result = result
         node.status = "completed"
         node.completed_at = datetime.utcnow().isoformat()
@@ -186,14 +189,19 @@ class ContextManager:
 
     def mark_step_completed(self, step_id: str):
         """Mark a step as completed."""
-        if step_id in self.graph:
-            node: MLOpsStepNode = self.graph.nodes[step_id]["data"]
-            node.status = "completed"
-            node.completed_at = datetime.utcnow().isoformat()
+        node_data = self.graph.nodes.get(step_id, {}).get("data")
+        if node_data is None:
+            return
+        node: MLOpsStepNode = node_data
+        node.status = "completed"
+        node.completed_at = datetime.utcnow().isoformat()
 
     def mark_step_failed(self, step_id: str, error_msg: str):
         """Mark a step as failed and record error."""
-        node: MLOpsStepNode = self.graph.nodes[step_id]["data"]
+        node_data = self.graph.nodes.get(step_id, {}).get("data")
+        if node_data is None:
+            return
+        node: MLOpsStepNode = node_data
         node.status = "failed"
         node.error = error_msg
         self.failed_nodes.append(step_id)
@@ -213,19 +221,25 @@ class ContextManager:
                 type="PERCEPTION"
             )
             self.graph.add_node(step_id, data=fallback_node)
-        
-        node: MLOpsStepNode = self.graph.nodes[step_id]["data"]
+
+        node_data = self.graph.nodes.get(step_id, {}).get("data")
+        if node_data is None:
+            return
+        node: MLOpsStepNode = node_data
         node.perception = perception
-        
+
         # Update experiment state from perception
         self._update_from_perception(perception)
-        
+
         if not perception.get("local_goal_achieved", True):
             self.failed_nodes.append(step_id)
 
     def conclude(self, step_id: str, conclusion: str):
         """Mark a step as concluded with final answer."""
-        node: MLOpsStepNode = self.graph.nodes[step_id]["data"]
+        node_data = self.graph.nodes.get(step_id, {}).get("data")
+        if node_data is None:
+            return
+        node: MLOpsStepNode = node_data
         node.status = "completed"
         node.conclusion = conclusion
         node.completed_at = datetime.utcnow().isoformat()
@@ -342,26 +356,31 @@ class ContextManager:
 
     def get_pending_steps(self) -> List[str]:
         """Get all pending step IDs."""
-        return [
-            node_id for node_id in self.graph.nodes
-            if self.graph.nodes[node_id]["data"].status == "pending"
-        ]
+        result = []
+        for node_id in self.graph.nodes:
+            node_data = self.graph.nodes.get(node_id, {}).get("data")
+            if node_data is not None and node_data.status == "pending":
+                result.append(node_id)
+        return result
 
     def get_completed_steps(self) -> List[Dict]:
         """Get all completed step data."""
-        return [
-            self.graph.nodes[n]["data"].__dict__
-            for n in self.graph.nodes
-            if self.graph.nodes[n]["data"].status == "completed"
-        ]
+        result = []
+        for n in self.graph.nodes:
+            node_data = self.graph.nodes.get(n, {}).get("data")
+            if node_data is not None and node_data.status == "completed":
+                result.append(node_data.__dict__)
+        return result
 
     def get_failed_steps(self) -> List[Dict]:
         """Get all failed step data."""
-        return [
-            self.graph.nodes[n]["data"].__dict__
-            for n in self.failed_nodes
-            if n in self.graph.nodes
-        ]
+        result = []
+        for n in self.failed_nodes:
+            if n in self.graph.nodes:
+                node_data = self.graph.nodes.get(n, {}).get("data")
+                if node_data is not None:
+                    result.append(node_data.__dict__)
+        return result
 
     def attach_summary(self, summary: Dict):
         """Attach summarizer output to session memory."""
@@ -381,16 +400,19 @@ class ContextManager:
         print(f"Stage: {self.experiment_state.stage}")
         print(f"Accuracy: {self.experiment_state.current_accuracy} / {self.experiment_state.target_accuracy}")
         print(f"{'='*50}")
-        
+
         for node_id in self.graph.nodes:
-            node = self.graph.nodes[node_id]["data"]
+            node = self.graph.nodes.get(node_id, {}).get("data")
+            if node is None:
+                print(f"❓ [{node_id}] (missing data)")
+                continue
             status_icon = {
                 "completed": "✅",
-                "failed": "❌", 
+                "failed": "❌",
                 "pending": "⏳",
                 "skipped": "⏭️"
             }.get(node.status, "❓")
-            
+
             print(f"{status_icon} [{node_id}] {node.description[:50]}...")
             if node.tool:
                 print(f"     Tool: {node.tool}")

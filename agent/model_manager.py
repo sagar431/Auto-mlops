@@ -5,6 +5,7 @@ Supports multiple providers (Google Gemini, OpenAI, Anthropic).
 
 import os
 import json
+import threading
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 
@@ -285,13 +286,17 @@ class ModelManager:
         return self.models.get(model_name)
 
 
-# Singleton instance
+# Singleton instance with thread-safe initialization
 _model_manager: Optional[ModelManager] = None
+_model_manager_lock = threading.Lock()
 
 
 def get_model_manager() -> ModelManager:
-    """Get the singleton ModelManager instance."""
+    """Get the singleton ModelManager instance (thread-safe)."""
     global _model_manager
     if _model_manager is None:
-        _model_manager = ModelManager()
+        with _model_manager_lock:
+            # Double-check locking pattern
+            if _model_manager is None:
+                _model_manager = ModelManager()
     return _model_manager

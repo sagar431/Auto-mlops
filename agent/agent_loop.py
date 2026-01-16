@@ -18,6 +18,7 @@ from decision.decision import Decision, build_decision_input
 from summarization.summarizer import Summarizer
 from action.execute_step import execute_step
 from memory.memory_search import MemorySearch
+from mcp_mlops_tools import update_hydra_config
 
 
 class Route:
@@ -427,8 +428,6 @@ class AgentLoop:
             
             # Update Hydra config if we have a project path
             if self.ctx.project_path and hydra_overrides:
-                from mcp_mlops_tools import update_hydra_config
-                
                 updates = {}
                 for override in hydra_overrides:
                     if "=" in override:
@@ -446,9 +445,11 @@ class AgentLoop:
                             current = current.setdefault(part, {})
                         current[parts[-1]] = value
                 
+                # Use config_path from context or default to standard Hydra location
+                config_path = getattr(self.ctx, 'config_path', None) or "configs/config.yaml"
                 result = update_hydra_config(
                     project_path=self.ctx.project_path,
-                    config_path="configs/config.yaml",
+                    config_path=config_path,
                     updates=updates
                 )
                 
@@ -458,7 +459,9 @@ class AgentLoop:
             # Record improvement attempt
             # In a real scenario, training would run here
             # For now, we simulate the accuracy improvement
-            new_accuracy = exp.current_accuracy + improvement.get("expected_improvement", {}).get("accuracy_gain", 0.02)
+            current_acc = exp.current_accuracy if exp.current_accuracy is not None else 0.0
+            accuracy_gain = improvement.get("expected_improvement", {}).get("accuracy_gain", 0.02)
+            new_accuracy = current_acc + accuracy_gain
             exp.record_improvement_attempt(config_changes, new_accuracy)
             
             await self._emit("improvement_complete", {
