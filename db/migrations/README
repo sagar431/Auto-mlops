@@ -1,0 +1,25 @@
+Alembic Migrations for MLOps Agent
+
+This directory contains database migrations managed by Alembic.
+
+Common Commands:
+    # Generate a new migration from model changes
+    alembic revision --autogenerate -m "description"
+
+    # Apply all pending migrations
+    alembic upgrade head
+
+    # Rollback one migration
+    alembic downgrade -1
+
+    # Show current revision
+    alembic current
+
+    # Show migration history
+    alembic history
+
+Configuration:
+    Database URL is read from DATABASE_URL environment variable.
+    Falls back to sqlite:///./mlops_agent.db if not set.
+
+See alembic.ini in the project root for full configuration.
