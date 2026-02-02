@@ -30,6 +30,16 @@ class AgentSession(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     completed_at: datetime | None = Field(default=None)
 
+    # API session fields
+    accuracy_threshold: float = Field(default=0.85)
+    current_phase: str = Field(default="initializing", max_length=50)
+    steps_completed: int = Field(default=0)
+    steps_total: int = Field(default=0)
+    accuracy: float | None = Field(default=None)
+    result: str | None = Field(default=None)
+    errors: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    events: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+
     # Relationships - use Optional with string refs for forward-declared classes
     steps: list["Step"] = Relationship(back_populates="agent_session")
     experiment_state: Optional["ExperimentState"] = Relationship(  # noqa: UP007

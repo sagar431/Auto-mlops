@@ -37,8 +37,19 @@ from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from agent.agent_loop import AgentLoop
+from db import (
+    AgentSession as DBAgentSession,
+)
+from db import (
+    close_async_db,
+    get_async_db,
+    init_async_db,
+)
+from db.repositories import AsyncSessionRepository
 from memory.memory_search import MemorySearch
 from metrics.collector import metrics_collector
 from metrics.models import (
@@ -203,55 +214,106 @@ class APIKeyResponse(BaseModel):
 
 
 class SessionManager:
-    """Manages active agent sessions."""
+    """Manages active agent sessions using database for persistence."""
 
     def __init__(self):
-        self.sessions: dict[str, dict[str, Any]] = {}
+        # WebSocket connections are kept in memory (runtime state only)
         self.websockets: dict[str, list[WebSocket]] = {}
 
-    def create_session(self, query: str, project_path: str | None, threshold: float) -> str:
-        """Create a new session."""
-        session_id = str(uuid.uuid4())
-        self.sessions[session_id] = {
-            "session_id": session_id,
-            "status": "pending",
-            "query": query,
-            "project_path": project_path,
-            "accuracy_threshold": threshold,
-            "current_phase": "initializing",
-            "steps_completed": 0,
-            "steps_total": 0,
-            "accuracy": None,
-            "started_at": datetime.utcnow().isoformat(),
-            "completed_at": None,
-            "result": None,
-            "errors": [],
-            "events": [],
+    def _session_to_dict(self, session: DBAgentSession) -> dict[str, Any]:
+        """Convert database session model to API dict format."""
+        return {
+            "session_id": session.session_id,
+            "status": session.status,
+            "query": session.original_query,
+            "project_path": session.project_path,
+            "accuracy_threshold": session.accuracy_threshold,
+            "current_phase": session.current_phase,
+            "steps_completed": session.steps_completed,
+            "steps_total": session.steps_total,
+            "accuracy": session.accuracy,
+            "started_at": session.created_at.isoformat(),
+            "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+            "result": session.result,
+            "errors": session.errors or [],
+            "events": session.events or [],
         }
+
+    async def create_session(
+        self, db: AsyncSession, query: str, project_path: str | None, threshold: float
+    ) -> str:
+        """Create a new session in the database."""
+        session_id = str(uuid.uuid4())
+
+        db_session = DBAgentSession(
+            session_id=session_id,
+            original_query=query,
+            project_path=project_path,
+            accuracy_threshold=threshold,
+            status="pending",
+            current_phase="initializing",
+            steps_completed=0,
+            steps_total=0,
+            accuracy=None,
+            result=None,
+            errors=[],
+            events=[],
+        )
+        db.add(db_session)
+        await db.commit()
+
         self.websockets[session_id] = []
         return session_id
 
-    def get_session(self, session_id: str) -> dict | None:
-        """Get session by ID."""
-        return self.sessions.get(session_id)
+    async def get_session(self, db: AsyncSession, session_id: str) -> dict | None:
+        """Get session by ID from database."""
+        repo = AsyncSessionRepository(db)
+        session = await repo.get_session_by_id(session_id)
+        if session:
+            return self._session_to_dict(session)
+        return None
 
-    def update_session(self, session_id: str, updates: dict):
-        """Update session data."""
-        if session_id in self.sessions:
-            self.sessions[session_id].update(updates)
+    async def update_session(self, db: AsyncSession, session_id: str, updates: dict):
+        """Update session data in the database."""
+        repo = AsyncSessionRepository(db)
+        session = await repo.get_session_by_id(session_id)
+        if session:
+            # Map API field names to model field names
+            field_mapping = {
+                "query": "original_query",
+            }
+            # JSON fields that need to be flagged as modified
+            json_fields = {"errors", "events"}
 
-    async def broadcast_event(self, session_id: str, event_type: str, data: dict):
-        """Broadcast event to all connected websockets."""
+            for key, value in updates.items():
+                db_key = field_mapping.get(key, key)
+                if hasattr(session, db_key):
+                    setattr(session, db_key, value)
+                    if db_key in json_fields:
+                        flag_modified(session, db_key)
+            session.updated_at = datetime.utcnow()
+            await db.commit()
+
+    async def broadcast_event(self, db: AsyncSession, session_id: str, event_type: str, data: dict):
+        """Broadcast event to all connected websockets and store in database."""
+        event = {"type": event_type, "data": data, "timestamp": datetime.utcnow().isoformat()}
+
+        # Store event in database
+        repo = AsyncSessionRepository(db)
+        session = await repo.get_session_by_id(session_id)
+        if session:
+            events = list(session.events or [])
+            events.append(event)
+            session.events = events
+            flag_modified(session, "events")
+            session.updated_at = datetime.utcnow()
+            await db.commit()
+            await db.refresh(session)
+
+        # Send to websockets (in-memory)
         if session_id not in self.websockets:
             return
 
-        event = {"type": event_type, "data": data, "timestamp": datetime.utcnow().isoformat()}
-
-        # Store event in session
-        if session_id in self.sessions:
-            self.sessions[session_id]["events"].append(event)
-
-        # Send to websockets
         disconnected = []
         for ws in self.websockets[session_id]:
             try:
@@ -265,8 +327,9 @@ class SessionManager:
 
     def add_websocket(self, session_id: str, websocket: WebSocket):
         """Add websocket to session."""
-        if session_id in self.websockets:
-            self.websockets[session_id].append(websocket)
+        if session_id not in self.websockets:
+            self.websockets[session_id] = []
+        self.websockets[session_id].append(websocket)
 
     def remove_websocket(self, session_id: str, websocket: WebSocket):
         """Remove websocket from session."""
@@ -375,79 +438,101 @@ async def require_admin(current_user: CurrentUser = Depends(get_current_user)) -
 
 async def run_agent_session(session_id: str):
     """Run agent in background and emit events."""
-    session = session_manager.get_session(session_id)
-    if not session:
-        return
+    from db.session import get_async_session
+
+    # Get initial session data
+    async with get_async_session() as db:
+        session = await session_manager.get_session(db, session_id)
+        if not session:
+            return
+        # Store a copy of session data for the agent run
+        session_data = dict(session)
 
     async def event_handler(event_type: str, data: dict):
         """Handle agent events and broadcast to websockets."""
-        # Update session based on event
-        if event_type == "status":
-            session_manager.update_session(session_id, {"status": data.get("status", "running")})
-
-        elif event_type == "phase":
-            session_manager.update_session(session_id, {"current_phase": data.get("phase", "")})
-
-        elif event_type == "plan":
-            session_manager.update_session(session_id, {"steps_total": data.get("total_steps", 0)})
-
-        elif event_type == "step_complete":
-            current = session_manager.get_session(session_id)
-            if current:
-                session_manager.update_session(
-                    session_id, {"steps_completed": current.get("steps_completed", 0) + 1}
+        async with get_async_session() as db:
+            # Update session based on event
+            if event_type == "status":
+                await session_manager.update_session(
+                    db, session_id, {"status": data.get("status", "running")}
                 )
 
-        elif event_type == "step_failed":
-            current = session_manager.get_session(session_id)
-            if current:
-                errors = current.get("errors", [])
-                errors.append(data.get("error", "Unknown error"))
-                session_manager.update_session(session_id, {"errors": errors})
+            elif event_type == "phase":
+                await session_manager.update_session(
+                    db, session_id, {"current_phase": data.get("phase", "")}
+                )
 
-        elif event_type == "improvement_complete":
-            session_manager.update_session(session_id, {"accuracy": data.get("new_accuracy")})
+            elif event_type == "plan":
+                await session_manager.update_session(
+                    db, session_id, {"steps_total": data.get("total_steps", 0)}
+                )
 
-        # Broadcast to websockets
-        await session_manager.broadcast_event(session_id, event_type, data)
+            elif event_type == "step_complete":
+                current = await session_manager.get_session(db, session_id)
+                if current:
+                    await session_manager.update_session(
+                        db, session_id, {"steps_completed": current.get("steps_completed", 0) + 1}
+                    )
+
+            elif event_type == "step_failed":
+                current = await session_manager.get_session(db, session_id)
+                if current:
+                    errors = current.get("errors", [])
+                    errors.append(data.get("error", "Unknown error"))
+                    await session_manager.update_session(db, session_id, {"errors": errors})
+
+            elif event_type == "improvement_complete":
+                await session_manager.update_session(
+                    db, session_id, {"accuracy": data.get("new_accuracy")}
+                )
+
+            # Broadcast to websockets
+            await session_manager.broadcast_event(db, session_id, event_type, data)
 
     # Update status to running
-    session_manager.update_session(session_id, {"status": "running"})
+    async with get_async_session() as db:
+        await session_manager.update_session(db, session_id, {"status": "running"})
 
     try:
         agent = AgentLoop(on_event=event_handler)
         result = await agent.run(
-            query=session["query"],
-            project_path=session["project_path"],
-            accuracy_threshold=session["accuracy_threshold"],
+            query=session_data["query"],
+            project_path=session_data["project_path"],
+            accuracy_threshold=session_data["accuracy_threshold"],
         )
 
         # Update session with result
-        session_manager.update_session(
-            session_id,
-            {
-                "status": agent.status,
-                "result": result,
-                "completed_at": datetime.utcnow().isoformat(),
-            },
-        )
+        async with get_async_session() as db:
+            await session_manager.update_session(
+                db,
+                session_id,
+                {
+                    "status": agent.status,
+                    "result": result,
+                    "completed_at": datetime.utcnow(),
+                },
+            )
 
-        # Broadcast completion
-        await session_manager.broadcast_event(
-            session_id, "complete", {"status": agent.status, "result": result}
-        )
+            # Broadcast completion
+            await session_manager.broadcast_event(
+                db, session_id, "complete", {"status": agent.status, "result": result}
+            )
 
     except Exception as e:
-        session_manager.update_session(
-            session_id,
-            {
-                "status": "failed",
-                "errors": session.get("errors", []) + [str(e)],
-                "completed_at": datetime.utcnow().isoformat(),
-            },
-        )
+        async with get_async_session() as db:
+            current = await session_manager.get_session(db, session_id)
+            errors = (current.get("errors", []) if current else []) + [str(e)]
+            await session_manager.update_session(
+                db,
+                session_id,
+                {
+                    "status": "failed",
+                    "errors": errors,
+                    "completed_at": datetime.utcnow(),
+                },
+            )
 
-        await session_manager.broadcast_event(session_id, "error", {"error": str(e)})
+            await session_manager.broadcast_event(db, session_id, "error", {"error": str(e)})
 
 
 # ============================================================================
@@ -459,8 +544,13 @@ async def run_agent_session(session_id: str):
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown."""
     print("🚀 MLOps Agent API Server starting...")
+    # Initialize async database
+    await init_async_db()
+    print("📦 Database initialized")
     yield
     print("👋 MLOps Agent API Server shutting down...")
+    # Close database connections
+    await close_async_db()
 
 
 app = FastAPI(
@@ -505,6 +595,7 @@ async def run_agent(
     run_request: RunRequest,
     background_tasks: BackgroundTasks,
     current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Start a new agent session.
@@ -520,8 +611,9 @@ async def run_agent(
                 status_code=400, detail=f"Project path does not exist: {run_request.project_path}"
             )
 
-    # Create session
-    session_id = session_manager.create_session(
+    # Create session in database
+    session_id = await session_manager.create_session(
+        db=db,
         query=run_request.query,
         project_path=run_request.project_path,
         threshold=run_request.accuracy_threshold,
@@ -543,9 +635,10 @@ async def get_session_status(
     request: Request,
     session_id: str,
     current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Get status of an agent session."""
-    session = session_manager.get_session(session_id)
+    session = await session_manager.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
 
@@ -599,14 +692,15 @@ async def get_session_details(
     request: Request,
     session_id: str,
     current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Get detailed information about a past session."""
-    # Check active sessions first
-    session = session_manager.get_session(session_id)
+    # Check active sessions first (from database)
+    session = await session_manager.get_session(db, session_id)
     if session:
         return session
 
-    # Search in memory
+    # Search in memory (legacy file-based storage)
     ms = MemorySearch()
     for entry in ms.index_data:
         if entry["session_id"] == session_id:
@@ -629,7 +723,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     - complete: Session finished
     - error: Error occurred
     """
-    session = session_manager.get_session(session_id)
+    from db.session import get_async_session
+
+    # Get session from database
+    async with get_async_session() as db:
+        session = await session_manager.get_session(db, session_id)
+
     if not session:
         await websocket.close(code=4004, reason="Session not found")
         return
