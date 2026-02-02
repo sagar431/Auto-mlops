@@ -91,7 +91,7 @@ Example usage:
 """
 
 from .drift_detector import ConceptDriftDetector, DriftDetector
-from .model_monitor import AlertManager, ModelMonitor
+from .model_monitor import AlertManager, HealthStatus, ModelMonitor
 from .models import (
     Alert,
     AlertChannel,
@@ -114,6 +114,7 @@ __all__ = [
     # Model Monitoring
     "ModelMonitor",
     "AlertManager",
+    "HealthStatus",
     # Drift Models
     "DriftReport",
     "FeatureDriftResult",

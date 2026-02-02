@@ -5,9 +5,12 @@ Provides continuous monitoring of model performance metrics, trend analysis,
 and degradation detection for ML models in production.
 """
 
+import json
 import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta
+from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from .models import (
@@ -18,6 +21,15 @@ from .models import (
     PerformanceSnapshot,
     PerformanceTrend,
 )
+
+
+class HealthStatus(str, Enum):
+    """Overall health status of the model."""
+
+    HEALTHY = "healthy"
+    WARNING = "warning"
+    CRITICAL = "critical"
+    UNKNOWN = "unknown"
 
 
 class ModelMonitor:
@@ -73,6 +85,7 @@ class ModelMonitor:
         # Storage for snapshots
         self._snapshots: list[PerformanceSnapshot] = []
         self._max_snapshots = 1000
+        self._storage_path: Path | None = None
 
     def calculate_metrics(
         self,
@@ -527,6 +540,416 @@ class ModelMonitor:
             "total_samples": total_samples,
             "metrics": avg_metrics,
             "latest_snapshot": snapshots[-1].timestamp.isoformat(),
+        }
+
+    def get_moving_average(
+        self,
+        metric_name: str,
+        window_size: int = 5,
+        days: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Calculate moving average for a metric.
+
+        Args:
+            metric_name: Name of the metric to analyze
+            window_size: Number of snapshots for moving average
+            days: Optional time window in days (None = all snapshots)
+
+        Returns:
+            List of dicts with timestamp and moving_average values
+        """
+        if days:
+            snapshots = self.get_snapshots(start_time=datetime.utcnow() - timedelta(days=days))
+        else:
+            snapshots = self._snapshots
+
+        if len(snapshots) < window_size:
+            return []
+
+        values = []
+        for s in snapshots:
+            val = self._get_metric_value(s.metrics, metric_name)
+            if val is not None:
+                values.append((s.timestamp, val))
+
+        if len(values) < window_size:
+            return []
+
+        values.sort(key=lambda x: x[0])
+        results = []
+
+        for i in range(window_size - 1, len(values)):
+            window_values = [v[1] for v in values[i - window_size + 1 : i + 1]]
+            ma = sum(window_values) / len(window_values)
+            results.append(
+                {
+                    "timestamp": values[i][0].isoformat(),
+                    "moving_average": ma,
+                    "raw_value": values[i][1],
+                }
+            )
+
+        return results
+
+    def get_percentiles(
+        self,
+        metric_name: str,
+        percentiles: list[float] | None = None,
+        days: int | None = None,
+    ) -> dict[str, float | None]:
+        """
+        Calculate percentile statistics for a metric.
+
+        Args:
+            metric_name: Name of the metric
+            percentiles: List of percentiles to calculate (default: [25, 50, 75, 90, 95])
+            days: Optional time window in days
+
+        Returns:
+            Dict mapping percentile labels to values
+        """
+        import numpy as np
+
+        if percentiles is None:
+            percentiles = [25, 50, 75, 90, 95]
+
+        if days:
+            snapshots = self.get_snapshots(start_time=datetime.utcnow() - timedelta(days=days))
+        else:
+            snapshots = self._snapshots
+
+        values = []
+        for s in snapshots:
+            val = self._get_metric_value(s.metrics, metric_name)
+            if val is not None:
+                values.append(val)
+
+        if not values:
+            return {f"p{int(p)}": None for p in percentiles}
+
+        arr = np.array(values)
+        return {f"p{int(p)}": float(np.percentile(arr, p)) for p in percentiles}
+
+    def get_health_status(
+        self,
+        metrics_to_check: list[str] | None = None,
+        days: int = 7,
+    ) -> dict[str, Any]:
+        """
+        Get overall health status of the model.
+
+        Evaluates multiple metrics and returns a health assessment.
+
+        Args:
+            metrics_to_check: List of metrics to evaluate (defaults to common metrics)
+            days: Time window for trend analysis
+
+        Returns:
+            Dict with overall status and per-metric details
+        """
+        if metrics_to_check is None:
+            metrics_to_check = ["accuracy", "f1_score", "precision", "recall"]
+
+        if not self._snapshots:
+            return {
+                "status": HealthStatus.UNKNOWN,
+                "message": "No performance data available",
+                "metrics": {},
+                "recommendations": ["Record performance snapshots to enable monitoring"],
+            }
+
+        metric_details = {}
+        issues = []
+        warnings = []
+
+        for metric in metrics_to_check:
+            degraded, trend = self.check_degradation(metric, days)
+            latest_value = None
+
+            if self._snapshots:
+                latest_value = self._get_metric_value(self._snapshots[-1].metrics, metric)
+
+            metric_details[metric] = {
+                "current_value": latest_value,
+                "trend_direction": trend.trend_direction,
+                "change_percentage": trend.change_percentage,
+                "degraded": degraded,
+            }
+
+            if degraded:
+                issues.append(f"{metric} has degraded by {abs(trend.change_percentage):.1%}")
+            elif trend.trend_direction == "declining" and abs(trend.change_percentage) > 0.02:
+                warnings.append(f"{metric} is declining ({trend.change_percentage:.1%})")
+
+        # Determine overall status
+        if issues:
+            status = HealthStatus.CRITICAL
+            message = f"Critical issues detected: {len(issues)} metric(s) degraded"
+        elif warnings:
+            status = HealthStatus.WARNING
+            message = f"Warnings: {len(warnings)} metric(s) showing decline"
+        else:
+            status = HealthStatus.HEALTHY
+            message = "All monitored metrics are within acceptable ranges"
+
+        recommendations = []
+        if status == HealthStatus.CRITICAL:
+            recommendations.append("Investigate root cause of metric degradation")
+            recommendations.append("Consider retraining with recent data")
+            recommendations.append("Check for data drift")
+        elif status == HealthStatus.WARNING:
+            recommendations.append("Monitor metrics closely for further decline")
+            recommendations.append("Review recent data distribution changes")
+
+        return {
+            "status": status,
+            "message": message,
+            "metrics": metric_details,
+            "issues": issues,
+            "warnings": warnings,
+            "recommendations": recommendations,
+            "snapshot_count": len(self._snapshots),
+            "evaluation_window_days": days,
+        }
+
+    def compare_versions(
+        self,
+        other_monitor: "ModelMonitor",
+        metrics_to_compare: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Compare performance metrics between two model versions.
+
+        Args:
+            other_monitor: Another ModelMonitor instance to compare against
+            metrics_to_compare: List of metrics to compare
+
+        Returns:
+            Dict with comparison results
+        """
+        if metrics_to_compare is None:
+            metrics_to_compare = [
+                "accuracy",
+                "precision",
+                "recall",
+                "f1_score",
+                "auc_roc",
+                "mse",
+                "rmse",
+                "mae",
+                "r2_score",
+            ]
+
+        this_latest = self.get_latest_metrics()
+        other_latest = other_monitor.get_latest_metrics()
+
+        if not this_latest or not other_latest:
+            return {
+                "comparison_valid": False,
+                "message": "One or both monitors have no recorded metrics",
+            }
+
+        comparisons = {}
+        better_count = 0
+        worse_count = 0
+        error_metrics = {"mse", "rmse", "mae", "log_loss"}
+
+        for metric in metrics_to_compare:
+            this_val = self._get_metric_value(this_latest, metric)
+            other_val = self._get_metric_value(other_latest, metric)
+
+            if this_val is not None and other_val is not None:
+                diff = this_val - other_val
+                if other_val != 0:
+                    pct_diff = diff / abs(other_val)
+                else:
+                    pct_diff = 0.0
+
+                # Determine which is better
+                if metric in error_metrics:
+                    is_better = diff < 0
+                else:
+                    is_better = diff > 0
+
+                if is_better:
+                    better_count += 1
+                elif diff != 0:
+                    worse_count += 1
+
+                comparisons[metric] = {
+                    "this_version": this_val,
+                    "other_version": other_val,
+                    "difference": diff,
+                    "percent_difference": pct_diff,
+                    "this_is_better": is_better,
+                }
+
+        return {
+            "comparison_valid": True,
+            "this_model": {
+                "name": self.model_name,
+                "version": self.model_version,
+            },
+            "other_model": {
+                "name": other_monitor.model_name,
+                "version": other_monitor.model_version,
+            },
+            "metrics": comparisons,
+            "summary": {
+                "metrics_compared": len(comparisons),
+                "this_better_count": better_count,
+                "other_better_count": worse_count,
+                "recommendation": (
+                    f"This version ({self.model_version}) is better"
+                    if better_count > worse_count
+                    else (
+                        f"Other version ({other_monitor.model_version}) is better"
+                        if worse_count > better_count
+                        else "Versions are comparable"
+                    )
+                ),
+            },
+        }
+
+    def save_snapshots(self, path: str | Path) -> bool:
+        """
+        Save snapshots to a JSON file.
+
+        Args:
+            path: File path to save snapshots
+
+        Returns:
+            True if successful
+        """
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        data = {
+            "model_name": self.model_name,
+            "model_version": self.model_version,
+            "degradation_threshold": self.degradation_threshold,
+            "snapshots": [s.model_dump() for s in self._snapshots],
+            "saved_at": datetime.utcnow().isoformat(),
+        }
+
+        # Convert datetime objects to ISO strings for JSON serialization
+        for snapshot in data["snapshots"]:
+            if snapshot.get("timestamp"):
+                snapshot["timestamp"] = snapshot["timestamp"].isoformat()
+            if snapshot.get("data_start"):
+                snapshot["data_start"] = snapshot["data_start"].isoformat()
+            if snapshot.get("data_end"):
+                snapshot["data_end"] = snapshot["data_end"].isoformat()
+
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2, default=str)
+
+        self._storage_path = path
+        return True
+
+    def load_snapshots(self, path: str | Path) -> int:
+        """
+        Load snapshots from a JSON file.
+
+        Args:
+            path: File path to load snapshots from
+
+        Returns:
+            Number of snapshots loaded
+        """
+        path = Path(path)
+        if not path.exists():
+            return 0
+
+        with open(path) as f:
+            data = json.load(f)
+
+        loaded_snapshots = []
+        for snap_data in data.get("snapshots", []):
+            # Parse datetime strings
+            if snap_data.get("timestamp"):
+                snap_data["timestamp"] = datetime.fromisoformat(
+                    snap_data["timestamp"].replace("Z", "+00:00")
+                )
+            if snap_data.get("data_start"):
+                snap_data["data_start"] = datetime.fromisoformat(
+                    snap_data["data_start"].replace("Z", "+00:00")
+                )
+            if snap_data.get("data_end"):
+                snap_data["data_end"] = datetime.fromisoformat(
+                    snap_data["data_end"].replace("Z", "+00:00")
+                )
+
+            # Reconstruct ModelMetrics
+            if "metrics" in snap_data and isinstance(snap_data["metrics"], dict):
+                snap_data["metrics"] = ModelMetrics(**snap_data["metrics"])
+
+            loaded_snapshots.append(PerformanceSnapshot(**snap_data))
+
+        self._snapshots = loaded_snapshots
+        self._storage_path = path
+        return len(loaded_snapshots)
+
+    def clear_snapshots(self) -> int:
+        """
+        Clear all recorded snapshots.
+
+        Returns:
+            Number of snapshots cleared
+        """
+        count = len(self._snapshots)
+        self._snapshots = []
+        return count
+
+    def get_metric_statistics(
+        self,
+        metric_name: str,
+        days: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        Get comprehensive statistics for a metric.
+
+        Args:
+            metric_name: Name of the metric
+            days: Optional time window in days
+
+        Returns:
+            Dict with count, mean, std, min, max, and percentiles
+        """
+        import numpy as np
+
+        if days:
+            snapshots = self.get_snapshots(start_time=datetime.utcnow() - timedelta(days=days))
+        else:
+            snapshots = self._snapshots
+
+        values = []
+        for s in snapshots:
+            val = self._get_metric_value(s.metrics, metric_name)
+            if val is not None:
+                values.append(val)
+
+        if not values:
+            return {
+                "metric_name": metric_name,
+                "count": 0,
+                "message": "No data available for this metric",
+            }
+
+        arr = np.array(values)
+        return {
+            "metric_name": metric_name,
+            "count": len(values),
+            "mean": float(np.mean(arr)),
+            "std": float(np.std(arr)),
+            "min": float(np.min(arr)),
+            "max": float(np.max(arr)),
+            "median": float(np.median(arr)),
+            "p25": float(np.percentile(arr, 25)),
+            "p75": float(np.percentile(arr, 75)),
+            "p95": float(np.percentile(arr, 95)),
+            "variance": float(np.var(arr)),
         }
 
 

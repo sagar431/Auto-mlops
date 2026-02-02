@@ -22,6 +22,7 @@ from monitoring import (
     DriftSeverity,
     DriftType,
     FeatureDriftResult,
+    HealthStatus,
     ModelMetrics,
     ModelMonitor,
     MonitoringConfig,
@@ -1170,3 +1171,330 @@ class TestIntegration:
         assert report2.drift_share >= report1.drift_share
         assert report1.dataset_name == "check1"
         assert report2.dataset_name == "check2"
+
+
+# ============================================================================
+# New ModelMonitor Feature Tests
+# ============================================================================
+
+
+class TestModelMonitorNewFeatures:
+    """Tests for new ModelMonitor features: moving average, percentiles, health check, etc."""
+
+    def test_get_moving_average(self, model_monitor):
+        """Test moving average calculation."""
+        # Record 10 snapshots with increasing accuracy
+        for i in range(10):
+            metrics = ModelMetrics(accuracy=0.80 + i * 0.01)
+            timestamp = datetime.utcnow() - timedelta(days=9 - i)
+            model_monitor.record_snapshot(
+                metrics=metrics,
+                sample_size=100,
+                timestamp=timestamp,
+            )
+
+        ma_results = model_monitor.get_moving_average("accuracy", window_size=3)
+
+        assert len(ma_results) == 8  # 10 - (3 - 1)
+        # Moving average should smooth the values
+        for result in ma_results:
+            assert "timestamp" in result
+            assert "moving_average" in result
+            assert "raw_value" in result
+            assert 0 <= result["moving_average"] <= 1
+
+    def test_get_moving_average_insufficient_data(self, model_monitor):
+        """Test moving average with insufficient data."""
+        # Only record 2 snapshots
+        for i in range(2):
+            metrics = ModelMetrics(accuracy=0.85)
+            model_monitor.record_snapshot(metrics=metrics, sample_size=100)
+
+        ma_results = model_monitor.get_moving_average("accuracy", window_size=5)
+        assert len(ma_results) == 0
+
+    def test_get_percentiles(self, model_monitor):
+        """Test percentile calculation."""
+        # Record snapshots with varying accuracy
+        np.random.seed(42)
+        for _ in range(50):
+            metrics = ModelMetrics(accuracy=np.random.uniform(0.75, 0.95))
+            model_monitor.record_snapshot(metrics=metrics, sample_size=100)
+
+        percentiles = model_monitor.get_percentiles("accuracy")
+
+        assert "p25" in percentiles
+        assert "p50" in percentiles
+        assert "p75" in percentiles
+        assert "p90" in percentiles
+        assert "p95" in percentiles
+
+        # p25 < p50 < p75 < p90 < p95
+        assert percentiles["p25"] <= percentiles["p50"]
+        assert percentiles["p50"] <= percentiles["p75"]
+        assert percentiles["p75"] <= percentiles["p90"]
+        assert percentiles["p90"] <= percentiles["p95"]
+
+    def test_get_percentiles_custom(self, model_monitor):
+        """Test percentile calculation with custom percentiles."""
+        for _ in range(20):
+            metrics = ModelMetrics(accuracy=np.random.uniform(0.8, 0.9))
+            model_monitor.record_snapshot(metrics=metrics, sample_size=100)
+
+        percentiles = model_monitor.get_percentiles("accuracy", percentiles=[10, 50, 99])
+
+        assert "p10" in percentiles
+        assert "p50" in percentiles
+        assert "p99" in percentiles
+        assert "p25" not in percentiles
+
+    def test_get_percentiles_no_data(self, model_monitor):
+        """Test percentile calculation with no data."""
+        percentiles = model_monitor.get_percentiles("accuracy")
+
+        assert percentiles["p25"] is None
+        assert percentiles["p50"] is None
+
+    def test_get_health_status_healthy(self, model_monitor):
+        """Test health status when model is healthy."""
+        # Record stable, good performance
+        for i in range(10):
+            metrics = ModelMetrics(accuracy=0.92, f1_score=0.90, precision=0.91, recall=0.89)
+            timestamp = datetime.utcnow() - timedelta(days=9 - i)
+            model_monitor.record_snapshot(
+                metrics=metrics,
+                sample_size=100,
+                timestamp=timestamp,
+            )
+
+        health = model_monitor.get_health_status()
+
+        assert health["status"] == HealthStatus.HEALTHY
+        assert "All monitored metrics" in health["message"]
+        assert len(health["issues"]) == 0
+        assert len(health["warnings"]) == 0
+
+    def test_get_health_status_critical(self, model_monitor):
+        """Test health status when model has critical degradation."""
+        # Record declining performance
+        for i in range(10):
+            metrics = ModelMetrics(accuracy=0.95 - i * 0.03)  # From 0.95 to 0.68
+            timestamp = datetime.utcnow() - timedelta(days=9 - i)
+            model_monitor.record_snapshot(
+                metrics=metrics,
+                sample_size=100,
+                timestamp=timestamp,
+            )
+
+        health = model_monitor.get_health_status()
+
+        assert health["status"] == HealthStatus.CRITICAL
+        assert len(health["issues"]) > 0
+        assert len(health["recommendations"]) > 0
+
+    def test_get_health_status_no_data(self, model_monitor):
+        """Test health status with no data."""
+        health = model_monitor.get_health_status()
+
+        assert health["status"] == HealthStatus.UNKNOWN
+        assert "No performance data" in health["message"]
+
+    def test_compare_versions(self):
+        """Test version comparison between two monitors."""
+        monitor_v1 = ModelMonitor(model_name="test_model", model_version="1.0.0")
+        monitor_v2 = ModelMonitor(model_name="test_model", model_version="2.0.0")
+
+        # V1 metrics
+        metrics_v1 = ModelMetrics(accuracy=0.85, precision=0.84, recall=0.83, f1_score=0.835)
+        monitor_v1.record_snapshot(metrics=metrics_v1, sample_size=100)
+
+        # V2 metrics (better)
+        metrics_v2 = ModelMetrics(accuracy=0.90, precision=0.89, recall=0.88, f1_score=0.885)
+        monitor_v2.record_snapshot(metrics=metrics_v2, sample_size=100)
+
+        comparison = monitor_v2.compare_versions(monitor_v1)
+
+        assert comparison["comparison_valid"] is True
+        assert comparison["this_model"]["version"] == "2.0.0"
+        assert comparison["other_model"]["version"] == "1.0.0"
+        assert "accuracy" in comparison["metrics"]
+        assert comparison["metrics"]["accuracy"]["this_is_better"] is True
+        assert comparison["summary"]["this_better_count"] > 0
+
+    def test_compare_versions_no_data(self):
+        """Test version comparison when one monitor has no data."""
+        monitor_v1 = ModelMonitor(model_name="test_model", model_version="1.0.0")
+        monitor_v2 = ModelMonitor(model_name="test_model", model_version="2.0.0")
+
+        # Only v1 has data
+        metrics_v1 = ModelMetrics(accuracy=0.85)
+        monitor_v1.record_snapshot(metrics=metrics_v1, sample_size=100)
+
+        comparison = monitor_v2.compare_versions(monitor_v1)
+
+        assert comparison["comparison_valid"] is False
+
+    def test_save_and_load_snapshots(self, model_monitor, tmp_path):
+        """Test saving and loading snapshots to/from disk."""
+        # Record some snapshots
+        for i in range(5):
+            metrics = ModelMetrics(accuracy=0.85 + i * 0.01, precision=0.84 + i * 0.01)
+            model_monitor.record_snapshot(
+                metrics=metrics,
+                sample_size=100 + i,
+                metadata={"batch": i},
+            )
+
+        # Save
+        save_path = tmp_path / "snapshots.json"
+        result = model_monitor.save_snapshots(save_path)
+        assert result is True
+        assert save_path.exists()
+
+        # Create new monitor and load
+        new_monitor = ModelMonitor(model_name="test_model")
+        loaded_count = new_monitor.load_snapshots(save_path)
+
+        assert loaded_count == 5
+        assert len(new_monitor._snapshots) == 5
+        assert new_monitor._snapshots[0].sample_size == 100
+        assert new_monitor._snapshots[4].sample_size == 104
+
+    def test_load_snapshots_nonexistent(self, model_monitor, tmp_path):
+        """Test loading from nonexistent file."""
+        result = model_monitor.load_snapshots(tmp_path / "nonexistent.json")
+        assert result == 0
+
+    def test_clear_snapshots(self, model_monitor):
+        """Test clearing all snapshots."""
+        # Record some snapshots
+        for _ in range(5):
+            metrics = ModelMetrics(accuracy=0.85)
+            model_monitor.record_snapshot(metrics=metrics, sample_size=100)
+
+        assert len(model_monitor._snapshots) == 5
+
+        cleared = model_monitor.clear_snapshots()
+
+        assert cleared == 5
+        assert len(model_monitor._snapshots) == 0
+
+    def test_get_metric_statistics(self, model_monitor):
+        """Test comprehensive metric statistics."""
+        np.random.seed(42)
+        for _ in range(30):
+            metrics = ModelMetrics(accuracy=np.random.uniform(0.80, 0.95))
+            model_monitor.record_snapshot(metrics=metrics, sample_size=100)
+
+        stats = model_monitor.get_metric_statistics("accuracy")
+
+        assert stats["metric_name"] == "accuracy"
+        assert stats["count"] == 30
+        assert "mean" in stats
+        assert "std" in stats
+        assert "min" in stats
+        assert "max" in stats
+        assert "median" in stats
+        assert "p25" in stats
+        assert "p75" in stats
+        assert "p95" in stats
+        assert "variance" in stats
+
+        # Validate ranges
+        assert stats["min"] <= stats["p25"] <= stats["median"]
+        assert stats["median"] <= stats["p75"] <= stats["max"]
+
+    def test_get_metric_statistics_no_data(self, model_monitor):
+        """Test metric statistics with no data."""
+        stats = model_monitor.get_metric_statistics("accuracy")
+
+        assert stats["count"] == 0
+        assert "No data available" in stats["message"]
+
+    def test_get_moving_average_with_days_filter(self, model_monitor):
+        """Test moving average with days filter."""
+        # Record snapshots over 20 days
+        for i in range(20):
+            metrics = ModelMetrics(accuracy=0.80 + (i % 5) * 0.02)
+            timestamp = datetime.utcnow() - timedelta(days=19 - i)
+            model_monitor.record_snapshot(
+                metrics=metrics,
+                sample_size=100,
+                timestamp=timestamp,
+            )
+
+        # Get MA for last 7 days only
+        ma_results = model_monitor.get_moving_average("accuracy", window_size=3, days=7)
+
+        # Should only include snapshots from last 7 days
+        assert len(ma_results) <= 7
+
+    def test_health_status_with_custom_metrics(self, model_monitor):
+        """Test health status with custom metrics list."""
+        for i in range(10):
+            metrics = ModelMetrics(
+                accuracy=0.90,
+                mse=0.01 + i * 0.005,  # Increasing MSE (bad)
+                r2_score=0.95 - i * 0.02,  # Decreasing R2 (bad)
+            )
+            timestamp = datetime.utcnow() - timedelta(days=9 - i)
+            model_monitor.record_snapshot(
+                metrics=metrics,
+                sample_size=100,
+                timestamp=timestamp,
+            )
+
+        # Check only accuracy (should be healthy)
+        health_acc = model_monitor.get_health_status(metrics_to_check=["accuracy"])
+        assert health_acc["status"] == HealthStatus.HEALTHY
+
+    def test_compare_versions_error_metrics(self):
+        """Test version comparison for error metrics (lower is better)."""
+        monitor_v1 = ModelMonitor(model_name="regression_model", model_version="1.0.0")
+        monitor_v2 = ModelMonitor(model_name="regression_model", model_version="2.0.0")
+
+        # V1 metrics (higher error)
+        metrics_v1 = ModelMetrics(mse=0.05, rmse=0.22, mae=0.15)
+        monitor_v1.record_snapshot(metrics=metrics_v1, sample_size=100)
+
+        # V2 metrics (lower error = better)
+        metrics_v2 = ModelMetrics(mse=0.02, rmse=0.14, mae=0.10)
+        monitor_v2.record_snapshot(metrics=metrics_v2, sample_size=100)
+
+        comparison = monitor_v2.compare_versions(monitor_v1)
+
+        assert comparison["metrics"]["mse"]["this_is_better"] is True
+        assert comparison["metrics"]["rmse"]["this_is_better"] is True
+        assert comparison["metrics"]["mae"]["this_is_better"] is True
+
+    def test_save_snapshots_creates_directory(self, model_monitor, tmp_path):
+        """Test that save_snapshots creates parent directories."""
+        metrics = ModelMetrics(accuracy=0.85)
+        model_monitor.record_snapshot(metrics=metrics, sample_size=100)
+
+        nested_path = tmp_path / "deep" / "nested" / "dir" / "snapshots.json"
+        result = model_monitor.save_snapshots(nested_path)
+
+        assert result is True
+        assert nested_path.exists()
+
+    def test_percentiles_with_days_filter(self, model_monitor):
+        """Test percentiles with days filter."""
+        # Record 30 days of data
+        for i in range(30):
+            metrics = ModelMetrics(accuracy=0.80 + (i / 30) * 0.15)  # 0.80 to 0.95
+            timestamp = datetime.utcnow() - timedelta(days=29 - i)
+            model_monitor.record_snapshot(
+                metrics=metrics,
+                sample_size=100,
+                timestamp=timestamp,
+            )
+
+        # Get percentiles for all data
+        all_percentiles = model_monitor.get_percentiles("accuracy")
+
+        # Get percentiles for last 7 days only
+        recent_percentiles = model_monitor.get_percentiles("accuracy", days=7)
+
+        # Recent percentiles should generally be higher (later data has higher accuracy)
+        assert recent_percentiles["p50"] >= all_percentiles["p50"] - 0.1
