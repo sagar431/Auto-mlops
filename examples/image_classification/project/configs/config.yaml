@@ -1,0 +1,35 @@
+# Hydra Configuration for CIFAR-10 Image Classification
+defaults:
+  - _self_
+
+# Random seed for reproducibility
+seed: 42
+
+# Model configuration
+model:
+  num_classes: 10
+  dropout: 0.5
+
+# Training configuration
+training:
+  epochs: 10
+  batch_size: 128
+  learning_rate: 0.001
+  optimizer: adam
+
+# Data configuration
+data:
+  data_dir: ${hydra:runtime.cwd}/data
+  image_size: 32
+  num_workers: 4
+
+# Paths configuration
+paths:
+  output_dir: ${hydra:runtime.cwd}/models
+
+# Hydra settings
+hydra:
+  run:
+    dir: ${paths.output_dir}/runs/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${paths.output_dir}/multirun/${now:%Y-%m-%d_%H-%M-%S}

@@ -1,13 +1,136 @@
-"""Training script for image classification model."""
+"""Training script for image classification model using PyTorch, CIFAR-10, and Hydra."""
 
-import argparse
+import logging
 from pathlib import Path
 
+import hydra
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from dataset import create_data_loaders, create_synthetic_data
-from model import create_model
+from omegaconf import DictConfig, OmegaConf
+from torchvision import datasets, transforms
+
+log = logging.getLogger(__name__)
+
+
+def get_cifar10_transforms(image_size: int = 32) -> tuple:
+    """Get CIFAR-10 transforms for training and validation."""
+    train_transform = transforms.Compose(
+        [
+            transforms.Resize((image_size, image_size)),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(image_size, padding=4),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2470, 0.2435, 0.2616]),
+        ]
+    )
+    val_transform = transforms.Compose(
+        [
+            transforms.Resize((image_size, image_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2470, 0.2435, 0.2616]),
+        ]
+    )
+    return train_transform, val_transform
+
+
+def create_cifar10_loaders(
+    data_dir: str,
+    batch_size: int = 32,
+    image_size: int = 32,
+    num_workers: int = 4,
+) -> tuple:
+    """Create CIFAR-10 train and validation data loaders.
+
+    Returns:
+        Tuple of (train_loader, val_loader, class_names)
+    """
+    train_transform, val_transform = get_cifar10_transforms(image_size)
+
+    train_dataset = datasets.CIFAR10(
+        root=data_dir, train=True, download=True, transform=train_transform
+    )
+    val_dataset = datasets.CIFAR10(
+        root=data_dir, train=False, download=True, transform=val_transform
+    )
+
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+
+    class_names = [
+        "airplane",
+        "automobile",
+        "bird",
+        "cat",
+        "deer",
+        "dog",
+        "frog",
+        "horse",
+        "ship",
+        "truck",
+    ]
+
+    return train_loader, val_loader, class_names
+
+
+class CIFAR10CNN(nn.Module):
+    """CNN architecture optimized for CIFAR-10 (32x32 images).
+
+    Architecture:
+    - 3 convolutional layers with batch normalization
+    - Max pooling after each conv layer
+    - 2 fully connected layers with dropout
+    """
+
+    def __init__(self, num_classes: int = 10, dropout: float = 0.5):
+        super().__init__()
+        self.num_classes = num_classes
+
+        # Convolutional layers
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(128)
+
+        self.pool = nn.MaxPool2d(2, 2)
+        self.dropout = nn.Dropout(dropout)
+
+        # Fully connected layers
+        # After 3 pooling layers on 32x32: 32 -> 16 -> 8 -> 4
+        self.fc1 = nn.Linear(128 * 4 * 4, 512)
+        self.fc2 = nn.Linear(512, num_classes)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Conv block 1
+        x = self.pool(torch.relu(self.bn1(self.conv1(x))))
+        # Conv block 2
+        x = self.pool(torch.relu(self.bn2(self.conv2(x))))
+        # Conv block 3
+        x = self.pool(torch.relu(self.bn3(self.conv3(x))))
+
+        # Flatten
+        x = x.view(x.size(0), -1)
+
+        # Fully connected layers
+        x = self.dropout(torch.relu(self.fc1(x)))
+        x = self.fc2(x)
+
+        return x
 
 
 def train_epoch(
@@ -78,41 +201,43 @@ def train(
     epochs: int = 10,
     batch_size: int = 32,
     learning_rate: float = 0.001,
-    num_classes: int = 2,
+    num_classes: int = 10,
     dropout: float = 0.5,
-    image_size: int = 224,
-    use_synthetic: bool = False,
+    image_size: int = 32,
+    num_workers: int = 4,
+    seed: int = 42,
 ) -> dict:
     """Main training function.
 
     Returns:
         dict with training results including final accuracy and metrics
     """
+    # Set random seed for reproducibility
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+
     # Setup device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    log.info(f"Using device: {device}")
 
     # Create output directory
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    # Create synthetic data if needed
-    if use_synthetic or not Path(data_dir).exists():
-        print("Creating synthetic data for demonstration...")
-        create_synthetic_data(data_dir, num_samples=200, num_classes=num_classes)
-
     # Create data loaders
-    train_loader, val_loader, class_names = create_data_loaders(
+    train_loader, val_loader, class_names = create_cifar10_loaders(
         data_dir=data_dir,
         batch_size=batch_size,
         image_size=image_size,
+        num_workers=num_workers,
     )
-    print(f"Classes: {class_names}")
-    print(f"Training samples: {len(train_loader.dataset)}")
-    print(f"Validation samples: {len(val_loader.dataset)}")
+    log.info(f"Classes: {class_names}")
+    log.info(f"Training samples: {len(train_loader.dataset)}")
+    log.info(f"Validation samples: {len(val_loader.dataset)}")
 
     # Create model
-    model = create_model(num_classes=len(class_names), dropout=dropout)
+    model = CIFAR10CNN(num_classes=num_classes, dropout=dropout)
     model = model.to(device)
 
     # Loss and optimizer
@@ -135,15 +260,15 @@ def train(
         history["val_loss"].append(val_loss)
         history["val_acc"].append(val_acc)
 
-        print(f"Epoch {epoch + 1}/{epochs}")
-        print(f"  Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}")
-        print(f"  Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
+        log.info(f"Epoch {epoch + 1}/{epochs}")
+        log.info(f"  Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}")
+        log.info(f"  Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
 
         # Save best model
         if val_acc > best_acc:
             best_acc = val_acc
             torch.save(model.state_dict(), output_path / "best_model.pt")
-            print(f"  Saved new best model with accuracy: {best_acc:.4f}")
+            log.info(f"  Saved new best model with accuracy: {best_acc:.4f}")
 
     # Save final model
     torch.save(model.state_dict(), output_path / "final_model.pt")
@@ -162,35 +287,29 @@ def train(
         "history": history,
     }
 
-    print(f"\nTraining complete! Best accuracy: {best_acc:.4f}")
+    log.info(f"Training complete! Best accuracy: {best_acc:.4f}")
     return results
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Train image classification model")
-    parser.add_argument("--data-dir", type=str, default="data", help="Path to data directory")
-    parser.add_argument("--output-dir", type=str, default="models", help="Path to save models")
-    parser.add_argument("--epochs", type=int, default=10, help="Number of training epochs")
-    parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
-    parser.add_argument("--learning-rate", type=float, default=0.001, help="Learning rate")
-    parser.add_argument("--num-classes", type=int, default=2, help="Number of classes")
-    parser.add_argument("--dropout", type=float, default=0.5, help="Dropout rate")
-    parser.add_argument("--image-size", type=int, default=224, help="Image size")
-    parser.add_argument("--synthetic", action="store_true", help="Use synthetic data")
+@hydra.main(config_path="configs", config_name="config", version_base=None)
+def main(cfg: DictConfig) -> dict:
+    """Main entry point with Hydra configuration."""
+    log.info("Configuration:\n" + OmegaConf.to_yaml(cfg))
 
-    args = parser.parse_args()
-
-    train(
-        data_dir=args.data_dir,
-        output_dir=args.output_dir,
-        epochs=args.epochs,
-        batch_size=args.batch_size,
-        learning_rate=args.learning_rate,
-        num_classes=args.num_classes,
-        dropout=args.dropout,
-        image_size=args.image_size,
-        use_synthetic=args.synthetic,
+    results = train(
+        data_dir=cfg.data.data_dir,
+        output_dir=cfg.paths.output_dir,
+        epochs=cfg.training.epochs,
+        batch_size=cfg.training.batch_size,
+        learning_rate=cfg.training.learning_rate,
+        num_classes=cfg.model.num_classes,
+        dropout=cfg.model.dropout,
+        image_size=cfg.data.image_size,
+        num_workers=cfg.data.num_workers,
+        seed=cfg.get("seed", 42),
     )
+
+    return results
 
 
 if __name__ == "__main__":
