@@ -50,6 +50,7 @@ from mcp_mlops_tools import (
     update_hydra_config,
     validate_hydra_config,
     # Data quality tools
+    create_expectation_suite,
     validate_dataset,
 )
 
@@ -564,6 +565,130 @@ print("Training...")
         if passed:
             stats = result.get("statistics", {})
             print(f"       Total rows validated: {stats.get('total_rows')}")
+        self.record_result(passed)
+
+        # Test 7: Create expectation suite
+        print(f"\n{Colors.BOLD}Test: create_expectation_suite (basic){Colors.END}")
+        expectations = [
+            {
+                "expectation_type": "expect_column_values_to_not_be_null",
+                "column": "id",
+                "severity": "error",
+                "description": "ID column should not have null values",
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_unique",
+                "column": "id",
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_in_set",
+                "column": "label",
+                "kwargs": {"value_set": ["cat", "dog", "bird"]},
+            },
+        ]
+        result = create_expectation_suite(self.project_path, "test_suite", expectations)
+        passed = result.get("success", False)
+        print_test("Create expectation suite", passed)
+        if passed:
+            print(f"       Suite name: {result.get('suite_name')}")
+            print(f"       Expectations: {result.get('expectation_count')}")
+            print(f"       Suite path: {result.get('suite_path')}")
+        self.record_result(passed)
+
+        # Verify the file was created and is valid JSON
+        if passed:
+            import json
+
+            suite_path = Path(result.get("suite_path"))
+            file_exists = suite_path.exists()
+            print_test("Suite file exists", file_exists)
+            self.record_result(file_exists)
+
+            if file_exists:
+                try:
+                    with open(suite_path) as f:
+                        suite_data = json.load(f)
+                    valid_json = "expectations" in suite_data
+                    print_test("Suite file is valid JSON", valid_json)
+                    if valid_json:
+                        print(f"       Expectations in file: {len(suite_data['expectations'])}")
+                    self.record_result(valid_json)
+                except Exception as e:
+                    print_test("Suite file is valid JSON", False, str(e))
+                    self.record_result(False)
+
+        # Test 8: Create expectation suite with range expectation
+        print(f"\n{Colors.BOLD}Test: create_expectation_suite (with kwargs){Colors.END}")
+        expectations_with_kwargs = [
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "column": "value",
+                "kwargs": {"min_value": 0, "max_value": 100},
+                "severity": "warning",
+            },
+            {
+                "expectation_type": "expect_table_row_count_to_be_between",
+                "kwargs": {"min_value": 1, "max_value": 1000},
+            },
+        ]
+        result = create_expectation_suite(
+            self.project_path, "test_suite_kwargs", expectations_with_kwargs
+        )
+        passed = result.get("success", False)
+        print_test("Create suite with kwargs", passed)
+        if passed:
+            print(f"       Expectation types: {result.get('expectation_types')}")
+        self.record_result(passed)
+
+        # Test 9: Create expectation suite with custom output directory
+        print(f"\n{Colors.BOLD}Test: create_expectation_suite (custom output dir){Colors.END}")
+        result = create_expectation_suite(
+            self.project_path,
+            "custom_dir_suite",
+            [{"expectation_type": "expect_column_to_exist", "column": "id"}],
+            output_dir="custom_expectations",
+        )
+        passed = result.get("success", False)
+        print_test("Create suite in custom directory", passed)
+        if passed:
+            print(f"       Suite path: {result.get('suite_path')}")
+            custom_path = Path(self.project_path) / "custom_expectations" / "custom_dir_suite.json"
+            path_correct = custom_path.exists()
+            print_test("Custom path is correct", path_correct)
+            self.record_result(path_correct)
+        self.record_result(passed)
+
+        # Test 10: Create expectation suite with invalid expectations
+        print(f"\n{Colors.BOLD}Test: create_expectation_suite (validation errors){Colors.END}")
+        invalid_expectations = [
+            {"column": "id"},  # Missing expectation_type
+            {"expectation_type": ""},  # Empty expectation_type
+        ]
+        result = create_expectation_suite(self.project_path, "invalid_suite", invalid_expectations)
+        passed = result.get("success", False) is False
+        print_test("Reject invalid expectations", passed)
+        if passed:
+            print(f"       Error: {result.get('error', '')[:50]}...")
+        self.record_result(passed)
+
+        # Test 11: Create expectation suite with empty expectations list
+        print(f"\n{Colors.BOLD}Test: create_expectation_suite (empty expectations){Colors.END}")
+        result = create_expectation_suite(self.project_path, "empty_suite", [])
+        passed = result.get("success", False) is False
+        print_test("Reject empty expectations", passed)
+        self.record_result(passed)
+
+        # Test 12: Create expectation suite with non-existent project path
+        print(f"\n{Colors.BOLD}Test: create_expectation_suite (non-existent path){Colors.END}")
+        result = create_expectation_suite(
+            "/nonexistent/path",
+            "test_suite",
+            [{"expectation_type": "expect_column_to_exist", "column": "id"}],
+        )
+        passed = result.get("success", False) is False
+        print_test("Handle non-existent path", passed)
+        if passed:
+            print(f"       Error: {result.get('error', '')[:50]}...")
         self.record_result(passed)
 
     def run_all(self, tool_filter: str = None):

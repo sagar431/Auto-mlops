@@ -373,6 +373,21 @@ class ValidateDatasetInput(BaseModel):
     )
 
 
+class CreateExpectationSuiteInput(BaseModel):
+    """Create a Great Expectations expectation suite for data validation."""
+
+    project_path: str = Field(..., description="Path to the ML project")
+    suite_name: str = Field(..., description="Name of the expectation suite")
+    expectations: list[dict[str, Any]] = Field(
+        ...,
+        description="List of expectations. Each expectation is a dict with 'expectation_type' (e.g., 'expect_column_values_to_not_be_null'), optional 'column', optional 'kwargs' (expectation-specific parameters), optional 'severity' ('error'/'warning'/'info'), and optional 'description'.",
+    )
+    output_dir: str = Field(
+        default="great_expectations/expectations",
+        description="Directory to save the suite (relative to project_path)",
+    )
+
+
 # --- Deployment Tools (Phase 4) ---
 
 
@@ -2123,6 +2138,136 @@ def _validate_tabular_dataset(
     return results
 
 
+def create_expectation_suite(
+    project_path: str,
+    suite_name: str,
+    expectations: list[dict[str, Any]],
+    output_dir: str = "great_expectations/expectations",
+) -> dict[str, Any]:
+    """Create a Great Expectations expectation suite for data validation.
+
+    Creates a JSON expectation suite file that can be used with Great Expectations
+    for validating ML datasets. The suite defines data quality expectations that
+    can be run against datasets to ensure data quality.
+
+    Args:
+        project_path: Path to the ML project
+        suite_name: Name of the expectation suite
+        expectations: List of expectation configurations. Each should have:
+            - expectation_type: GE expectation name (e.g., 'expect_column_values_to_not_be_null')
+            - column: Column to apply expectation to (optional, depends on expectation type)
+            - kwargs: Additional expectation parameters (optional)
+            - severity: 'error', 'warning', or 'info' (optional, default: 'error')
+            - description: Human-readable description (optional)
+        output_dir: Directory to save the suite (relative to project_path)
+
+    Returns:
+        Dict with success status and suite details
+    """
+    path = Path(project_path)
+
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    if not expectations:
+        return {"success": False, "error": "At least one expectation is required"}
+
+    # Validate and normalize expectations
+    normalized_expectations = []
+    validation_errors = []
+
+    for i, exp in enumerate(expectations):
+        if not isinstance(exp, dict):
+            validation_errors.append(f"Expectation {i}: must be a dictionary")
+            continue
+
+        exp_type = exp.get("expectation_type")
+        if not exp_type:
+            validation_errors.append(f"Expectation {i}: missing 'expectation_type'")
+            continue
+
+        # Build the normalized expectation in GE format
+        ge_expectation = {
+            "expectation_type": exp_type,
+            "kwargs": {},
+            "meta": {},
+        }
+
+        # Add column if specified
+        column = exp.get("column")
+        if column:
+            ge_expectation["kwargs"]["column"] = column
+
+        # Add additional kwargs
+        extra_kwargs = exp.get("kwargs", {})
+        if isinstance(extra_kwargs, dict):
+            ge_expectation["kwargs"].update(extra_kwargs)
+
+        # Store metadata
+        severity = exp.get("severity", "error")
+        if severity not in ("error", "warning", "info"):
+            severity = "error"
+        ge_expectation["meta"]["severity"] = severity
+
+        description = exp.get("description")
+        if description:
+            ge_expectation["meta"]["description"] = description
+        else:
+            # Generate default description
+            col_str = f" on column '{column}'" if column else ""
+            ge_expectation["meta"]["description"] = f"{exp_type}{col_str}"
+
+        normalized_expectations.append(ge_expectation)
+
+    if validation_errors:
+        return {
+            "success": False,
+            "error": "Invalid expectations",
+            "validation_errors": validation_errors,
+        }
+
+    # Create the expectation suite structure
+    suite = {
+        "expectation_suite_name": suite_name,
+        "ge_cloud_id": None,
+        "expectations": normalized_expectations,
+        "meta": {
+            "great_expectations_version": "0.18.0",
+            "notes": f"Expectation suite created by Auto-MLOps for {suite_name}",
+        },
+    }
+
+    # Create output directory
+    output_path = path / output_dir
+    try:
+        output_path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        return {"success": False, "error": f"Failed to create output directory: {str(e)}"}
+
+    # Write the suite file
+    suite_file = output_path / f"{suite_name}.json"
+    try:
+        with open(suite_file, "w") as f:
+            json.dump(suite, f, indent=2)
+    except Exception as e:
+        return {"success": False, "error": f"Failed to write suite file: {str(e)}"}
+
+    # Generate summary
+    expectation_summary = {}
+    for exp in normalized_expectations:
+        exp_type = exp["expectation_type"]
+        expectation_summary[exp_type] = expectation_summary.get(exp_type, 0) + 1
+
+    return {
+        "success": True,
+        "suite_name": suite_name,
+        "suite_path": str(suite_file),
+        "expectation_count": len(normalized_expectations),
+        "expectation_types": expectation_summary,
+        "message": f"Created expectation suite '{suite_name}' with {len(normalized_expectations)} expectations",
+    }
+
+
 # --- Deployment Tools (Phase 4) ---
 
 
@@ -3309,6 +3454,11 @@ async def list_tools() -> list[Tool]:
             description="Validate ML dataset for quality issues (missing values, duplicates, class balance, outliers, image validity)",
             inputSchema=ValidateDatasetInput.model_json_schema(),
         ),
+        Tool(
+            name="create_expectation_suite",
+            description="Create a Great Expectations expectation suite for data validation with customizable expectations",
+            inputSchema=CreateExpectationSuiteInput.model_json_schema(),
+        ),
         # Deployment Tools (Phase 4)
         # LitServe
         Tool(
@@ -3579,6 +3729,15 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 input_data.dataset_type,
                 input_data.checks,
                 input_data.sample_size,
+            )
+
+        elif name == "create_expectation_suite":
+            input_data = CreateExpectationSuiteInput(**arguments)
+            result = create_expectation_suite(
+                input_data.project_path,
+                input_data.suite_name,
+                input_data.expectations,
+                input_data.output_dir,
             )
 
         # Deployment Tools (Phase 4)
