@@ -1,0 +1,16 @@
+# Fast training configuration for quick testing
+epochs: 10
+batch_size: 256
+learning_rate: 0.01
+optimizer: adam
+weight_decay: 0.0
+num_workers: 0
+
+early_stopping:
+  patience: 3
+  min_delta: 0.001
+
+scheduler:
+  name: reduce_on_plateau
+  factor: 0.5
+  patience: 2

@@ -1,0 +1,6 @@
+# MLP (Multi-Layer Perceptron) configuration
+name: mlp
+hidden_dims: [128, 64, 32]
+dropout: 0.2
+activation: relu
+use_batch_norm: true

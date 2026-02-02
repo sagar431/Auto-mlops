@@ -1,0 +1,4 @@
+# Default paths configuration
+output_dir: ${hydra:runtime.cwd}
+models_dir: ${paths.output_dir}/models
+logs_dir: ${paths.output_dir}/logs

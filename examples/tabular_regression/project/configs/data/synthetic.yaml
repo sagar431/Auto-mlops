@@ -1,0 +1,7 @@
+# Synthetic dataset configuration for testing
+data_dir: ${hydra:runtime.cwd}/data
+dataset: synthetic
+use_synthetic: true
+n_train: 800
+n_test: 200
+n_features: 8

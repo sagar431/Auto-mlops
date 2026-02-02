@@ -1,0 +1,8 @@
+# @package _global_
+# Baseline experiment with MLP on California Housing
+defaults:
+  - override /model: mlp
+  - override /training: default
+  - override /data: california
+
+seed: 42

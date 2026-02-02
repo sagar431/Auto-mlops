@@ -1,0 +1,8 @@
+# @package _global_
+# TabNet baseline experiment
+defaults:
+  - override /model: tabnet
+  - override /training: default
+  - override /data: california
+
+seed: 42

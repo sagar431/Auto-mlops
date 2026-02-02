@@ -1,0 +1,4 @@
+# California Housing dataset configuration
+data_dir: ${hydra:runtime.cwd}/data
+dataset: california
+use_synthetic: false

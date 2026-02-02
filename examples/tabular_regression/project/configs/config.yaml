@@ -1,0 +1,10 @@
+# Main configuration for tabular regression
+defaults:
+  - model: mlp
+  - training: default
+  - data: california
+  - paths: default
+  - _self_
+
+# Global seed for reproducibility
+seed: 42

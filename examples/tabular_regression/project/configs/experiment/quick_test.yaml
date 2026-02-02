@@ -1,0 +1,8 @@
+# @package _global_
+# Quick test experiment with synthetic data
+defaults:
+  - override /model: mlp
+  - override /training: fast
+  - override /data: synthetic
+
+seed: 42

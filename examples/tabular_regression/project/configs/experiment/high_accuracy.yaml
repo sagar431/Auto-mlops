@@ -1,0 +1,12 @@
+# @package _global_
+# High accuracy experiment configuration
+defaults:
+  - override /model: mlp
+  - override /training: long
+  - override /data: california
+
+seed: 42
+
+model:
+  hidden_dims: [256, 128, 64, 32]
+  dropout: 0.1

@@ -1,0 +1,44 @@
+stages:
+  prepare_data:
+    cmd: python prepare_data.py --data-dir data --dataset california
+    deps:
+      - prepare_data.py
+    outs:
+      - data/train.csv
+      - data/test.csv
+      - data/data_info.json
+      - data/scaler.pkl
+
+  train:
+    cmd: python train.py
+    deps:
+      - train.py
+      - model.py
+      - dataset.py
+      - data/train.csv
+      - data/test.csv
+      - configs/config.yaml
+      - configs/model
+      - configs/training
+      - configs/data
+      - configs/paths
+    params:
+      - configs/config.yaml:
+          - model
+          - training
+          - data
+          - seed
+    outs:
+      - models/best_model.pt
+      - models/final_model.pt
+      - models/model_config.json
+
+  evaluate:
+    cmd: python evaluate.py --model-path models/best_model.pt --data-dir data
+    deps:
+      - evaluate.py
+      - models/best_model.pt
+      - data/test.csv
+    metrics:
+      - metrics.json:
+          cache: false

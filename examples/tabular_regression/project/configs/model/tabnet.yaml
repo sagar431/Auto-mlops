@@ -1,0 +1,8 @@
+# TabNet configuration
+name: tabnet
+n_steps: 3
+n_d: 64
+n_a: 64
+gamma: 1.5
+relaxation_factor: 1.5
+epsilon: 1e-15

@@ -1,0 +1,14 @@
+# Long training configuration for best results
+epochs: 300
+batch_size: 64
+learning_rate: 0.0005
+optimizer: adamw
+weight_decay: 0.001
+num_workers: 0
+
+early_stopping:
+  patience: 20
+  min_delta: 0.00001
+
+scheduler:
+  name: cosine

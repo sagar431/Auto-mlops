@@ -1,0 +1,9 @@
+# DVC ignore file
+__pycache__
+*.pyc
+.git
+.dvc
+outputs
+logs
+*.log
+.hydra
