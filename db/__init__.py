@@ -21,6 +21,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlmodel import SQLModel
 
+from db.models import AgentSession, ExperimentState, Step
 from security.models import APIKey, User
 
 
@@ -242,4 +243,8 @@ __all__ = [
     # Re-export models for convenience
     "User",
     "APIKey",
+    # Agent models
+    "AgentSession",
+    "Step",
+    "ExperimentState",
 ]
