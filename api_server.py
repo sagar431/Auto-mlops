@@ -16,6 +16,7 @@ Endpoints:
 
 import asyncio
 import hashlib
+import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -38,6 +39,21 @@ from metrics.models import (
 )
 from security.api_keys import api_key_manager
 from security.middleware import AuthorizationError, CurrentUser, get_current_user
+
+
+def get_cors_origins() -> list[str]:
+    """
+    Get CORS origins from environment variable.
+
+    Returns a list of allowed origins parsed from the CORS_ORIGINS environment variable.
+    The variable should contain comma-separated origins (e.g., "http://localhost:3000,https://example.com").
+    If not set, defaults to ["*"] for backwards compatibility.
+    """
+    cors_origins_env = os.environ.get("CORS_ORIGINS", "").strip()
+    if not cors_origins_env:
+        return ["*"]
+    return [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+
 
 # ============================================================================
 # Data Models
@@ -428,10 +444,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS middleware - origins configurable via CORS_ORIGINS env var
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
