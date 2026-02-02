@@ -1,0 +1,11 @@
+# DistilBERT Model Configuration
+# Pretrained DistilBERT with classification head for text classification
+
+name: distilbert
+num_classes: 2
+embedding_dim: 768  # DistilBERT hidden size (not configurable, for reference)
+dropout: 0.1
+
+# DistilBERT-specific settings
+pretrained_model_name: distilbert-base-uncased
+freeze_encoder: false

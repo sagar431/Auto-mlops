@@ -68,6 +68,7 @@ class HuggingFaceTextDataset(torch.utils.data.Dataset):
         labels: List of integer labels.
         tokenizer: HuggingFace tokenizer.
         max_length: Maximum sequence length.
+        return_attention_mask: Whether to return attention mask (for transformer models).
     """
 
     def __init__(
@@ -76,16 +77,20 @@ class HuggingFaceTextDataset(torch.utils.data.Dataset):
         labels: list[int],
         tokenizer,
         max_length: int = 256,
+        return_attention_mask: bool = False,
     ):
         self.texts = texts
         self.labels = labels
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.return_attention_mask = return_attention_mask
 
     def __len__(self) -> int:
         return len(self.texts)
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
+    def __getitem__(
+        self, idx: int
+    ) -> tuple[torch.Tensor, int] | tuple[torch.Tensor, torch.Tensor, int]:
         text = self.texts[idx]
         label = self.labels[idx]
 
@@ -97,6 +102,12 @@ class HuggingFaceTextDataset(torch.utils.data.Dataset):
             return_tensors="pt",
         )
 
+        if self.return_attention_mask:
+            return (
+                encoding["input_ids"].squeeze(0),
+                encoding["attention_mask"].squeeze(0),
+                label,
+            )
         return encoding["input_ids"].squeeze(0), label
 
 
@@ -106,18 +117,39 @@ def train_epoch(
     criterion: nn.Module,
     optimizer: optim.Optimizer,
     device: torch.device,
+    use_attention_mask: bool = False,
 ) -> tuple[float, float]:
-    """Train for one epoch."""
+    """Train for one epoch.
+
+    Args:
+        model: The model to train.
+        train_loader: DataLoader for training data.
+        criterion: Loss function.
+        optimizer: Optimizer.
+        device: Device to train on.
+        use_attention_mask: Whether batches include attention masks (for transformer models).
+
+    Returns:
+        Tuple of (epoch_loss, epoch_accuracy).
+    """
     model.train()
     running_loss = 0.0
     correct = 0
     total = 0
 
-    for texts, labels in train_loader:
-        texts, labels = texts.to(device), labels.to(device)
+    for batch in train_loader:
+        if use_attention_mask:
+            texts, attention_mask, labels = batch
+            texts = texts.to(device)
+            attention_mask = attention_mask.to(device)
+            labels = labels.to(device)
+            outputs = model(texts, attention_mask=attention_mask)
+        else:
+            texts, labels = batch
+            texts, labels = texts.to(device), labels.to(device)
+            outputs = model(texts)
 
         optimizer.zero_grad()
-        outputs = model(texts)
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
@@ -138,17 +170,38 @@ def validate(
     val_loader: torch.utils.data.DataLoader,
     criterion: nn.Module,
     device: torch.device,
+    use_attention_mask: bool = False,
 ) -> tuple[float, float]:
-    """Validate the model."""
+    """Validate the model.
+
+    Args:
+        model: The model to validate.
+        val_loader: DataLoader for validation data.
+        criterion: Loss function.
+        device: Device to validate on.
+        use_attention_mask: Whether batches include attention masks (for transformer models).
+
+    Returns:
+        Tuple of (validation_loss, validation_accuracy).
+    """
     model.eval()
     running_loss = 0.0
     correct = 0
     total = 0
 
     with torch.no_grad():
-        for texts, labels in val_loader:
-            texts, labels = texts.to(device), labels.to(device)
-            outputs = model(texts)
+        for batch in val_loader:
+            if use_attention_mask:
+                texts, attention_mask, labels = batch
+                texts = texts.to(device)
+                attention_mask = attention_mask.to(device)
+                labels = labels.to(device)
+                outputs = model(texts, attention_mask=attention_mask)
+            else:
+                texts, labels = batch
+                texts, labels = texts.to(device), labels.to(device)
+                outputs = model(texts)
+
             loss = criterion(outputs, labels)
 
             running_loss += loss.item()
@@ -268,6 +321,9 @@ def train(
     log.info(f"Training samples: {len(train_texts)}")
     log.info(f"Test samples: {len(test_texts)}")
 
+    # Determine if we need attention masks (for transformer models like DistilBERT)
+    use_attention_mask = model_type == "distilbert"
+
     # Build vocabulary or tokenizer
     if use_huggingface and not use_synthetic:
         # Use HuggingFace tokenizer
@@ -279,15 +335,34 @@ def train(
         vocab_size = actual_vocab_size
 
         # Create datasets with HuggingFace tokenizer
-        train_dataset = HuggingFaceTextDataset(train_texts, train_labels, tokenizer, max_length)
-        test_dataset = HuggingFaceTextDataset(test_texts, test_labels, tokenizer, max_length)
+        train_dataset = HuggingFaceTextDataset(
+            train_texts,
+            train_labels,
+            tokenizer,
+            max_length,
+            return_attention_mask=use_attention_mask,
+        )
+        test_dataset = HuggingFaceTextDataset(
+            test_texts, test_labels, tokenizer, max_length, return_attention_mask=use_attention_mask
+        )
 
         # Collate function for HuggingFace tokenized data
-        def collate_fn(batch):
-            sequences, labels = zip(*batch)
-            sequences = torch.stack(sequences)
-            labels = torch.tensor(labels, dtype=torch.long)
-            return sequences, labels
+        if use_attention_mask:
+
+            def collate_fn(batch):
+                sequences, attention_masks, labels = zip(*batch)
+                sequences = torch.stack(sequences)
+                attention_masks = torch.stack(attention_masks)
+                labels = torch.tensor(labels, dtype=torch.long)
+                return sequences, attention_masks, labels
+
+        else:
+
+            def collate_fn(batch):
+                sequences, labels = zip(*batch)
+                sequences = torch.stack(sequences)
+                labels = torch.tensor(labels, dtype=torch.long)
+                return sequences, labels
 
         # Save tokenizer info
         tokenizer.save_pretrained(str(output_path / "tokenizer"))
@@ -357,8 +432,12 @@ def train(
     history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
 
     for epoch in range(epochs):
-        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
-        val_loss, val_acc = validate(model, val_loader, criterion, device)
+        train_loss, train_acc = train_epoch(
+            model, train_loader, criterion, optimizer, device, use_attention_mask=use_attention_mask
+        )
+        val_loss, val_acc = validate(
+            model, val_loader, criterion, device, use_attention_mask=use_attention_mask
+        )
 
         scheduler.step(val_loss)
 
@@ -434,6 +513,11 @@ def main(cfg: DictConfig) -> dict:
         model_kwargs["hidden_dim"] = cfg.model.get("hidden_dim", 256)
         model_kwargs["num_layers"] = cfg.model.get("num_layers", 2)
         model_kwargs["bidirectional"] = cfg.model.get("bidirectional", True)
+    elif cfg.model.name == "distilbert":
+        model_kwargs["pretrained_model_name"] = cfg.model.get(
+            "pretrained_model_name", "distilbert-base-uncased"
+        )
+        model_kwargs["freeze_encoder"] = cfg.model.get("freeze_encoder", False)
 
     results = train(
         data_dir=cfg.data.data_dir,

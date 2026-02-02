@@ -3,6 +3,14 @@
 import torch
 import torch.nn as nn
 
+try:
+    from transformers import DistilBertModel
+
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
+    DistilBertModel = None
+
 
 class TextCNN(nn.Module):
     """CNN for text classification.
@@ -71,6 +79,112 @@ class TextCNN(nn.Module):
         out = self.fc(out)
 
         return out
+
+
+class DistilBERTClassifier(nn.Module):
+    """DistilBERT-based classifier for text classification.
+
+    Architecture:
+    - Pretrained DistilBERT encoder
+    - Classification head with dropout
+
+    Args:
+        num_classes: Number of output classes.
+        pretrained_model_name: Name of the pretrained DistilBERT model.
+        dropout: Dropout probability for the classifier head.
+        freeze_encoder: Whether to freeze the DistilBERT encoder weights.
+
+    Raises:
+        ImportError: If transformers library is not available.
+    """
+
+    def __init__(
+        self,
+        num_classes: int = 2,
+        pretrained_model_name: str = "distilbert-base-uncased",
+        dropout: float = 0.1,
+        freeze_encoder: bool = False,
+    ):
+        super().__init__()
+
+        if not TRANSFORMERS_AVAILABLE:
+            raise ImportError(
+                "transformers library is required for DistilBERTClassifier. "
+                "Install it with: pip install transformers"
+            )
+
+        self.num_classes = num_classes
+        self.freeze_encoder = freeze_encoder
+
+        # Load pretrained DistilBERT
+        self.distilbert = DistilBertModel.from_pretrained(pretrained_model_name)
+
+        # Get hidden size from config
+        self.hidden_size = self.distilbert.config.hidden_size
+
+        # Optionally freeze encoder weights
+        if freeze_encoder:
+            for param in self.distilbert.parameters():
+                param.requires_grad = False
+
+        # Classification head
+        self.dropout = nn.Dropout(dropout)
+        self.classifier = nn.Linear(self.hidden_size, num_classes)
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """Forward pass.
+
+        Args:
+            input_ids: Input token IDs, shape (batch_size, seq_len).
+            attention_mask: Attention mask, shape (batch_size, seq_len).
+                If None, no masking is applied.
+
+        Returns:
+            Logits of shape (batch_size, num_classes).
+        """
+        # Get DistilBERT outputs
+        outputs = self.distilbert(input_ids=input_ids, attention_mask=attention_mask)
+
+        # Use [CLS] token representation (first token)
+        cls_output = outputs.last_hidden_state[:, 0, :]
+
+        # Classification
+        pooled = self.dropout(cls_output)
+        logits = self.classifier(pooled)
+
+        return logits
+
+    def unfreeze_encoder(self, num_layers: int | None = None):
+        """Unfreeze encoder layers for fine-tuning.
+
+        Args:
+            num_layers: Number of transformer layers to unfreeze from the top.
+                If None, unfreezes all layers.
+        """
+        if num_layers is None:
+            for param in self.distilbert.parameters():
+                param.requires_grad = True
+        else:
+            # Unfreeze embeddings
+            for param in self.distilbert.embeddings.parameters():
+                param.requires_grad = False
+
+            # Get total number of transformer layers
+            total_layers = len(self.distilbert.transformer.layer)
+
+            # Freeze all layers first
+            for layer in self.distilbert.transformer.layer:
+                for param in layer.parameters():
+                    param.requires_grad = False
+
+            # Unfreeze top num_layers
+            for layer in self.distilbert.transformer.layer[total_layers - num_layers :]:
+                for param in layer.parameters():
+                    param.requires_grad = True
 
 
 class LSTMClassifier(nn.Module):
@@ -162,12 +276,15 @@ def create_model(
     """Create a text classification model.
 
     Args:
-        model_type: Type of model ('textcnn' or 'lstm').
-        vocab_size: Size of the vocabulary.
-        embedding_dim: Dimension of word embeddings.
+        model_type: Type of model ('textcnn', 'lstm', or 'distilbert').
+        vocab_size: Size of the vocabulary (not used for distilbert).
+        embedding_dim: Dimension of word embeddings (not used for distilbert).
         num_classes: Number of output classes.
         dropout: Dropout probability.
         **kwargs: Additional model-specific arguments.
+            For distilbert:
+                - pretrained_model_name: Name of pretrained model (default: 'distilbert-base-uncased')
+                - freeze_encoder: Whether to freeze encoder weights (default: False)
 
     Returns:
         Model instance.
@@ -191,6 +308,13 @@ def create_model(
             num_layers=kwargs.get("num_layers", 2),
             bidirectional=kwargs.get("bidirectional", True),
         )
+    elif model_type == "distilbert":
+        return DistilBERTClassifier(
+            num_classes=num_classes,
+            dropout=dropout,
+            pretrained_model_name=kwargs.get("pretrained_model_name", "distilbert-base-uncased"),
+            freeze_encoder=kwargs.get("freeze_encoder", False),
+        )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
@@ -207,8 +331,8 @@ def load_model(
 
     Args:
         path: Path to the model checkpoint file.
-        model_type: Type of model.
-        vocab_size: Size of the vocabulary.
+        model_type: Type of model ('textcnn', 'lstm', or 'distilbert').
+        vocab_size: Size of the vocabulary (not used for distilbert).
         num_classes: Number of output classes.
         device: Device to load the model on.
         **kwargs: Additional model-specific arguments.
@@ -222,7 +346,14 @@ def load_model(
         num_classes=num_classes,
         **kwargs,
     )
-    model.load_state_dict(torch.load(path, map_location=device, weights_only=True))
+
+    # For DistilBERT, weights_only=True may cause issues with HuggingFace model
+    # architecture, so we use weights_only=False but only load state dict
+    if model_type == "distilbert":
+        model.load_state_dict(torch.load(path, map_location=device, weights_only=False))
+    else:
+        model.load_state_dict(torch.load(path, map_location=device, weights_only=True))
+
     model.to(device)
     model.eval()
     return model
