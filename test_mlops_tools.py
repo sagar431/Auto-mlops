@@ -31,6 +31,7 @@ from mcp_mlops_tools import (
     # Data quality tools
     check_data_quality,
     check_tool_installed,
+    compare_distributions,
     configure_dvc_remote,
     create_dvc_pipeline,
     create_expectation_suite,
@@ -39,6 +40,7 @@ from mcp_mlops_tools import (
     create_hydra_config,
     # Docker tools
     create_ml_dockerfile,
+    detect_anomalies,
     end_mlflow_run,
     get_best_mlflow_run,
     # DVC tools
@@ -47,12 +49,14 @@ from mcp_mlops_tools import (
     init_mlflow_experiment,
     log_mlflow_metrics,
     log_mlflow_params,
+    profile_dataset,
     start_mlflow_run,
     # Training control tools
     suggest_improvements,
     update_hydra_config,
     validate_dataset,
     validate_hydra_config,
+    validate_schema,
 )
 
 
@@ -825,6 +829,255 @@ print("Training...")
             print_test("Check parquet file", True)
             print("       (Skipped - pandas/pyarrow not available)")
             passed = True
+        self.record_result(passed)
+
+        # Test 21: profile_dataset (basic)
+        print(f"\n{Colors.BOLD}Test: profile_dataset (basic){Colors.END}")
+        csv_path = Path(self.project_path) / "data" / "test_data.csv"
+        result = profile_dataset(str(csv_path))
+        passed = result.get("success", False)
+        print_test("Profile CSV dataset", passed)
+        if passed:
+            stats = result.get("statistics", {})
+            print(f"       Row count: {stats.get('row_count')}")
+            print(f"       Column count: {stats.get('column_count')}")
+            print(f"       Memory usage: {stats.get('memory_usage_mb')} MB")
+            print(f"       Columns profiled: {len(result.get('columns', []))}")
+        self.record_result(passed)
+
+        # Test 22: profile_dataset (with custom name)
+        print(f"\n{Colors.BOLD}Test: profile_dataset (custom name){Colors.END}")
+        result = profile_dataset(str(csv_path), dataset_name="my_custom_dataset")
+        passed = result.get("success", False) and result.get("dataset_name") == "my_custom_dataset"
+        print_test("Profile with custom name", passed)
+        if passed:
+            print(f"       Dataset name: {result.get('dataset_name')}")
+        self.record_result(passed)
+
+        # Test 23: profile_dataset (without column stats)
+        print(f"\n{Colors.BOLD}Test: profile_dataset (without column stats){Colors.END}")
+        result = profile_dataset(str(csv_path), include_column_stats=False)
+        passed = result.get("success", False) and "columns" not in result
+        print_test("Profile without column stats", passed)
+        self.record_result(passed)
+
+        # Test 24: profile_dataset (non-existent file)
+        print(f"\n{Colors.BOLD}Test: profile_dataset (non-existent file){Colors.END}")
+        result = profile_dataset("/nonexistent/path/data.csv")
+        passed = result.get("success", False) is False
+        print_test("Handle non-existent file", passed)
+        if passed:
+            print(f"       Error: {result.get('error', '')[:50]}...")
+        self.record_result(passed)
+
+        # Test 25: detect_anomalies (basic)
+        print(f"\n{Colors.BOLD}Test: detect_anomalies (basic){Colors.END}")
+        # Create CSV with some outliers
+        anomaly_csv = Path(self.project_path) / "data" / "anomaly_data.csv"
+        anomaly_content = """id,value,category
+1,10.5,A
+2,15.2,B
+3,12.3,A
+4,18.1,C
+5,14.7,B
+6,100.0,A
+7,11.2,A
+8,-50.0,B
+1,10.5,A
+"""
+        anomaly_csv.write_text(anomaly_content)
+
+        result = detect_anomalies(str(anomaly_csv))
+        passed = result.get("success", False)
+        print_test("Detect anomalies in dataset", passed)
+        if passed:
+            print(f"       Total anomalies: {result.get('total_anomalies')}")
+            print(f"       Affected rows: {result.get('affected_rows')}")
+            print(f"       Affected %: {result.get('affected_percentage')}")
+            print(f"       Types: {result.get('anomalies_by_type')}")
+        self.record_result(passed)
+
+        # Test 26: detect_anomalies (specific methods)
+        print(f"\n{Colors.BOLD}Test: detect_anomalies (specific methods){Colors.END}")
+        result = detect_anomalies(str(anomaly_csv), methods=["iqr", "duplicates"])
+        passed = result.get("success", False)
+        print_test("Detect with specific methods", passed)
+        if passed:
+            print(f"       Methods used: {result.get('methods_used')}")
+        self.record_result(passed)
+
+        # Test 27: detect_anomalies (custom thresholds)
+        print(f"\n{Colors.BOLD}Test: detect_anomalies (custom thresholds){Colors.END}")
+        result = detect_anomalies(str(anomaly_csv), outlier_threshold=2.0, zscore_threshold=2.5)
+        passed = result.get("success", False)
+        print_test("Detect with custom thresholds", passed)
+        if passed:
+            thresholds = result.get("thresholds", {})
+            print(f"       IQR multiplier: {thresholds.get('iqr_multiplier')}")
+            print(f"       Z-score threshold: {thresholds.get('zscore_threshold')}")
+        self.record_result(passed)
+
+        # Test 28: detect_anomalies (non-existent file)
+        print(f"\n{Colors.BOLD}Test: detect_anomalies (non-existent file){Colors.END}")
+        result = detect_anomalies("/nonexistent/path/data.csv")
+        passed = result.get("success", False) is False
+        print_test("Handle non-existent file", passed)
+        self.record_result(passed)
+
+        # Test 29: validate_schema (basic)
+        print(f"\n{Colors.BOLD}Test: validate_schema (basic){Colors.END}")
+        schema = {
+            "schema_name": "test_schema",
+            "version": "1.0",
+            "fields": [
+                {"name": "id", "data_type": "numeric", "nullable": False},
+                {"name": "label", "data_type": "categorical", "nullable": True},
+                {"name": "value", "data_type": "numeric", "nullable": True},
+                {"name": "category", "data_type": "categorical", "nullable": True},
+            ],
+            "strict": False,
+        }
+        result = validate_schema(str(csv_path), schema)
+        passed = result.get("success", False)
+        print_test("Validate schema", passed)
+        if passed:
+            print(f"       Is valid: {result.get('is_valid')}")
+            print(f"       Missing columns: {result.get('missing_columns')}")
+            print(f"       Type mismatches: {len(result.get('type_mismatches', []))}")
+        self.record_result(passed)
+
+        # Test 30: validate_schema (with missing column)
+        print(f"\n{Colors.BOLD}Test: validate_schema (missing column){Colors.END}")
+        schema_with_extra = {
+            "schema_name": "test_schema_missing",
+            "fields": [
+                {"name": "id", "data_type": "numeric"},
+                {"name": "nonexistent_column", "data_type": "text"},
+            ],
+        }
+        result = validate_schema(str(csv_path), schema_with_extra)
+        passed = result.get("success", False) and "nonexistent_column" in result.get(
+            "missing_columns", []
+        )
+        print_test("Detect missing column", passed)
+        if passed:
+            print(f"       Missing: {result.get('missing_columns')}")
+        self.record_result(passed)
+
+        # Test 31: validate_schema (strict mode with extra columns)
+        print(f"\n{Colors.BOLD}Test: validate_schema (strict mode){Colors.END}")
+        schema_strict = {
+            "schema_name": "strict_schema",
+            "fields": [
+                {"name": "id", "data_type": "numeric"},
+            ],
+            "strict": True,
+        }
+        result = validate_schema(str(csv_path), schema_strict)
+        passed = result.get("success", False) and len(result.get("extra_columns", [])) > 0
+        print_test("Detect extra columns in strict mode", passed)
+        if passed:
+            print(f"       Extra columns: {result.get('extra_columns')}")
+        self.record_result(passed)
+
+        # Test 32: validate_schema (non-existent file)
+        print(f"\n{Colors.BOLD}Test: validate_schema (non-existent file){Colors.END}")
+        result = validate_schema("/nonexistent/path/data.csv", schema)
+        passed = result.get("success", False) is False
+        print_test("Handle non-existent file", passed)
+        self.record_result(passed)
+
+        # Test 33: compare_distributions (basic)
+        print(f"\n{Colors.BOLD}Test: compare_distributions (basic){Colors.END}")
+        # Create reference and current datasets
+        ref_csv = Path(self.project_path) / "data" / "reference.csv"
+        ref_content = """id,value,score
+1,10.5,80
+2,12.3,85
+3,11.8,82
+4,10.2,79
+5,13.1,88
+6,11.5,83
+7,12.0,84
+8,10.9,81
+9,11.2,82
+10,12.5,86
+"""
+        ref_csv.write_text(ref_content)
+
+        cur_csv = Path(self.project_path) / "data" / "current.csv"
+        cur_content = """id,value,score
+1,11.0,81
+2,12.8,86
+3,11.3,83
+4,10.7,80
+5,13.5,89
+6,11.9,84
+7,12.4,85
+8,11.4,82
+9,11.7,83
+10,12.9,87
+"""
+        cur_csv.write_text(cur_content)
+
+        result = compare_distributions(str(ref_csv), str(cur_csv))
+        passed = result.get("success", False)
+        print_test("Compare distributions", passed)
+        if passed:
+            print(f"       Columns compared: {result.get('columns_compared')}")
+            print(f"       Drift detected: {result.get('drift_detected')}")
+            print(f"       Shifts found: {result.get('total_shifts_detected')}")
+        self.record_result(passed)
+
+        # Test 34: compare_distributions (with drift)
+        print(f"\n{Colors.BOLD}Test: compare_distributions (with drift){Colors.END}")
+        # Create current dataset with significant drift
+        drift_csv = Path(self.project_path) / "data" / "drifted.csv"
+        drift_content = """id,value,score
+1,50.0,20
+2,55.3,25
+3,52.8,22
+4,48.2,18
+5,60.1,30
+6,53.5,23
+7,57.0,27
+8,51.9,21
+9,54.2,24
+10,58.5,28
+"""
+        drift_csv.write_text(drift_content)
+
+        result = compare_distributions(str(ref_csv), str(drift_csv))
+        passed = result.get("success", False) and result.get("drift_detected", False)
+        print_test("Detect distribution drift", passed)
+        if passed:
+            shifts = result.get("shifts", [])
+            print(f"       Drifted columns: {[s.get('column') for s in shifts]}")
+            if shifts:
+                print(f"       P-value: {shifts[0].get('p_value')}")
+        self.record_result(passed)
+
+        # Test 35: compare_distributions (specific columns)
+        print(f"\n{Colors.BOLD}Test: compare_distributions (specific columns){Colors.END}")
+        result = compare_distributions(str(ref_csv), str(cur_csv), columns=["value"])
+        passed = result.get("success", False) and result.get("columns_compared") == ["value"]
+        print_test("Compare specific columns", passed)
+        if passed:
+            print(f"       Columns compared: {result.get('columns_compared')}")
+        self.record_result(passed)
+
+        # Test 36: compare_distributions (non-existent file)
+        print(f"\n{Colors.BOLD}Test: compare_distributions (non-existent reference){Colors.END}")
+        result = compare_distributions("/nonexistent/ref.csv", str(cur_csv))
+        passed = result.get("success", False) is False
+        print_test("Handle non-existent reference file", passed)
+        self.record_result(passed)
+
+        # Test 37: compare_distributions (non-existent current)
+        print(f"\n{Colors.BOLD}Test: compare_distributions (non-existent current){Colors.END}")
+        result = compare_distributions(str(ref_csv), "/nonexistent/cur.csv")
+        passed = result.get("success", False) is False
+        print_test("Handle non-existent current file", passed)
         self.record_result(passed)
 
     def run_all(self, tool_filter: str = None):

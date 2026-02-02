@@ -405,6 +405,69 @@ class CheckDataQualityInput(BaseModel):
     )
 
 
+class ProfileDatasetInput(BaseModel):
+    """Profile a dataset to get comprehensive statistics."""
+
+    dataset_path: str = Field(..., description="Path to the dataset file (CSV, Parquet, or JSON)")
+    dataset_name: str | None = Field(
+        default=None,
+        description="Name for the dataset in the report. If not provided, uses filename.",
+    )
+    include_column_stats: bool = Field(
+        default=True, description="Whether to include detailed column-level statistics"
+    )
+
+
+class DetectAnomaliesInput(BaseModel):
+    """Detect anomalies in a dataset using statistical methods."""
+
+    dataset_path: str = Field(..., description="Path to the dataset file (CSV, Parquet, or JSON)")
+    dataset_name: str | None = Field(
+        default=None,
+        description="Name for the dataset in the report. If not provided, uses filename.",
+    )
+    methods: list[str] | None = Field(
+        default=None,
+        description="List of detection methods to use: 'iqr' (interquartile range), 'zscore', 'missing' (missing value patterns), 'duplicates'. If None, uses all methods.",
+    )
+    outlier_threshold: float = Field(
+        default=1.5, description="IQR multiplier for outlier detection (default 1.5)"
+    )
+    zscore_threshold: float = Field(
+        default=3.0, description="Z-score threshold for outlier detection (default 3.0)"
+    )
+
+
+class ValidateSchemaInput(BaseModel):
+    """Validate a dataset against a defined schema."""
+
+    dataset_path: str = Field(..., description="Path to the dataset file (CSV, Parquet, or JSON)")
+    schema_definition: dict[str, Any] = Field(
+        ...,
+        description="Schema definition with 'schema_name', 'version' (optional), 'fields' (list of field definitions with 'name', 'data_type', 'nullable', 'unique', 'min_value', 'max_value', 'allowed_values', 'pattern'), and 'strict' (bool, if true extra columns are not allowed).",
+        alias="schema",
+    )
+
+
+class CompareDistributionsInput(BaseModel):
+    """Compare distributions between a reference dataset and current dataset for drift detection."""
+
+    reference_path: str = Field(
+        ..., description="Path to the reference dataset file (e.g., training data)"
+    )
+    current_path: str = Field(
+        ..., description="Path to the current dataset file to compare against reference"
+    )
+    columns: list[str] | None = Field(
+        default=None,
+        description="List of column names to compare. If None, compares all common numeric columns.",
+    )
+    significance_level: float = Field(
+        default=0.05,
+        description="Significance level for statistical tests (default 0.05). Lower values mean stricter detection.",
+    )
+
+
 # --- Deployment Tools (Phase 4) ---
 
 
@@ -2484,6 +2547,485 @@ def check_data_quality(
         return {"success": False, "error": f"Data quality check failed: {str(e)}"}
 
 
+def profile_dataset(
+    dataset_path: str,
+    dataset_name: str | None = None,
+    include_column_stats: bool = True,
+) -> dict[str, Any]:
+    """
+    Profile a dataset to get comprehensive statistics.
+
+    Args:
+        dataset_path: Path to the dataset file (CSV, Parquet, or JSON)
+        dataset_name: Name for the dataset in the report. If not provided, uses filename.
+        include_column_stats: Whether to include detailed column-level statistics
+
+    Returns:
+        Dictionary with profiling results including statistics and metadata
+    """
+    try:
+        import pandas as pd
+
+        from data_quality import DataProfiler, DatasetStatistics
+
+        path = Path(dataset_path)
+        if not path.exists():
+            return {"success": False, "error": f"Dataset file {dataset_path} does not exist"}
+
+        # Determine file type and load data
+        suffix = path.suffix.lower()
+        if suffix == ".csv":
+            df = pd.read_csv(dataset_path)
+        elif suffix == ".parquet":
+            df = pd.read_parquet(dataset_path)
+        elif suffix == ".json":
+            df = pd.read_json(dataset_path)
+        else:
+            return {
+                "success": False,
+                "error": f"Unsupported file type: {suffix}. Supported: .csv, .parquet, .json",
+            }
+
+        # Use filename as dataset name if not provided
+        name = dataset_name or path.stem
+
+        # Profile the dataset
+        profiler = DataProfiler()
+        stats: DatasetStatistics = profiler.profile(df, dataset_name=name)
+
+        # Build result
+        result: dict[str, Any] = {
+            "success": True,
+            "dataset_name": name,
+            "dataset_path": str(path.absolute()),
+            "file_type": suffix[1:],
+            "statistics": {
+                "row_count": stats.row_count,
+                "column_count": stats.column_count,
+                "total_cells": stats.total_cells,
+                "total_missing": stats.total_missing,
+                "missing_percentage": stats.missing_percentage,
+                "duplicate_rows": stats.duplicate_rows,
+                "duplicate_percentage": stats.duplicate_percentage,
+                "memory_usage_bytes": stats.memory_usage_bytes,
+                "memory_usage_mb": round(stats.memory_usage_bytes / (1024 * 1024), 2),
+            },
+        }
+
+        if include_column_stats:
+            result["columns"] = [
+                {
+                    "name": col.column_name,
+                    "data_type": col.data_type.value,
+                    "total_count": col.total_count,
+                    "null_count": col.null_count,
+                    "null_percentage": col.null_percentage,
+                    "unique_count": col.unique_count,
+                    "unique_percentage": col.unique_percentage,
+                    "mean": col.mean,
+                    "median": col.median,
+                    "std": col.std,
+                    "min_value": col.min_value,
+                    "max_value": col.max_value,
+                    "q1": col.q1,
+                    "q3": col.q3,
+                    "top_values": col.top_values,
+                }
+                for col in stats.columns
+            ]
+
+        return result
+
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": f"Required module not available: {str(e)}. Install pandas.",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Dataset profiling failed: {str(e)}"}
+
+
+def detect_anomalies(
+    dataset_path: str,
+    dataset_name: str | None = None,
+    methods: list[str] | None = None,
+    outlier_threshold: float = 1.5,
+    zscore_threshold: float = 3.0,
+) -> dict[str, Any]:
+    """
+    Detect anomalies in a dataset using statistical methods.
+
+    Args:
+        dataset_path: Path to the dataset file (CSV, Parquet, or JSON)
+        dataset_name: Name for the dataset in the report. If not provided, uses filename.
+        methods: List of detection methods: 'iqr', 'zscore', 'missing', 'duplicates'.
+                 If None, uses all methods.
+        outlier_threshold: IQR multiplier for outlier detection (default 1.5)
+        zscore_threshold: Z-score threshold for outlier detection (default 3.0)
+
+    Returns:
+        Dictionary with anomaly detection results
+    """
+    try:
+        import pandas as pd
+
+        from data_quality import AnomalyDetectionResult, DataProfiler
+
+        path = Path(dataset_path)
+        if not path.exists():
+            return {"success": False, "error": f"Dataset file {dataset_path} does not exist"}
+
+        # Determine file type and load data
+        suffix = path.suffix.lower()
+        if suffix == ".csv":
+            df = pd.read_csv(dataset_path)
+        elif suffix == ".parquet":
+            df = pd.read_parquet(dataset_path)
+        elif suffix == ".json":
+            df = pd.read_json(dataset_path)
+        else:
+            return {
+                "success": False,
+                "error": f"Unsupported file type: {suffix}. Supported: .csv, .parquet, .json",
+            }
+
+        # Use filename as dataset name if not provided
+        name = dataset_name or path.stem
+
+        # Create profiler with custom thresholds
+        profiler = DataProfiler(
+            outlier_threshold=outlier_threshold,
+            zscore_threshold=zscore_threshold,
+        )
+
+        # Detect anomalies
+        result_data: AnomalyDetectionResult = profiler.detect_anomalies(
+            df, dataset_name=name, methods=methods
+        )
+
+        # Build result
+        result: dict[str, Any] = {
+            "success": True,
+            "dataset_name": result_data.dataset_name,
+            "dataset_path": str(path.absolute()),
+            "analyzed_at": result_data.analyzed_at,
+            "total_anomalies": result_data.total_anomalies,
+            "anomalies_by_type": result_data.anomalies_by_type,
+            "affected_rows": result_data.affected_rows,
+            "affected_percentage": result_data.affected_percentage,
+            "methods_used": methods or ["iqr", "zscore", "missing", "duplicates"],
+            "thresholds": {
+                "iqr_multiplier": outlier_threshold,
+                "zscore_threshold": zscore_threshold,
+            },
+            "anomalies": [
+                {
+                    "type": a.anomaly_type.value,
+                    "column": a.column,
+                    "description": a.description,
+                    "severity": a.severity.value,
+                    "row_indices_sample": a.row_indices[:10],
+                    "total_affected_rows": len(a.row_indices),
+                    "value": a.value,
+                    "expected_range": a.expected_range,
+                }
+                for a in result_data.anomalies
+            ],
+        }
+
+        # Add summary message
+        if result_data.total_anomalies == 0:
+            result["message"] = "No anomalies detected in the dataset"
+        else:
+            result["message"] = (
+                f"Found {result_data.total_anomalies} anomaly type(s) "
+                f"affecting {result_data.affected_rows} rows ({result_data.affected_percentage}%)"
+            )
+
+        return result
+
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": f"Required module not available: {str(e)}. Install pandas and numpy.",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Anomaly detection failed: {str(e)}"}
+
+
+def validate_schema(
+    dataset_path: str,
+    schema: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Validate a dataset against a defined schema.
+
+    Args:
+        dataset_path: Path to the dataset file (CSV, Parquet, or JSON)
+        schema: Schema definition with fields, types, and constraints
+
+    Returns:
+        Dictionary with schema validation results
+    """
+    try:
+        import pandas as pd
+
+        from data_quality import DataSchema, DataType, SchemaField
+        from data_quality.validators import DataValidator
+
+        path = Path(dataset_path)
+        if not path.exists():
+            return {"success": False, "error": f"Dataset file {dataset_path} does not exist"}
+
+        # Determine file type and load data
+        suffix = path.suffix.lower()
+        if suffix == ".csv":
+            df = pd.read_csv(dataset_path)
+        elif suffix == ".parquet":
+            df = pd.read_parquet(dataset_path)
+        elif suffix == ".json":
+            df = pd.read_json(dataset_path)
+        else:
+            return {
+                "success": False,
+                "error": f"Unsupported file type: {suffix}. Supported: .csv, .parquet, .json",
+            }
+
+        # Parse schema definition
+        schema_name = schema.get("schema_name", "schema")
+        version = schema.get("version", "1.0")
+        strict = schema.get("strict", False)
+        fields_data = schema.get("fields", [])
+
+        # Map string data types to DataType enum
+        type_mapping = {
+            "numeric": DataType.NUMERIC,
+            "categorical": DataType.CATEGORICAL,
+            "text": DataType.TEXT,
+            "datetime": DataType.DATETIME,
+            "boolean": DataType.BOOLEAN,
+            "image": DataType.IMAGE,
+            "unknown": DataType.UNKNOWN,
+        }
+
+        # Build schema fields
+        fields: list[SchemaField] = []
+        for field_def in fields_data:
+            data_type_str = field_def.get("data_type", "unknown").lower()
+            data_type = type_mapping.get(data_type_str, DataType.UNKNOWN)
+
+            field = SchemaField(
+                name=field_def["name"],
+                data_type=data_type,
+                nullable=field_def.get("nullable", True),
+                unique=field_def.get("unique", False),
+                min_value=field_def.get("min_value"),
+                max_value=field_def.get("max_value"),
+                allowed_values=field_def.get("allowed_values"),
+                pattern=field_def.get("pattern"),
+            )
+            fields.append(field)
+
+        # Create DataSchema
+        data_schema = DataSchema(
+            schema_name=schema_name,
+            version=version,
+            fields=fields,
+            strict=strict,
+        )
+
+        # Create validator and validate schema
+        validator = DataValidator()
+        validation_result = validator.validate_schema(df, data_schema)
+
+        # Build result
+        result: dict[str, Any] = {
+            "success": True,
+            "is_valid": validation_result.is_valid,
+            "schema_name": validation_result.schema_name,
+            "dataset_name": validation_result.dataset_name,
+            "dataset_path": str(path.absolute()),
+            "validated_at": validation_result.validated_at,
+            "missing_columns": validation_result.missing_columns,
+            "extra_columns": validation_result.extra_columns,
+            "type_mismatches": validation_result.type_mismatches,
+            "constraint_violations": [
+                {
+                    "rule_id": v.rule_id,
+                    "rule_name": v.rule_name,
+                    "status": v.status.value,
+                    "severity": v.severity.value,
+                    "column": v.column,
+                    "message": v.message,
+                    "failed_rows": v.failed_rows,
+                    "failed_percentage": v.failed_percentage,
+                }
+                for v in validation_result.constraint_violations
+            ],
+        }
+
+        # Add summary
+        issues = []
+        if validation_result.missing_columns:
+            issues.append(f"{len(validation_result.missing_columns)} missing columns")
+        if validation_result.extra_columns and strict:
+            issues.append(f"{len(validation_result.extra_columns)} extra columns")
+        if validation_result.type_mismatches:
+            issues.append(f"{len(validation_result.type_mismatches)} type mismatches")
+        if validation_result.constraint_violations:
+            issues.append(f"{len(validation_result.constraint_violations)} constraint violations")
+
+        if validation_result.is_valid:
+            result["message"] = "Dataset matches schema"
+        else:
+            result["message"] = f"Schema validation failed: {', '.join(issues)}"
+
+        return result
+
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": f"Required module not available: {str(e)}. Install pandas.",
+        }
+    except KeyError as e:
+        return {
+            "success": False,
+            "error": f"Invalid schema definition: missing required field {str(e)}",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Schema validation failed: {str(e)}"}
+
+
+def compare_distributions(
+    reference_path: str,
+    current_path: str,
+    columns: list[str] | None = None,
+    significance_level: float = 0.05,
+) -> dict[str, Any]:
+    """
+    Compare distributions between a reference dataset and current dataset for drift detection.
+
+    Args:
+        reference_path: Path to the reference dataset file (e.g., training data)
+        current_path: Path to the current dataset file to compare against reference
+        columns: List of column names to compare. If None, compares all common numeric columns.
+        significance_level: Significance level for statistical tests (default 0.05)
+
+    Returns:
+        Dictionary with distribution comparison results for drift detection
+    """
+    try:
+        import pandas as pd
+
+        from data_quality import DataProfiler
+
+        ref_path = Path(reference_path)
+        cur_path = Path(current_path)
+
+        if not ref_path.exists():
+            return {"success": False, "error": f"Reference dataset {reference_path} does not exist"}
+        if not cur_path.exists():
+            return {"success": False, "error": f"Current dataset {current_path} does not exist"}
+
+        # Load reference dataset
+        ref_suffix = ref_path.suffix.lower()
+        if ref_suffix == ".csv":
+            df_reference = pd.read_csv(reference_path)
+        elif ref_suffix == ".parquet":
+            df_reference = pd.read_parquet(reference_path)
+        elif ref_suffix == ".json":
+            df_reference = pd.read_json(reference_path)
+        else:
+            return {
+                "success": False,
+                "error": f"Unsupported file type for reference: {ref_suffix}. Supported: .csv, .parquet, .json",
+            }
+
+        # Load current dataset
+        cur_suffix = cur_path.suffix.lower()
+        if cur_suffix == ".csv":
+            df_current = pd.read_csv(current_path)
+        elif cur_suffix == ".parquet":
+            df_current = pd.read_parquet(current_path)
+        elif cur_suffix == ".json":
+            df_current = pd.read_json(current_path)
+        else:
+            return {
+                "success": False,
+                "error": f"Unsupported file type for current: {cur_suffix}. Supported: .csv, .parquet, .json",
+            }
+
+        # Compare distributions
+        profiler = DataProfiler()
+        anomalies = profiler.compare_distributions(
+            df_reference,
+            df_current,
+            columns=columns,
+        )
+
+        # Filter anomalies by significance level
+        significant_shifts = []
+        for a in anomalies:
+            if a.value and isinstance(a.value, dict):
+                p_value = a.value.get("p_value", 1.0)
+                if p_value < significance_level:
+                    significant_shifts.append(
+                        {
+                            "column": a.column,
+                            "description": a.description,
+                            "severity": a.severity.value,
+                            "ks_statistic": a.value.get("ks_statistic"),
+                            "p_value": p_value,
+                            "reference_mean": a.value.get("ref_mean"),
+                            "current_mean": a.value.get("cur_mean"),
+                            "drift_detected": True,
+                        }
+                    )
+
+        # Determine columns compared
+        import numpy as np
+
+        if columns is None:
+            ref_numeric = set(df_reference.select_dtypes(include=[np.number]).columns)
+            cur_numeric = set(df_current.select_dtypes(include=[np.number]).columns)
+            columns_compared = list(ref_numeric & cur_numeric)
+        else:
+            columns_compared = columns
+
+        # Build result
+        result: dict[str, Any] = {
+            "success": True,
+            "reference_dataset": str(ref_path.absolute()),
+            "current_dataset": str(cur_path.absolute()),
+            "reference_rows": len(df_reference),
+            "current_rows": len(df_current),
+            "columns_compared": columns_compared,
+            "significance_level": significance_level,
+            "total_shifts_detected": len(significant_shifts),
+            "shifts": significant_shifts,
+            "drift_detected": len(significant_shifts) > 0,
+        }
+
+        # Add summary message
+        if len(significant_shifts) == 0:
+            result["message"] = "No significant distribution drift detected"
+        else:
+            drifted_cols = [s["column"] for s in significant_shifts]
+            result["message"] = (
+                f"Distribution drift detected in {len(significant_shifts)} column(s): {', '.join(drifted_cols)}"
+            )
+
+        return result
+
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": f"Required module not available: {str(e)}. Install pandas, numpy, and scipy.",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Distribution comparison failed: {str(e)}"}
+
+
 # --- Deployment Tools (Phase 4) ---
 
 
@@ -3680,6 +4222,26 @@ async def list_tools() -> list[Tool]:
             description="Check data quality using Great Expectations-based validation. Validates datasets against expectations or runs basic quality checks (nulls, duplicates, row count). Returns quality score, validation results, and recommendations.",
             inputSchema=CheckDataQualityInput.model_json_schema(),
         ),
+        Tool(
+            name="profile_dataset",
+            description="Profile a dataset to get comprehensive statistics including row/column counts, missing values, duplicates, memory usage, and per-column statistics (mean, median, std, quartiles for numeric; top values for categorical).",
+            inputSchema=ProfileDatasetInput.model_json_schema(),
+        ),
+        Tool(
+            name="detect_anomalies",
+            description="Detect anomalies in a dataset using statistical methods (IQR outliers, Z-score outliers, missing value patterns, duplicate rows). Returns detailed anomaly information with affected rows and severity levels.",
+            inputSchema=DetectAnomaliesInput.model_json_schema(),
+        ),
+        Tool(
+            name="validate_schema",
+            description="Validate a dataset against a defined schema. Checks for missing columns, extra columns (in strict mode), type mismatches, and constraint violations (nullability, uniqueness, value ranges, patterns).",
+            inputSchema=ValidateSchemaInput.model_json_schema(),
+        ),
+        Tool(
+            name="compare_distributions",
+            description="Compare distributions between a reference dataset and current dataset for drift detection. Uses Kolmogorov-Smirnov test to identify significant distribution shifts in numeric columns.",
+            inputSchema=CompareDistributionsInput.model_json_schema(),
+        ),
         # Deployment Tools (Phase 4)
         # LitServe
         Tool(
@@ -3968,6 +4530,40 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 input_data.expectations,
                 input_data.include_statistics,
                 input_data.fail_on_error,
+            )
+
+        elif name == "profile_dataset":
+            input_data = ProfileDatasetInput(**arguments)
+            result = profile_dataset(
+                input_data.dataset_path,
+                input_data.dataset_name,
+                input_data.include_column_stats,
+            )
+
+        elif name == "detect_anomalies":
+            input_data = DetectAnomaliesInput(**arguments)
+            result = detect_anomalies(
+                input_data.dataset_path,
+                input_data.dataset_name,
+                input_data.methods,
+                input_data.outlier_threshold,
+                input_data.zscore_threshold,
+            )
+
+        elif name == "validate_schema":
+            input_data = ValidateSchemaInput(**arguments)
+            result = validate_schema(
+                input_data.dataset_path,
+                input_data.schema_definition,
+            )
+
+        elif name == "compare_distributions":
+            input_data = CompareDistributionsInput(**arguments)
+            result = compare_distributions(
+                input_data.reference_path,
+                input_data.current_path,
+                input_data.columns,
+                input_data.significance_level,
             )
 
         # Deployment Tools (Phase 4)
