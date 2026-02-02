@@ -52,6 +52,9 @@ dependencies = [
     # System monitoring
     "psutil>=5.9.0",
 
+    # Data/model drift detection
+    "evidently>=0.4.0",
+
     # Rate limiting
     "slowapi>=0.1.9",
 

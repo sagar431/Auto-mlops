@@ -250,6 +250,102 @@ class TestDriftDetector:
         assert detector._calculate_severity(0.4, True) == DriftSeverity.HIGH
         assert detector._calculate_severity(0.7, True) == DriftSeverity.CRITICAL
 
+    def test_evidently_available_property(self):
+        """Test evidently_available property."""
+        detector = DriftDetector()
+        # Property should return a boolean
+        assert isinstance(detector.evidently_available, bool)
+
+    def test_detect_drift_with_column_mapping(
+        self, drift_detector, reference_data, current_data_with_drift
+    ):
+        """Test drift detection with explicit column type mapping."""
+        report = drift_detector.detect_drift(
+            reference_data=reference_data,
+            current_data=current_data_with_drift,
+            categorical_columns=["category"],
+            numerical_columns=["age", "income", "score"],
+            dataset_name="mapped_dataset",
+        )
+
+        assert isinstance(report, DriftReport)
+        assert len(report.feature_results) == 4
+
+    def test_detect_drift_with_empty_dataframes(self, drift_detector):
+        """Test drift detection with empty dataframes raises error or handles gracefully."""
+        empty_df = pd.DataFrame()
+        data_df = pd.DataFrame({"a": [1, 2, 3]})
+
+        # Test with empty reference
+        try:
+            drift_detector.detect_drift(
+                reference_data=empty_df,
+                current_data=data_df,
+            )
+        except (ValueError, KeyError):
+            pass  # Expected behavior
+
+    def test_detect_drift_recommendations(
+        self, drift_detector, reference_data, current_data_with_drift
+    ):
+        """Test that recommendations are generated for drift reports."""
+        report = drift_detector.detect_drift(
+            reference_data=reference_data,
+            current_data=current_data_with_drift,
+        )
+
+        # Should have recommendations when drift is detected
+        assert isinstance(report.recommendations, list)
+        if report.overall_drift_detected:
+            assert len(report.recommendations) > 0
+
+    def test_detect_drift_with_missing_columns(self, drift_detector, reference_data):
+        """Test drift detection when current data has missing columns."""
+        current_data = reference_data.drop(columns=["category"]).copy()
+
+        report = drift_detector.detect_drift(
+            reference_data=reference_data,
+            current_data=current_data,
+            feature_columns=["age", "income", "category"],
+        )
+
+        # Should handle missing columns gracefully
+        assert isinstance(report, DriftReport)
+
+    def test_generate_recommendations_no_drift(self, drift_detector):
+        """Test recommendation generation when no drift."""
+        feature_results = [
+            FeatureDriftResult(
+                feature_name="test",
+                drift_detected=False,
+                drift_score=0.01,
+                stattest_name="ks",
+                stattest_threshold=0.05,
+            )
+        ]
+        recommendations = drift_detector._generate_recommendations(
+            feature_results, 0.0, DriftSeverity.NONE
+        )
+        assert "No significant drift detected" in recommendations[0]
+
+    def test_generate_recommendations_high_drift(self, drift_detector):
+        """Test recommendation generation for high drift."""
+        feature_results = [
+            FeatureDriftResult(
+                feature_name="high_drift_feature",
+                drift_detected=True,
+                drift_score=0.8,
+                stattest_name="ks",
+                stattest_threshold=0.05,
+            )
+        ]
+        recommendations = drift_detector._generate_recommendations(
+            feature_results, 0.6, DriftSeverity.CRITICAL
+        )
+        assert len(recommendations) > 0
+        # Should include retraining recommendation for critical drift
+        assert any("retrain" in r.lower() for r in recommendations)
+
 
 # ============================================================================
 # ConceptDriftDetector Tests
@@ -929,3 +1025,148 @@ class TestIntegration:
         assert metrics.accuracy is not None
         assert metrics.auc_roc is not None
         assert 0 <= metrics.accuracy <= 1
+
+    def test_evidently_integration(self, reference_data, current_data_with_drift):
+        """Test Evidently library integration for drift detection."""
+        detector = DriftDetector(drift_threshold=0.05)
+
+        # Skip if Evidently is not available
+        if not detector.evidently_available:
+            pytest.skip("Evidently not available")
+
+        report = detector.detect_drift(
+            reference_data=reference_data,
+            current_data=current_data_with_drift,
+            dataset_name="evidently_test",
+        )
+
+        # Verify Evidently report structure
+        assert isinstance(report, DriftReport)
+        assert report.report_id is not None
+        assert report.drift_type == DriftType.DATA
+
+        # With shifted data, drift should be detected
+        assert report.overall_drift_detected is True
+        assert len(report.feature_results) > 0
+
+    def test_fallback_drift_detection(self, reference_data, current_data_with_drift):
+        """Test fallback drift detection without Evidently."""
+        detector = DriftDetector()
+
+        # Force fallback by directly calling the fallback method
+        report = detector._detect_drift_fallback(
+            reference_data=reference_data,
+            current_data=current_data_with_drift,
+            feature_columns=None,
+            dataset_name="fallback_test",
+        )
+
+        assert isinstance(report, DriftReport)
+        assert report.dataset_name == "fallback_test"
+        assert len(report.feature_results) > 0
+
+    def test_categorical_drift_detection(self):
+        """Test drift detection for categorical features."""
+        np.random.seed(42)
+        reference = pd.DataFrame(
+            {
+                "category": np.random.choice(["A", "B", "C"], 500, p=[0.5, 0.3, 0.2]),
+                "status": np.random.choice(["active", "inactive"], 500),
+            }
+        )
+        # Current data with shifted distribution
+        current = pd.DataFrame(
+            {
+                "category": np.random.choice(["A", "B", "C"], 500, p=[0.1, 0.2, 0.7]),
+                "status": np.random.choice(["active", "pending"], 500),  # New category
+            }
+        )
+
+        detector = DriftDetector(drift_threshold=0.05)
+        report = detector.detect_drift(
+            reference_data=reference,
+            current_data=current,
+            categorical_columns=["category", "status"],
+        )
+
+        assert isinstance(report, DriftReport)
+        # Should detect drift in category distribution
+        category_result = next(
+            (f for f in report.feature_results if f.feature_name == "category"), None
+        )
+        if category_result:
+            assert category_result.stattest_name in ["chisquare", "psi", "jensenshannon"]
+
+    def test_drift_detection_with_nan_values(self):
+        """Test drift detection handles NaN values correctly."""
+        np.random.seed(42)
+        reference = pd.DataFrame(
+            {
+                "feature1": [1.0, 2.0, np.nan, 4.0, 5.0] * 100,
+                "feature2": np.random.normal(0, 1, 500),
+            }
+        )
+        current = pd.DataFrame(
+            {
+                "feature1": [1.0, np.nan, 3.0, 4.0, np.nan] * 100,
+                "feature2": np.random.normal(0.5, 1, 500),
+            }
+        )
+
+        detector = DriftDetector()
+        report = detector.detect_drift(
+            reference_data=reference,
+            current_data=current,
+        )
+
+        assert isinstance(report, DriftReport)
+        assert len(report.feature_results) == 2
+
+    def test_drift_report_serialization(self, reference_data, current_data_no_drift):
+        """Test that drift reports can be serialized to JSON."""
+        detector = DriftDetector()
+        report = detector.detect_drift(
+            reference_data=reference_data,
+            current_data=current_data_no_drift,
+        )
+
+        # Pydantic models should be serializable
+        json_str = report.model_dump_json()
+        assert isinstance(json_str, str)
+        assert "report_id" in json_str
+        assert "drift_type" in json_str
+
+    def test_multiple_drift_checks(self, reference_data):
+        """Test running multiple drift checks on the same detector."""
+        detector = DriftDetector()
+
+        # Create multiple current datasets with varying drift
+        np.random.seed(42)
+        current1 = pd.DataFrame(
+            {
+                "age": np.random.normal(35, 10, 500),  # No drift
+                "income": np.random.normal(50000, 15000, 500),
+                "category": np.random.choice(["A", "B", "C"], 500),
+                "score": np.random.uniform(0, 100, 500),
+            }
+        )
+        current2 = pd.DataFrame(
+            {
+                "age": np.random.normal(60, 10, 500),  # High drift
+                "income": np.random.normal(80000, 15000, 500),
+                "category": np.random.choice(["X", "Y", "Z"], 500),
+                "score": np.random.uniform(50, 150, 500),
+            }
+        )
+
+        report1 = detector.detect_drift(
+            reference_data=reference_data, current_data=current1, dataset_name="check1"
+        )
+        report2 = detector.detect_drift(
+            reference_data=reference_data, current_data=current2, dataset_name="check2"
+        )
+
+        # report2 should show more drift than report1
+        assert report2.drift_share >= report1.drift_share
+        assert report1.dataset_name == "check1"
+        assert report2.dataset_name == "check2"
