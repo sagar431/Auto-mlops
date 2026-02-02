@@ -1,0 +1,62 @@
+# DVC Pipeline for CIFAR-10 Image Classification
+# This pipeline defines the stages for data preparation, training, and evaluation.
+#
+# Usage:
+#   dvc repro                    # Run all stages
+#   dvc repro train              # Run up to train stage
+#   dvc repro evaluate           # Run all stages including evaluate
+#   dvc repro -f                 # Force re-run all stages
+#
+# Pipeline DAG:
+#   prepare_data -> train -> evaluate
+
+stages:
+  prepare_data:
+    cmd: python prepare_data.py --data-dir data --output data/data_info.json
+    deps:
+      - prepare_data.py
+    outs:
+      - data/cifar-10-batches-py:
+          cache: false
+      - data/data_info.json:
+          cache: false
+
+  train:
+    cmd: python train.py
+    deps:
+      - train.py
+      - model.py
+      - dataset.py
+      - data/cifar-10-batches-py
+      - configs/config.yaml
+      - configs/model/cifar10_cnn.yaml
+      - configs/training/default.yaml
+      - configs/data/cifar10.yaml
+      - configs/paths/default.yaml
+    params:
+      - configs/config.yaml:
+          - seed
+      - configs/model/cifar10_cnn.yaml:
+          - num_classes
+          - dropout
+      - configs/training/default.yaml:
+          - epochs
+          - batch_size
+          - learning_rate
+      - configs/data/cifar10.yaml:
+          - image_size
+          - num_workers
+    outs:
+      - models/best_model.pt
+      - models/final_model.pt
+      - models/classes.txt
+
+  evaluate:
+    cmd: python evaluate.py --model-path models/best_model.pt --data-dir data --output metrics.json
+    deps:
+      - evaluate.py
+      - models/best_model.pt
+      - data/cifar-10-batches-py
+    metrics:
+      - metrics.json:
+          cache: false

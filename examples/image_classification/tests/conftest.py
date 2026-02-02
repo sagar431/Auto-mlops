@@ -65,6 +65,8 @@ def pytest_collection_modifyitems(config, items):
                 "TestImageClassifier",
                 "TestTrainingFunctions",
                 "TestFullTraining",
+                "TestPrepareData",
+                "TestEvaluate",
             ]
         ):
             item.add_marker(skip_marker)
