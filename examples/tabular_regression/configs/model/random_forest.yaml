@@ -1,0 +1,4 @@
+# Random Forest regression configuration
+name: random_forest
+n_estimators: 100
+max_depth: null

@@ -1,0 +1,5 @@
+# Gradient Boosting regression configuration
+name: gradient_boosting
+n_estimators: 100
+max_depth: 3
+learning_rate: 0.1

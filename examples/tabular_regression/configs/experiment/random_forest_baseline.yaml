@@ -1,0 +1,8 @@
+# @package _global_
+# Random Forest baseline experiment
+defaults:
+  - override /model: random_forest
+  - override /training: default
+  - override /data: california
+
+seed: 42

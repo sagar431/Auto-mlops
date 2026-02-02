@@ -6,18 +6,21 @@ in project/train.py. It uses scikit-learn models (Ridge, RandomForest, GradientB
 for training on the California Housing dataset.
 
 Usage:
-    python train.py                          # Train with default settings
-    python train.py --model gradient_boosting
-    python train.py --model random_forest --n-estimators 200
+    python train.py                              # Train with default settings
+    python train.py model=ridge                  # Use Ridge model
+    python train.py model=random_forest          # Use Random Forest
+    python train.py +experiment=high_accuracy    # Use experiment preset
+    python train.py model.n_estimators=200       # Override model parameter
 """
 
-import argparse
 import json
 import logging
 import pickle
 from pathlib import Path
 
+import hydra
 import numpy as np
+from omegaconf import DictConfig, OmegaConf
 from sklearn.datasets import fetch_california_housing
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import Ridge
@@ -25,7 +28,6 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 log = logging.getLogger(__name__)
 
 
@@ -262,79 +264,45 @@ def train(
     return results
 
 
-def main():
-    """Main entry point for command line usage."""
-    parser = argparse.ArgumentParser(
-        description="Train sklearn models on California Housing dataset"
-    )
-    parser.add_argument(
-        "--model",
-        type=str,
-        default="gradient_boosting",
-        choices=["ridge", "random_forest", "gradient_boosting"],
-        help="Model type to train",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        default="outputs",
-        help="Directory to save model and results",
-    )
-    parser.add_argument(
-        "--test-size",
-        type=float,
-        default=0.2,
-        help="Fraction of data for testing",
-    )
-    parser.add_argument(
-        "--no-normalize",
-        action="store_true",
-        help="Skip feature normalization",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=42,
-        help="Random seed",
-    )
-    parser.add_argument(
-        "--n-estimators",
-        type=int,
-        default=100,
-        help="Number of trees (for ensemble methods)",
-    )
-    parser.add_argument(
-        "--max-depth",
-        type=int,
-        default=None,
-        help="Maximum tree depth",
-    )
-    parser.add_argument(
-        "--learning-rate",
-        type=float,
-        default=0.1,
-        help="Learning rate (for gradient boosting)",
-    )
-    parser.add_argument(
-        "--alpha",
-        type=float,
-        default=1.0,
-        help="Regularization strength (for ridge)",
-    )
+@hydra.main(config_path="configs", config_name="config", version_base=None)
+def main(cfg: DictConfig) -> dict | None:
+    """Main entry point with Hydra configuration.
 
-    args = parser.parse_args()
+    Args:
+        cfg: Hydra configuration
 
+    Returns:
+        Training results
+    """
+    log.info("Configuration:\n" + OmegaConf.to_yaml(cfg))
+
+    # Extract model config
+    model_cfg = OmegaConf.to_container(cfg.model, resolve=True)
+    model_name = model_cfg.pop("name")
+
+    # Extract training config
+    training_cfg = OmegaConf.to_container(cfg.training, resolve=True)
+
+    # Extract paths config
+    output_dir = cfg.paths.output_dir
+
+    # Get seed
+    seed = cfg.get("seed", 42)
+
+    # Train model
     results = train(
-        model_name=args.model,
-        output_dir=args.output_dir,
-        test_size=args.test_size,
-        normalize=not args.no_normalize,
-        seed=args.seed,
-        n_estimators=args.n_estimators,
-        max_depth=args.max_depth,
-        learning_rate=args.learning_rate,
-        alpha=args.alpha,
+        model_name=model_name,
+        output_dir=output_dir,
+        test_size=training_cfg.get("test_size", 0.2),
+        normalize=training_cfg.get("normalize", True),
+        seed=seed,
+        n_estimators=model_cfg.get("n_estimators", 100),
+        max_depth=model_cfg.get("max_depth"),
+        learning_rate=model_cfg.get("learning_rate", 0.1),
+        alpha=model_cfg.get("alpha", 1.0),
     )
+
+    log.info(f"Training complete. Test RMSE: {results['test_metrics']['rmse']:.4f}")
 
     print("\n" + "=" * 50)
     print("Training Results Summary")
@@ -347,6 +315,8 @@ def main():
     print(f"  MAE:  {results['test_metrics']['mae']:.4f}")
     print(f"  R²:   {results['test_metrics']['r2']:.4f}")
     print(f"  MAPE: {results['test_metrics']['mape']:.2f}%")
+
+    return results
 
 
 if __name__ == "__main__":

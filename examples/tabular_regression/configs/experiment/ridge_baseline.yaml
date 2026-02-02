@@ -1,0 +1,8 @@
+# @package _global_
+# Ridge regression baseline experiment
+defaults:
+  - override /model: ridge
+  - override /training: default
+  - override /data: california
+
+seed: 42

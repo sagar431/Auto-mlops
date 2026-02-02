@@ -1,0 +1,2 @@
+# Default paths configuration
+output_dir: ${hydra:runtime.cwd}/outputs

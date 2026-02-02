@@ -1,0 +1,10 @@
+# Main configuration for sklearn tabular regression
+defaults:
+  - model: gradient_boosting
+  - training: default
+  - data: california
+  - paths: default
+  - _self_
+
+# Global seed for reproducibility
+seed: 42

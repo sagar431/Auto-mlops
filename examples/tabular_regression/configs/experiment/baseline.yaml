@@ -1,0 +1,8 @@
+# @package _global_
+# Baseline experiment with Gradient Boosting on California Housing
+defaults:
+  - override /model: gradient_boosting
+  - override /training: default
+  - override /data: california
+
+seed: 42

@@ -1,5 +1,6 @@
-"""Tests for training functionality."""
+"""Tests for training functionality (PyTorch version)."""
 
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -14,7 +15,13 @@ sys.path.insert(0, str(project_dir))
 
 from dataset import TabularDataset  # noqa: E402
 from model import MLP  # noqa: E402
-from train import train_epoch, validate  # noqa: E402
+
+# Explicitly load project/train.py to avoid confusion with root train.py
+_train_spec = importlib.util.spec_from_file_location("project_train", project_dir / "train.py")
+_train_module = importlib.util.module_from_spec(_train_spec)
+_train_spec.loader.exec_module(_train_module)
+train_epoch = _train_module.train_epoch
+validate = _train_module.validate
 
 
 @pytest.fixture

@@ -1,0 +1,13 @@
+# @package _global_
+# High accuracy experiment with tuned Gradient Boosting
+defaults:
+  - override /model: gradient_boosting
+  - override /training: default
+  - override /data: california
+
+seed: 42
+
+model:
+  n_estimators: 200
+  max_depth: 5
+  learning_rate: 0.05
