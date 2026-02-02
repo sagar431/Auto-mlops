@@ -1,4 +1,4 @@
-"""Training script for text classification model using PyTorch and Hydra."""
+"""Training script for text classification using HuggingFace Transformers and IMDB dataset."""
 
 import logging
 from pathlib import Path
@@ -7,16 +7,97 @@ import hydra
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from dataset import (
-    SENTIMENT_CLASSES,
-    Vocabulary,
-    collate_fn,
-    create_synthetic_data,
-)
-from model import create_model
 from omegaconf import DictConfig, OmegaConf
 
 log = logging.getLogger(__name__)
+
+
+def load_imdb_huggingface(max_samples: int | None = None) -> tuple:
+    """Load IMDB dataset using HuggingFace datasets library.
+
+    Args:
+        max_samples: Optional limit on number of samples per split.
+
+    Returns:
+        Tuple of (train_texts, train_labels, test_texts, test_labels, class_names).
+    """
+    from datasets import load_dataset
+
+    log.info("Loading IMDB dataset from HuggingFace...")
+    dataset = load_dataset("imdb")
+
+    train_texts = dataset["train"]["text"]
+    train_labels = dataset["train"]["label"]
+    test_texts = dataset["test"]["text"]
+    test_labels = dataset["test"]["label"]
+
+    if max_samples is not None:
+        train_texts = train_texts[:max_samples]
+        train_labels = train_labels[:max_samples]
+        test_texts = test_texts[:max_samples]
+        test_labels = test_labels[:max_samples]
+
+    class_names = ["negative", "positive"]
+    return train_texts, train_labels, test_texts, test_labels, class_names
+
+
+def create_huggingface_tokenizer(
+    tokenizer_name: str = "bert-base-uncased",
+    max_length: int = 256,
+):
+    """Create a HuggingFace tokenizer.
+
+    Args:
+        tokenizer_name: Name of the pretrained tokenizer.
+        max_length: Maximum sequence length.
+
+    Returns:
+        Tokenizer instance and vocab size.
+    """
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+    return tokenizer, tokenizer.vocab_size
+
+
+class HuggingFaceTextDataset(torch.utils.data.Dataset):
+    """Dataset for text classification using HuggingFace tokenizer.
+
+    Args:
+        texts: List of text strings.
+        labels: List of integer labels.
+        tokenizer: HuggingFace tokenizer.
+        max_length: Maximum sequence length.
+    """
+
+    def __init__(
+        self,
+        texts: list[str],
+        labels: list[int],
+        tokenizer,
+        max_length: int = 256,
+    ):
+        self.texts = texts
+        self.labels = labels
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self) -> int:
+        return len(self.texts)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
+        text = self.texts[idx]
+        label = self.labels[idx]
+
+        encoding = self.tokenizer(
+            text,
+            truncation=True,
+            max_length=self.max_length,
+            padding="max_length",
+            return_tensors="pt",
+        )
+
+        return encoding["input_ids"].squeeze(0), label
 
 
 def train_epoch(
@@ -96,6 +177,9 @@ def train(
     num_workers: int = 4,
     seed: int = 42,
     use_synthetic: bool = False,
+    use_huggingface: bool = True,
+    tokenizer_name: str = "bert-base-uncased",
+    max_samples: int | None = None,
     **model_kwargs,
 ) -> dict:
     """Main training function.
@@ -107,7 +191,7 @@ def train(
         batch_size: Training batch size.
         learning_rate: Learning rate.
         model_type: Type of model ('textcnn' or 'lstm').
-        vocab_size: Maximum vocabulary size.
+        vocab_size: Maximum vocabulary size (used with custom vocab).
         embedding_dim: Embedding dimension.
         num_classes: Number of output classes.
         max_length: Maximum sequence length.
@@ -115,6 +199,9 @@ def train(
         num_workers: Number of data loading workers.
         seed: Random seed.
         use_synthetic: Whether to use synthetic data for testing.
+        use_huggingface: Whether to use HuggingFace datasets and tokenizer.
+        tokenizer_name: Name of HuggingFace tokenizer to use.
+        max_samples: Optional limit on number of samples (for quick testing).
         **model_kwargs: Additional model-specific arguments.
 
     Returns:
@@ -136,6 +223,8 @@ def train(
     # Load or create data
     if use_synthetic:
         log.info("Using synthetic data for testing")
+        from dataset import create_synthetic_data
+
         train_texts, train_labels = create_synthetic_data(
             num_samples=1000,
             num_classes=num_classes,
@@ -149,9 +238,15 @@ def train(
             max_length=max_length,
         )
         class_names = [f"class_{i}" for i in range(num_classes)]
+        use_huggingface = False  # Use simple tokenization for synthetic data
+    elif use_huggingface:
+        # Use HuggingFace datasets library to load IMDB
+        train_texts, train_labels, test_texts, test_labels, class_names = load_imdb_huggingface(
+            max_samples=max_samples
+        )
     else:
-        # Try to load IMDB data
-        from dataset import load_imdb_data
+        # Try to load IMDB data from local directory
+        from dataset import SENTIMENT_CLASSES, load_imdb_data
 
         data_path = Path(data_dir)
         if (data_path / "train").exists():
@@ -160,6 +255,8 @@ def train(
             class_names = SENTIMENT_CLASSES
         else:
             log.warning(f"No data found in {data_dir}, using synthetic data")
+            from dataset import create_synthetic_data
+
             train_texts, train_labels = create_synthetic_data(
                 num_samples=1000, num_classes=num_classes
             )
@@ -171,16 +268,51 @@ def train(
     log.info(f"Training samples: {len(train_texts)}")
     log.info(f"Test samples: {len(test_texts)}")
 
-    # Build vocabulary
-    vocab = Vocabulary(max_size=vocab_size)
-    vocab.build(train_texts)
-    log.info(f"Vocabulary size: {len(vocab)}")
+    # Build vocabulary or tokenizer
+    if use_huggingface and not use_synthetic:
+        # Use HuggingFace tokenizer
+        log.info(f"Using HuggingFace tokenizer: {tokenizer_name}")
+        tokenizer, actual_vocab_size = create_huggingface_tokenizer(
+            tokenizer_name=tokenizer_name,
+            max_length=max_length,
+        )
+        vocab_size = actual_vocab_size
 
-    # Create datasets
-    from dataset import TextClassificationDataset
+        # Create datasets with HuggingFace tokenizer
+        train_dataset = HuggingFaceTextDataset(train_texts, train_labels, tokenizer, max_length)
+        test_dataset = HuggingFaceTextDataset(test_texts, test_labels, tokenizer, max_length)
 
-    train_dataset = TextClassificationDataset(train_texts, train_labels, vocab, max_length)
-    test_dataset = TextClassificationDataset(test_texts, test_labels, vocab, max_length)
+        # Collate function for HuggingFace tokenized data
+        def collate_fn(batch):
+            sequences, labels = zip(*batch)
+            sequences = torch.stack(sequences)
+            labels = torch.tensor(labels, dtype=torch.long)
+            return sequences, labels
+
+        # Save tokenizer info
+        tokenizer.save_pretrained(str(output_path / "tokenizer"))
+    else:
+        # Use custom vocabulary
+        from dataset import TextClassificationDataset, Vocabulary
+        from dataset import collate_fn as dataset_collate_fn
+
+        vocab = Vocabulary(max_size=vocab_size)
+        vocab.build(train_texts)
+        vocab_size = len(vocab)
+        log.info(f"Vocabulary size: {vocab_size}")
+
+        train_dataset = TextClassificationDataset(train_texts, train_labels, vocab, max_length)
+        test_dataset = TextClassificationDataset(test_texts, test_labels, vocab, max_length)
+
+        pad_idx = vocab.pad_idx
+
+        def collate_fn(batch):
+            return dataset_collate_fn(batch, pad_idx)
+
+        # Save vocabulary
+        vocab.save(str(output_path / "vocab.json"))
+
+    log.info(f"Vocabulary size: {vocab_size}")
 
     # Create data loaders
     train_loader = torch.utils.data.DataLoader(
@@ -188,7 +320,7 @@ def train(
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        collate_fn=lambda batch: collate_fn(batch, vocab.pad_idx),
+        collate_fn=collate_fn,
         pin_memory=True,
     )
 
@@ -197,14 +329,16 @@ def train(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        collate_fn=lambda batch: collate_fn(batch, vocab.pad_idx),
+        collate_fn=collate_fn,
         pin_memory=True,
     )
 
     # Create model
+    from model import create_model
+
     model = create_model(
         model_type=model_type,
-        vocab_size=len(vocab),
+        vocab_size=vocab_size,
         embedding_dim=embedding_dim,
         num_classes=num_classes,
         dropout=dropout,
@@ -246,9 +380,6 @@ def train(
     # Save final model
     torch.save(model.state_dict(), output_path / "final_model.pt")
 
-    # Save vocabulary
-    vocab.save(str(output_path / "vocab.json"))
-
     # Save class names
     with open(output_path / "classes.txt", "w") as f:
         for class_name in class_names:
@@ -260,7 +391,7 @@ def train(
         "epochs_trained": epochs,
         "class_names": class_names,
         "model_path": str(output_path / "best_model.pt"),
-        "vocab_size": len(vocab),
+        "vocab_size": vocab_size,
         "history": history,
     }
 
@@ -285,6 +416,12 @@ def main(cfg: DictConfig) -> dict:
     Override individual settings:
         python train.py model=lstm training.epochs=20
         python train.py training.learning_rate=0.01
+
+    HuggingFace mode (default):
+        python train.py  # Uses HuggingFace datasets and tokenizer
+
+    Local data mode:
+        python train.py data.use_huggingface=false  # Uses local IMDB data
     """
     log.info("Configuration:\n" + OmegaConf.to_yaml(cfg))
 
@@ -313,6 +450,9 @@ def main(cfg: DictConfig) -> dict:
         num_workers=cfg.data.num_workers,
         seed=cfg.get("seed", 42),
         use_synthetic=cfg.data.get("use_synthetic", False),
+        use_huggingface=cfg.data.get("use_huggingface", True),
+        tokenizer_name=cfg.data.get("tokenizer_name", "bert-base-uncased"),
+        max_samples=cfg.data.get("max_samples", None),
         **model_kwargs,
     )
 

@@ -239,3 +239,78 @@ class TestFullTraining:
 
         assert results is not None
         assert results["epochs_trained"] == 1
+
+
+class TestHuggingFaceIntegration:
+    """Tests for HuggingFace integration."""
+
+    def test_huggingface_text_dataset(self):
+        """Test HuggingFaceTextDataset class."""
+        from train import HuggingFaceTextDataset
+        from transformers import AutoTokenizer
+
+        tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+        texts = ["This is a test.", "Another test sentence."]
+        labels = [0, 1]
+
+        dataset = HuggingFaceTextDataset(texts, labels, tokenizer, max_length=32)
+
+        assert len(dataset) == 2
+
+        input_ids, label = dataset[0]
+        assert isinstance(input_ids, torch.Tensor)
+        assert input_ids.shape == (32,)
+        assert label == 0
+
+    def test_create_huggingface_tokenizer(self):
+        """Test HuggingFace tokenizer creation."""
+        from train import create_huggingface_tokenizer
+
+        tokenizer, vocab_size = create_huggingface_tokenizer(
+            tokenizer_name="bert-base-uncased",
+            max_length=128,
+        )
+
+        assert tokenizer is not None
+        assert vocab_size == 30522  # bert-base-uncased vocab size
+
+    def test_load_imdb_huggingface(self):
+        """Test loading IMDB dataset from HuggingFace."""
+        from train import load_imdb_huggingface
+
+        # Load with limited samples for quick test
+        train_texts, train_labels, test_texts, test_labels, class_names = load_imdb_huggingface(
+            max_samples=10
+        )
+
+        assert len(train_texts) == 10
+        assert len(train_labels) == 10
+        assert len(test_texts) == 10
+        assert len(test_labels) == 10
+        assert class_names == ["negative", "positive"]
+
+    def test_train_huggingface_mode(self, tmp_path):
+        """Test training with HuggingFace tokenizer and IMDB data."""
+        output_dir = str(tmp_path / "models")
+
+        results = train(
+            data_dir=str(tmp_path / "data"),
+            output_dir=output_dir,
+            epochs=1,
+            batch_size=4,
+            max_length=64,
+            num_workers=0,
+            use_synthetic=False,
+            use_huggingface=True,
+            tokenizer_name="bert-base-uncased",
+            max_samples=20,  # Use very few samples for quick test
+        )
+
+        assert "best_accuracy" in results
+        assert "final_accuracy" in results
+        assert results["epochs_trained"] == 1
+
+        # Check tokenizer was saved
+        output_path = Path(output_dir)
+        assert (output_path / "tokenizer").exists()
+        assert (output_path / "tokenizer" / "tokenizer_config.json").exists()

@@ -7,3 +7,8 @@ vocab_size: 30000
 max_length: 256
 num_workers: 4
 use_synthetic: false
+
+# HuggingFace options
+use_huggingface: true
+tokenizer_name: bert-base-uncased
+max_samples: null  # Set to limit samples for quick testing
