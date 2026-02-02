@@ -15,14 +15,13 @@ Endpoints:
 """
 
 import asyncio
-import json
 import uuid
-from datetime import datetime
-from typing import Optional, Dict, Any, List
-from pathlib import Path
 from contextlib import asynccontextmanager
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -30,27 +29,30 @@ from agent.agent_loop import AgentLoop
 from memory.memory_search import MemorySearch
 from metrics.collector import metrics_collector
 from metrics.models import (
-    SystemMetrics,
     AgentMetrics,
-    PipelineMetrics,
+    LogsResponse,
     MetricsSummary,
-    LogsResponse
+    PipelineMetrics,
+    SystemMetrics,
 )
-
+from security.middleware import CurrentUser, get_current_user
 
 # ============================================================================
 # Data Models
 # ============================================================================
 
+
 class RunRequest(BaseModel):
     """Request model for running the agent."""
+
     query: str = Field(..., description="Natural language query", min_length=1)
-    project_path: Optional[str] = Field(None, description="Path to ML project")
+    project_path: str | None = Field(None, description="Path to ML project")
     accuracy_threshold: float = Field(0.85, ge=0.0, le=1.0, description="Target accuracy")
 
 
 class RunResponse(BaseModel):
     """Response model for run request."""
+
     session_id: str
     status: str
     message: str
@@ -58,33 +60,36 @@ class RunResponse(BaseModel):
 
 class SessionStatus(BaseModel):
     """Status of an agent session."""
+
     session_id: str
     status: str  # pending, running, success, failed
     query: str
-    project_path: Optional[str]
+    project_path: str | None
     current_phase: str
     steps_completed: int
     steps_total: int
-    accuracy: Optional[float]
+    accuracy: float | None
     target_accuracy: float
     started_at: str
-    completed_at: Optional[str]
-    result: Optional[str]
-    errors: List[str]
+    completed_at: str | None
+    result: str | None
+    errors: list[str]
 
 
 class SessionSummary(BaseModel):
     """Summary of a past session."""
+
     session_id: str
     query: str
     status: str
     goal_achieved: bool
-    accuracy: Optional[float]
+    accuracy: float | None
     timestamp: str
 
 
 class HealthResponse(BaseModel):
     """Health check response."""
+
     status: str
     version: str
     timestamp: str
@@ -94,14 +99,15 @@ class HealthResponse(BaseModel):
 # Session Manager
 # ============================================================================
 
+
 class SessionManager:
     """Manages active agent sessions."""
 
     def __init__(self):
-        self.sessions: Dict[str, Dict[str, Any]] = {}
-        self.websockets: Dict[str, List[WebSocket]] = {}
+        self.sessions: dict[str, dict[str, Any]] = {}
+        self.websockets: dict[str, list[WebSocket]] = {}
 
-    def create_session(self, query: str, project_path: Optional[str], threshold: float) -> str:
+    def create_session(self, query: str, project_path: str | None, threshold: float) -> str:
         """Create a new session."""
         session_id = str(uuid.uuid4())
         self.sessions[session_id] = {
@@ -118,21 +124,21 @@ class SessionManager:
             "completed_at": None,
             "result": None,
             "errors": [],
-            "events": []
+            "events": [],
         }
         self.websockets[session_id] = []
         return session_id
 
-    def get_session(self, session_id: str) -> Optional[Dict]:
+    def get_session(self, session_id: str) -> dict | None:
         """Get session by ID."""
         return self.sessions.get(session_id)
 
-    def update_session(self, session_id: str, updates: Dict):
+    def update_session(self, session_id: str, updates: dict):
         """Update session data."""
         if session_id in self.sessions:
             self.sessions[session_id].update(updates)
 
-    async def broadcast_event(self, session_id: str, event_type: str, data: Dict):
+    async def broadcast_event(self, session_id: str, event_type: str, data: dict):
         """Broadcast event to all connected websockets."""
         if session_id not in self.websockets:
             return
@@ -174,13 +180,14 @@ session_manager = SessionManager()
 # Agent Runner
 # ============================================================================
 
+
 async def run_agent_session(session_id: str):
     """Run agent in background and emit events."""
     session = session_manager.get_session(session_id)
     if not session:
         return
 
-    async def event_handler(event_type: str, data: Dict):
+    async def event_handler(event_type: str, data: dict):
         """Handle agent events and broadcast to websockets."""
         # Update session based on event
         if event_type == "status":
@@ -195,9 +202,9 @@ async def run_agent_session(session_id: str):
         elif event_type == "step_complete":
             current = session_manager.get_session(session_id)
             if current:
-                session_manager.update_session(session_id, {
-                    "steps_completed": current.get("steps_completed", 0) + 1
-                })
+                session_manager.update_session(
+                    session_id, {"steps_completed": current.get("steps_completed", 0) + 1}
+                )
 
         elif event_type == "step_failed":
             current = session_manager.get_session(session_id)
@@ -220,28 +227,33 @@ async def run_agent_session(session_id: str):
         result = await agent.run(
             query=session["query"],
             project_path=session["project_path"],
-            accuracy_threshold=session["accuracy_threshold"]
+            accuracy_threshold=session["accuracy_threshold"],
         )
 
         # Update session with result
-        session_manager.update_session(session_id, {
-            "status": agent.status,
-            "result": result,
-            "completed_at": datetime.utcnow().isoformat()
-        })
+        session_manager.update_session(
+            session_id,
+            {
+                "status": agent.status,
+                "result": result,
+                "completed_at": datetime.utcnow().isoformat(),
+            },
+        )
 
         # Broadcast completion
-        await session_manager.broadcast_event(session_id, "complete", {
-            "status": agent.status,
-            "result": result
-        })
+        await session_manager.broadcast_event(
+            session_id, "complete", {"status": agent.status, "result": result}
+        )
 
     except Exception as e:
-        session_manager.update_session(session_id, {
-            "status": "failed",
-            "errors": session.get("errors", []) + [str(e)],
-            "completed_at": datetime.utcnow().isoformat()
-        })
+        session_manager.update_session(
+            session_id,
+            {
+                "status": "failed",
+                "errors": session.get("errors", []) + [str(e)],
+                "completed_at": datetime.utcnow().isoformat(),
+            },
+        )
 
         await session_manager.broadcast_event(session_id, "error", {"error": str(e)})
 
@@ -249,6 +261,7 @@ async def run_agent_session(session_id: str):
 # ============================================================================
 # FastAPI App
 # ============================================================================
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -262,7 +275,7 @@ app = FastAPI(
     title="MLOps Agent API",
     description="AI-powered ML Pipeline Automation API",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # CORS middleware
@@ -279,18 +292,21 @@ app.add_middleware(
 # Endpoints
 # ============================================================================
 
+
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
     """Health check endpoint."""
     return HealthResponse(
-        status="healthy",
-        version="1.0.0",
-        timestamp=datetime.utcnow().isoformat()
+        status="healthy", version="1.0.0", timestamp=datetime.utcnow().isoformat()
     )
 
 
 @app.post("/run", response_model=RunResponse, tags=["Agent"])
-async def run_agent(request: RunRequest, background_tasks: BackgroundTasks):
+async def run_agent(
+    request: RunRequest,
+    background_tasks: BackgroundTasks,
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """
     Start a new agent session.
 
@@ -301,13 +317,13 @@ async def run_agent(request: RunRequest, background_tasks: BackgroundTasks):
     if request.project_path:
         path = Path(request.project_path)
         if not path.exists():
-            raise HTTPException(status_code=400, detail=f"Project path does not exist: {request.project_path}")
+            raise HTTPException(
+                status_code=400, detail=f"Project path does not exist: {request.project_path}"
+            )
 
     # Create session
     session_id = session_manager.create_session(
-        query=request.query,
-        project_path=request.project_path,
-        threshold=request.accuracy_threshold
+        query=request.query, project_path=request.project_path, threshold=request.accuracy_threshold
     )
 
     # Run agent in background
@@ -316,12 +332,15 @@ async def run_agent(request: RunRequest, background_tasks: BackgroundTasks):
     return RunResponse(
         session_id=session_id,
         status="started",
-        message=f"Agent started. Monitor progress at /status/{session_id} or connect to /ws/{session_id}"
+        message=f"Agent started. Monitor progress at /status/{session_id} or connect to /ws/{session_id}",
     )
 
 
 @app.get("/status/{session_id}", response_model=SessionStatus, tags=["Agent"])
-async def get_session_status(session_id: str):
+async def get_session_status(
+    session_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """Get status of an agent session."""
     session = session_manager.get_session(session_id)
     if not session:
@@ -340,32 +359,40 @@ async def get_session_status(session_id: str):
         started_at=session["started_at"],
         completed_at=session["completed_at"],
         result=session["result"],
-        errors=session["errors"]
+        errors=session["errors"],
     )
 
 
-@app.get("/sessions", response_model=List[SessionSummary], tags=["History"])
-async def list_sessions(limit: int = 20):
+@app.get("/sessions", response_model=list[SessionSummary], tags=["History"])
+async def list_sessions(
+    limit: int = 20,
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """List past sessions from memory."""
     ms = MemorySearch()
     sessions = []
 
     for entry in ms.index_data[-limit:]:
         exp_state = entry.get("experiment_state", {})
-        sessions.append(SessionSummary(
-            session_id=entry["session_id"],
-            query=entry["original_query"],
-            status=entry.get("status", "unknown"),
-            goal_achieved=entry.get("goal_achieved", False),
-            accuracy=exp_state.get("best_accuracy"),
-            timestamp=entry.get("timestamp", "")
-        ))
+        sessions.append(
+            SessionSummary(
+                session_id=entry["session_id"],
+                query=entry["original_query"],
+                status=entry.get("status", "unknown"),
+                goal_achieved=entry.get("goal_achieved", False),
+                accuracy=exp_state.get("best_accuracy"),
+                timestamp=entry.get("timestamp", ""),
+            )
+        )
 
     return sessions
 
 
 @app.get("/sessions/{session_id}", tags=["History"])
-async def get_session_details(session_id: str):
+async def get_session_details(
+    session_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """Get detailed information about a past session."""
     # Check active sessions first
     session = session_manager.get_session(session_id)
@@ -404,15 +431,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     session_manager.add_websocket(session_id, websocket)
 
     # Send current state
-    await websocket.send_json({
-        "type": "connected",
-        "data": {
-            "session_id": session_id,
-            "status": session["status"],
-            "current_phase": session["current_phase"]
-        },
-        "timestamp": datetime.utcnow().isoformat()
-    })
+    await websocket.send_json(
+        {
+            "type": "connected",
+            "data": {
+                "session_id": session_id,
+                "status": session["status"],
+                "current_phase": session["current_phase"],
+            },
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    )
 
     # Send past events
     for event in session.get("events", []):
@@ -431,22 +460,54 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
 
 @app.get("/tools", tags=["Info"])
-async def list_available_tools():
+async def list_available_tools(
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """List all available MLOps tools."""
     from action.execute_step import AVAILABLE_TOOLS
+
     return {
         "tools": AVAILABLE_TOOLS,
         "count": len(AVAILABLE_TOOLS),
         "categories": {
-            "hydra": ["analyze_project_config", "create_hydra_config", "update_hydra_config", "validate_hydra_config"],
-            "mlflow": ["init_mlflow_experiment", "start_mlflow_run", "log_mlflow_params", "log_mlflow_metrics",
-                      "log_mlflow_artifact", "register_mlflow_model", "get_best_mlflow_run", "end_mlflow_run"],
-            "dvc": ["init_dvc_repo", "configure_dvc_remote", "add_data_to_dvc", "create_dvc_pipeline",
-                   "dvc_push", "dvc_pull", "dvc_reproduce"],
-            "docker": ["create_ml_dockerfile", "build_ml_docker_image", "run_training_container", "push_docker_image"],
+            "hydra": [
+                "analyze_project_config",
+                "create_hydra_config",
+                "update_hydra_config",
+                "validate_hydra_config",
+            ],
+            "mlflow": [
+                "init_mlflow_experiment",
+                "start_mlflow_run",
+                "log_mlflow_params",
+                "log_mlflow_metrics",
+                "log_mlflow_artifact",
+                "register_mlflow_model",
+                "get_best_mlflow_run",
+                "end_mlflow_run",
+            ],
+            "dvc": [
+                "init_dvc_repo",
+                "configure_dvc_remote",
+                "add_data_to_dvc",
+                "create_dvc_pipeline",
+                "dvc_push",
+                "dvc_pull",
+                "dvc_reproduce",
+            ],
+            "docker": [
+                "create_ml_dockerfile",
+                "build_ml_docker_image",
+                "run_training_container",
+                "push_docker_image",
+            ],
             "github": ["create_github_workflow", "add_workflow_step"],
-            "training": ["analyze_training_results", "suggest_improvements", "check_accuracy_threshold"]
-        }
+            "training": [
+                "analyze_training_results",
+                "suggest_improvements",
+                "check_accuracy_threshold",
+            ],
+        },
     }
 
 
@@ -454,8 +515,11 @@ async def list_available_tools():
 # Metrics Endpoints
 # ============================================================================
 
+
 @app.get("/metrics", response_model=MetricsSummary, tags=["Metrics"])
-async def get_metrics():
+async def get_metrics(
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """
     Get complete metrics summary for the dashboard.
 
@@ -466,25 +530,33 @@ async def get_metrics():
 
 
 @app.get("/metrics/system", response_model=SystemMetrics, tags=["Metrics"])
-async def get_system_metrics():
+async def get_system_metrics(
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """Get system resource metrics (CPU, memory, disk)."""
     return metrics_collector.get_system_metrics()
 
 
 @app.get("/metrics/agent", response_model=AgentMetrics, tags=["Metrics"])
-async def get_agent_metrics():
+async def get_agent_metrics(
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """Get agent performance metrics (sessions, success rate, execution time)."""
     return metrics_collector.get_agent_metrics()
 
 
 @app.get("/metrics/pipeline", response_model=PipelineMetrics, tags=["Metrics"])
-async def get_pipeline_metrics():
+async def get_pipeline_metrics(
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """Get pipeline and tool usage metrics."""
     return metrics_collector.get_pipeline_metrics()
 
 
 @app.get("/metrics/demo", tags=["Metrics"])
-async def generate_demo_metrics():
+async def generate_demo_metrics(
+    current_user: CurrentUser = Depends(get_current_user),
+):
     """Generate demo data for frontend testing."""
     metrics_collector.generate_demo_data()
     return {"status": "ok", "message": "Demo data generated"}
@@ -494,13 +566,15 @@ async def generate_demo_metrics():
 # Logs Endpoints
 # ============================================================================
 
+
 @app.get("/logs", response_model=LogsResponse, tags=["Logs"])
 async def get_logs(
     page: int = 1,
     page_size: int = 50,
     level: str = None,
     source: str = None,
-    session_id: str = None
+    session_id: str = None,
+    current_user: CurrentUser = Depends(get_current_user),
 ):
     """
     Get execution logs with pagination and filtering.
@@ -514,11 +588,7 @@ async def get_logs(
     """
     page_size = min(page_size, 100)  # Cap at 100
     return metrics_collector.get_logs(
-        page=page,
-        page_size=page_size,
-        level=level,
-        source=source,
-        session_id=session_id
+        page=page, page_size=page_size, level=level, source=source, session_id=session_id
     )
 
 
@@ -527,7 +597,8 @@ async def create_log(
     level: str,
     source: str,
     message: str,
-    session_id: str = None
+    session_id: str = None,
+    current_user: CurrentUser = Depends(get_current_user),
 ):
     """Create a new log entry (for internal use)."""
     metrics_collector.log(level, source, message, session_id)
@@ -537,6 +608,7 @@ async def create_log(
 # ============================================================================
 # Real-time Metrics WebSocket
 # ============================================================================
+
 
 @app.websocket("/ws/metrics")
 async def metrics_websocket(websocket: WebSocket):
@@ -556,11 +628,13 @@ async def metrics_websocket(websocket: WebSocket):
         while True:
             # Send current metrics
             metrics = metrics_collector.get_metrics_summary()
-            await websocket.send_json({
-                "type": "metrics_update",
-                "timestamp": datetime.utcnow().isoformat(),
-                "data": metrics.model_dump()
-            })
+            await websocket.send_json(
+                {
+                    "type": "metrics_update",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "data": metrics.model_dump(),
+                }
+            )
 
             # Wait 5 seconds before next update
             await asyncio.sleep(5)
@@ -578,16 +652,12 @@ async def metrics_websocket(websocket: WebSocket):
 # Main
 # ============================================================================
 
+
 def main():
     """Run the API server."""
     import uvicorn
-    uvicorn.run(
-        "api_server:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+
+    uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
 
 
 if __name__ == "__main__":
