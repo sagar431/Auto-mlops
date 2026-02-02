@@ -60,6 +60,8 @@ def pytest_collection_modifyitems(config, items):
                 "TestTransforms",
                 "TestImageClassificationDataset",
                 "TestDataLoaders",
+                "TestCIFAR10Transforms",
+                "TestCIFAR10DataLoaders",
                 "TestImageClassifier",
                 "TestTrainingFunctions",
                 "TestFullTraining",

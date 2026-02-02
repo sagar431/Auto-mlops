@@ -11,9 +11,14 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).parent.parent / "project"))
 
 from dataset import (
+    CIFAR10_CLASSES,
+    CIFAR10_MEAN,
+    CIFAR10_STD,
     ImageClassificationDataset,
+    create_cifar10_loaders,
     create_data_loaders,
     create_synthetic_data,
+    get_cifar10_transforms,
     get_transforms,
 )
 
@@ -176,3 +181,132 @@ class TestDataLoaders:
         assert images.shape[0] <= 8
         assert images.shape[1:] == (3, 224, 224)
         assert labels.shape[0] == images.shape[0]
+
+
+class TestCIFAR10Constants:
+    """Tests for CIFAR-10 constants."""
+
+    def test_cifar10_classes_count(self):
+        """Test CIFAR-10 has 10 classes."""
+        assert len(CIFAR10_CLASSES) == 10
+
+    def test_cifar10_classes_content(self):
+        """Test CIFAR-10 class names are correct."""
+        expected = [
+            "airplane",
+            "automobile",
+            "bird",
+            "cat",
+            "deer",
+            "dog",
+            "frog",
+            "horse",
+            "ship",
+            "truck",
+        ]
+        assert CIFAR10_CLASSES == expected
+
+    def test_cifar10_mean_values(self):
+        """Test CIFAR-10 mean normalization values."""
+        assert len(CIFAR10_MEAN) == 3
+        # Check approximate expected values
+        assert abs(CIFAR10_MEAN[0] - 0.4914) < 0.01
+        assert abs(CIFAR10_MEAN[1] - 0.4822) < 0.01
+        assert abs(CIFAR10_MEAN[2] - 0.4465) < 0.01
+
+    def test_cifar10_std_values(self):
+        """Test CIFAR-10 std normalization values."""
+        assert len(CIFAR10_STD) == 3
+        # Check approximate expected values
+        assert abs(CIFAR10_STD[0] - 0.2470) < 0.01
+        assert abs(CIFAR10_STD[1] - 0.2435) < 0.01
+        assert abs(CIFAR10_STD[2] - 0.2616) < 0.01
+
+
+class TestCIFAR10Transforms:
+    """Tests for CIFAR-10 specific transforms."""
+
+    def test_cifar10_training_transforms(self):
+        """Test CIFAR-10 training transforms produce correct output shape."""
+        transform = get_cifar10_transforms(image_size=32, is_training=True)
+        image = Image.new("RGB", (32, 32), color="red")
+
+        result = transform(image)
+
+        assert isinstance(result, torch.Tensor)
+        assert result.shape == (3, 32, 32)
+
+    def test_cifar10_eval_transforms(self):
+        """Test CIFAR-10 evaluation transforms produce correct output shape."""
+        transform = get_cifar10_transforms(image_size=32, is_training=False)
+        image = Image.new("RGB", (32, 32), color="blue")
+
+        result = transform(image)
+
+        assert isinstance(result, torch.Tensor)
+        assert result.shape == (3, 32, 32)
+
+    def test_cifar10_transforms_normalization(self):
+        """Test that CIFAR-10 transforms normalize the image."""
+        transform = get_cifar10_transforms(image_size=32, is_training=False)
+        # Create a white image (all 255)
+        image = Image.new("RGB", (32, 32), color=(255, 255, 255))
+
+        result = transform(image)
+
+        # After normalization, values should not be in [0, 1] range
+        assert result.max() > 1.0 or result.min() < 0.0
+
+    def test_cifar10_transforms_custom_size(self):
+        """Test CIFAR-10 transforms with custom image size."""
+        transform = get_cifar10_transforms(image_size=64, is_training=False)
+        image = Image.new("RGB", (32, 32), color="green")
+
+        result = transform(image)
+
+        assert result.shape == (3, 64, 64)
+
+
+class TestCIFAR10DataLoaders:
+    """Tests for CIFAR-10 data loader creation."""
+
+    def test_create_cifar10_loaders(self, tmp_path):
+        """Test CIFAR-10 data loader creation."""
+        data_dir = str(tmp_path / "cifar10_data")
+
+        train_loader, val_loader, class_names = create_cifar10_loaders(
+            data_dir, batch_size=64, image_size=32, num_workers=0, download=True
+        )
+
+        assert class_names == CIFAR10_CLASSES
+        assert len(train_loader.dataset) == 50000  # CIFAR-10 train size
+        assert len(val_loader.dataset) == 10000  # CIFAR-10 test size
+
+    def test_cifar10_loader_iteration(self, tmp_path):
+        """Test iterating through CIFAR-10 data loader."""
+        data_dir = str(tmp_path / "cifar10_data")
+
+        train_loader, _, _ = create_cifar10_loaders(
+            data_dir, batch_size=32, num_workers=0, download=True
+        )
+
+        batch = next(iter(train_loader))
+        images, labels = batch
+
+        assert images.shape == (32, 3, 32, 32)
+        assert labels.shape == (32,)
+        assert labels.min() >= 0
+        assert labels.max() <= 9
+
+    def test_cifar10_loader_batch_size(self, tmp_path):
+        """Test CIFAR-10 loader respects batch size."""
+        data_dir = str(tmp_path / "cifar10_data")
+
+        train_loader, _, _ = create_cifar10_loaders(
+            data_dir, batch_size=16, num_workers=0, download=True
+        )
+
+        batch = next(iter(train_loader))
+        images, _ = batch
+
+        assert images.shape[0] == 16
