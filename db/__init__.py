@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlmodel import SQLModel
 
 from db.models import AgentSession, ExperimentState, Step
+from db.repositories import AsyncSessionRepository, SessionRepository
 from db.session import (
     AsyncDatabaseConfig,
     close_async_db,
@@ -270,4 +271,7 @@ __all__ = [
     "AgentSession",
     "Step",
     "ExperimentState",
+    # Repositories
+    "SessionRepository",
+    "AsyncSessionRepository",
 ]
