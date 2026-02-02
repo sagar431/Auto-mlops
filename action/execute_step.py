@@ -5,17 +5,13 @@ Executes MCP tool calls for ML pipeline operations.
 
 import asyncio
 import traceback
-from typing import Dict, Any, Tuple, Optional
 from datetime import datetime
+from typing import Any
 
 
 async def execute_step(
-    step_id: str,
-    tool: str,
-    args: Dict[str, Any],
-    ctx: Any,
-    tools_module: Any = None
-) -> Tuple[bool, Dict[str, Any]]:
+    step_id: str, tool: str, args: dict[str, Any], ctx: Any, tools_module: Any = None
+) -> tuple[bool, dict[str, Any]]:
     """
     Execute a single step by calling the specified MCP tool.
 
@@ -39,7 +35,7 @@ async def execute_step(
             return False, {
                 "error": f"Tool '{tool}' not found",
                 "step_id": step_id,
-                "timestamp": start_time.isoformat()
+                "timestamp": start_time.isoformat(),
             }
 
         # Inject project_path from context if not provided
@@ -64,7 +60,7 @@ async def execute_step(
                     "result": result,
                     "step_id": step_id,
                     "tool": tool,
-                    "timestamp": start_time.isoformat()
+                    "timestamp": start_time.isoformat(),
                 }
 
             return True, {
@@ -73,7 +69,7 @@ async def execute_step(
                 "step_id": step_id,
                 "tool": tool,
                 "timestamp": start_time.isoformat(),
-                "duration": (datetime.utcnow() - start_time).total_seconds()
+                "duration": (datetime.utcnow() - start_time).total_seconds(),
             }
         else:
             # Non-dict result (shouldn't happen with our tools)
@@ -82,7 +78,7 @@ async def execute_step(
                 "result": {"output": str(result)},
                 "step_id": step_id,
                 "tool": tool,
-                "timestamp": start_time.isoformat()
+                "timestamp": start_time.isoformat(),
             }
 
     except TypeError as e:
@@ -92,7 +88,7 @@ async def execute_step(
             "step_id": step_id,
             "tool": tool,
             "args": args,
-            "timestamp": start_time.isoformat()
+            "timestamp": start_time.isoformat(),
         }
 
     except Exception as e:
@@ -102,11 +98,14 @@ async def execute_step(
             "traceback": traceback.format_exc(),
             "step_id": step_id,
             "tool": tool,
-            "timestamp": start_time.isoformat()
+            "timestamp": start_time.isoformat(),
         }
 
 
-def _get_tool_function(tool_name: str, tools_module: Any) -> Optional[callable]:
+from collections.abc import Callable
+
+
+def _get_tool_function(tool_name: str, tools_module: Any) -> Callable | None:
     """Get tool function by name from the tools module."""
     # Try to get from provided module
     if tools_module is not None:
@@ -116,6 +115,7 @@ def _get_tool_function(tool_name: str, tools_module: Any) -> Optional[callable]:
     # Try to import from mcp_mlops_tools
     try:
         import mcp_mlops_tools
+
         if hasattr(mcp_mlops_tools, tool_name):
             return getattr(mcp_mlops_tools, tool_name)
     except ImportError:
@@ -127,6 +127,7 @@ def _get_tool_function(tool_name: str, tools_module: Any) -> Optional[callable]:
 def _get_tool_params(func: callable) -> set:
     """Get parameter names for a function."""
     import inspect
+
     try:
         sig = inspect.signature(func)
         return set(sig.parameters.keys())
@@ -134,7 +135,7 @@ def _get_tool_params(func: callable) -> set:
         return set()
 
 
-def _format_args(args: Dict) -> str:
+def _format_args(args: dict) -> str:
     """Format args for logging (truncate long values)."""
     formatted = []
     for k, v in args.items():
@@ -152,7 +153,6 @@ AVAILABLE_TOOLS = [
     "create_hydra_config",
     "update_hydra_config",
     "validate_hydra_config",
-
     # MLflow Tracking
     "init_mlflow_experiment",
     "start_mlflow_run",
@@ -162,7 +162,6 @@ AVAILABLE_TOOLS = [
     "register_mlflow_model",
     "get_best_mlflow_run",
     "end_mlflow_run",
-
     # DVC Data Versioning
     "init_dvc_repo",
     "configure_dvc_remote",
@@ -171,21 +170,18 @@ AVAILABLE_TOOLS = [
     "dvc_push",
     "dvc_pull",
     "dvc_reproduce",
-
     # Docker
     "create_ml_dockerfile",
     "build_ml_docker_image",
     "run_training_container",
     "push_docker_image",
-
     # GitHub Actions
     "create_github_workflow",
     "add_workflow_step",
-
     # Training Control
     "analyze_training_results",
     "suggest_improvements",
-    "check_accuracy_threshold"
+    "check_accuracy_threshold",
 ]
 
 

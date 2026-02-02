@@ -17,11 +17,13 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-# Set auth disabled before importing api_server
+# Set auth disabled, high rate limit, and JWT secret before importing api_server
 os.environ["ENABLE_API_KEY_AUTH"] = "false"
 os.environ["ENABLE_JWT_AUTH"] = "false"
+os.environ["RATE_LIMIT"] = "1000/minute"
+os.environ["JWT_SECRET"] = "test-secret-for-all-tests"
 
-from api_server import app, user_store
+from api_server import app, limiter, user_store
 from security.api_keys import api_key_manager
 
 
@@ -33,11 +35,12 @@ def client():
 
 @pytest.fixture(autouse=True)
 def reset_stores():
-    """Reset user store and api key manager before each test."""
+    """Reset user store, api key manager, and rate limiter before each test."""
     user_store._users.clear()
     user_store._next_id = 1
     api_key_manager._keys.clear()
     api_key_manager._revoked_hashes.clear()
+    limiter.reset()
     yield
 
 
@@ -110,244 +113,189 @@ class TestCreateUserEndpoint:
     """Tests for POST /admin/users endpoint."""
 
     @pytest.fixture
-    def admin_api_key(self):
-        """Create an admin API key for testing."""
-        result = api_key_manager.generate(
-            name="Admin Key",
-            user_id="admin-user",
-            scopes=["admin"],
-        )
-        # Create an admin user
+    def admin_client(self, client):
+        """Create a client with admin JWT token."""
+        from security import JWTAuth, SecurityConfig
+
+        config = SecurityConfig()
+        jwt_auth = JWTAuth(config=config)
+        # Create admin user in store first
         user_store.create_user(
             username="admin",
             email="admin@example.com",
             password="adminpass123",
             is_admin=True,
         )
-        return result.raw_key
+        token = jwt_auth.create_token(user_id="1", roles=["admin"])
+        client.headers["Authorization"] = f"Bearer {token}"
+        return client
 
-    @pytest.fixture
-    def admin_headers(self, admin_api_key):
-        """Headers with admin API key."""
-        return {"X-API-Key": admin_api_key}
-
-    @pytest.mark.asyncio
-    async def test_create_user_success(self):
+    def test_create_user_success(self, admin_client):
         """Test creating a user with admin privileges."""
-        from api_server import CreateUserRequest, create_user
-        from security.middleware import CurrentUser
-
-        # Create an admin user first
-        admin_user = CurrentUser(
-            user_id="1",
-            is_authenticated=True,
-            auth_method="jwt",
-            roles=["admin"],
+        response = admin_client.post(
+            "/admin/users",
+            json={
+                "username": "newuser",
+                "email": "newuser@example.com",
+                "password": "securepassword123",
+                "is_admin": False,
+            },
         )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["username"] == "newuser"
+        assert data["email"] == "newuser@example.com"
+        assert data["is_active"] is True
+        assert data["is_admin"] is False
 
-        request = CreateUserRequest(
-            username="newuser",
-            email="newuser@example.com",
-            password="securepassword123",
-            is_admin=False,
-        )
-
-        response = await create_user(request=request, current_user=admin_user)
-        assert response.username == "newuser"
-        assert response.email == "newuser@example.com"
-        assert response.is_active is True
-        assert response.is_admin is False
-
-    @pytest.mark.asyncio
-    async def test_create_admin_user(self):
+    def test_create_admin_user(self, admin_client):
         """Test creating an admin user."""
-        from api_server import CreateUserRequest, create_user
-        from security.middleware import CurrentUser
-
-        admin_user = CurrentUser(
-            user_id="1",
-            is_authenticated=True,
-            auth_method="jwt",
-            roles=["admin"],
+        response = admin_client.post(
+            "/admin/users",
+            json={
+                "username": "newadmin",
+                "email": "newadmin@example.com",
+                "password": "securepassword123",
+                "is_admin": True,
+            },
         )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["username"] == "newadmin"
+        assert data["is_admin"] is True
 
-        request = CreateUserRequest(
-            username="newadmin",
-            email="newadmin@example.com",
-            password="securepassword123",
-            is_admin=True,
-        )
-
-        response = await create_user(request=request, current_user=admin_user)
-        assert response.username == "newadmin"
-        assert response.is_admin is True
-
-    @pytest.mark.asyncio
-    async def test_create_user_duplicate_username(self):
+    def test_create_user_duplicate_username(self, admin_client):
         """Test creating a user with duplicate username fails."""
-        from fastapi import HTTPException
-
-        from api_server import CreateUserRequest, create_user
-        from security.middleware import CurrentUser
-
-        admin_user = CurrentUser(
-            user_id="1",
-            is_authenticated=True,
-            auth_method="jwt",
-            roles=["admin"],
-        )
-
         # Create first user
-        request1 = CreateUserRequest(
-            username="duplicateuser",
-            email="first@example.com",
-            password="securepassword123",
+        admin_client.post(
+            "/admin/users",
+            json={
+                "username": "duplicateuser",
+                "email": "first@example.com",
+                "password": "securepassword123",
+            },
         )
-        await create_user(request=request1, current_user=admin_user)
 
         # Try to create second user with same username
-        request2 = CreateUserRequest(
-            username="duplicateuser",
-            email="second@example.com",
-            password="securepassword123",
+        response = admin_client.post(
+            "/admin/users",
+            json={
+                "username": "duplicateuser",
+                "email": "second@example.com",
+                "password": "securepassword123",
+            },
         )
-        with pytest.raises(HTTPException) as exc_info:
-            await create_user(request=request2, current_user=admin_user)
-        assert exc_info.value.status_code == 400
-        assert "already exists" in str(exc_info.value.detail)
+        assert response.status_code == 400
+        assert "already exists" in response.json()["detail"]
 
-    @pytest.mark.asyncio
-    async def test_create_user_duplicate_email(self):
+    def test_create_user_duplicate_email(self, admin_client):
         """Test creating a user with duplicate email fails."""
-        from fastapi import HTTPException
-
-        from api_server import CreateUserRequest, create_user
-        from security.middleware import CurrentUser
-
-        admin_user = CurrentUser(
-            user_id="1",
-            is_authenticated=True,
-            auth_method="jwt",
-            roles=["admin"],
-        )
-
         # Create first user
-        request1 = CreateUserRequest(
-            username="firstuser",
-            email="duplicate@example.com",
-            password="securepassword123",
+        admin_client.post(
+            "/admin/users",
+            json={
+                "username": "firstuser",
+                "email": "duplicate@example.com",
+                "password": "securepassword123",
+            },
         )
-        await create_user(request=request1, current_user=admin_user)
 
         # Try to create second user with same email
-        request2 = CreateUserRequest(
-            username="seconduser",
-            email="duplicate@example.com",
-            password="securepassword123",
+        response = admin_client.post(
+            "/admin/users",
+            json={
+                "username": "seconduser",
+                "email": "duplicate@example.com",
+                "password": "securepassword123",
+            },
         )
-        with pytest.raises(HTTPException) as exc_info:
-            await create_user(request=request2, current_user=admin_user)
-        assert exc_info.value.status_code == 400
-        assert "already exists" in str(exc_info.value.detail)
+        assert response.status_code == 400
+        assert "already exists" in response.json()["detail"]
 
 
 class TestCreateAPIKeyEndpoint:
     """Tests for POST /admin/keys endpoint."""
 
-    @pytest.mark.asyncio
-    async def test_create_api_key_success(self):
+    @pytest.fixture
+    def admin_client(self, client):
+        """Create a client with admin JWT token."""
+        from security import JWTAuth, SecurityConfig
+
+        config = SecurityConfig()
+        jwt_auth = JWTAuth(config=config)
+        # Create admin user in store first
+        user_store.create_user(
+            username="admin",
+            email="admin@example.com",
+            password="adminpass123",
+            is_admin=True,
+        )
+        token = jwt_auth.create_token(user_id="1", roles=["admin"])
+        client.headers["Authorization"] = f"Bearer {token}"
+        return client
+
+    def test_create_api_key_success(self, admin_client):
         """Test creating an API key with admin privileges."""
-        from api_server import CreateAPIKeyRequest, create_api_key
-        from security.middleware import CurrentUser
-
-        admin_user = CurrentUser(
-            user_id="1",
-            is_authenticated=True,
-            auth_method="jwt",
-            roles=["admin"],
+        response = admin_client.post(
+            "/admin/keys",
+            json={
+                "name": "My API Key",
+                "user_id": "user-123",
+            },
         )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "My API Key"
+        assert data["user_id"] == "user-123"
+        assert data["raw_key"] is not None
+        assert len(data["raw_key"]) > 20  # Should be a long secure key
+        assert data["key_id"] is not None
 
-        request = CreateAPIKeyRequest(
-            name="My API Key",
-            user_id="user-123",
-        )
-
-        response = await create_api_key(request=request, current_user=admin_user)
-        assert response.name == "My API Key"
-        assert response.user_id == "user-123"
-        assert response.raw_key is not None
-        assert len(response.raw_key) > 20  # Should be a long secure key
-        assert response.key_id is not None
-
-    @pytest.mark.asyncio
-    async def test_create_api_key_with_expiration(self):
+    def test_create_api_key_with_expiration(self, admin_client):
         """Test creating an API key with expiration."""
-        from api_server import CreateAPIKeyRequest, create_api_key
-        from security.middleware import CurrentUser
-
-        admin_user = CurrentUser(
-            user_id="1",
-            is_authenticated=True,
-            auth_method="jwt",
-            roles=["admin"],
+        response = admin_client.post(
+            "/admin/keys",
+            json={
+                "name": "Expiring Key",
+                "expires_in_days": 30,
+            },
         )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["expires_at"] is not None
 
-        request = CreateAPIKeyRequest(
-            name="Expiring Key",
-            expires_in_days=30,
-        )
-
-        response = await create_api_key(request=request, current_user=admin_user)
-        assert response.expires_at is not None
-
-    @pytest.mark.asyncio
-    async def test_create_api_key_with_scopes(self):
+    def test_create_api_key_with_scopes(self, admin_client):
         """Test creating an API key with scopes."""
-        from api_server import CreateAPIKeyRequest, create_api_key
-        from security.middleware import CurrentUser
-
-        admin_user = CurrentUser(
-            user_id="1",
-            is_authenticated=True,
-            auth_method="jwt",
-            roles=["admin"],
+        response = admin_client.post(
+            "/admin/keys",
+            json={
+                "name": "Scoped Key",
+                "scopes": ["read", "write"],
+            },
         )
-
-        request = CreateAPIKeyRequest(
-            name="Scoped Key",
-            scopes=["read", "write"],
-        )
-
-        response = await create_api_key(request=request, current_user=admin_user)
-        assert response.key_id is not None
+        assert response.status_code == 200
+        data = response.json()
+        assert data["key_id"] is not None
 
         # Verify the key has scopes
-        key_info = api_key_manager.get_key_info(response.key_id)
+        key_info = api_key_manager.get_key_info(data["key_id"])
         assert "read" in key_info.scopes
         assert "write" in key_info.scopes
 
-    @pytest.mark.asyncio
-    async def test_created_api_key_is_valid(self):
+    def test_created_api_key_is_valid(self, admin_client):
         """Test that created API key can be verified."""
-        from api_server import CreateAPIKeyRequest, create_api_key
-        from security.middleware import CurrentUser
-
-        admin_user = CurrentUser(
-            user_id="1",
-            is_authenticated=True,
-            auth_method="jwt",
-            roles=["admin"],
+        response = admin_client.post(
+            "/admin/keys",
+            json={
+                "name": "Verifiable Key",
+                "user_id": "test-user",
+            },
         )
-
-        request = CreateAPIKeyRequest(
-            name="Verifiable Key",
-            user_id="test-user",
-        )
-
-        response = await create_api_key(request=request, current_user=admin_user)
+        assert response.status_code == 200
+        data = response.json()
 
         # Verify the key works
-        key_info = api_key_manager.verify(response.raw_key)
+        key_info = api_key_manager.verify(data["raw_key"])
         assert key_info is not None
         assert key_info.name == "Verifiable Key"
         assert key_info.user_id == "test-user"
@@ -356,76 +304,57 @@ class TestCreateAPIKeyEndpoint:
 class TestRevokeAPIKeyEndpoint:
     """Tests for DELETE /admin/keys/{id} endpoint."""
 
-    @pytest.mark.asyncio
-    async def test_revoke_api_key_success(self):
-        """Test revoking an API key with admin privileges."""
-        from api_server import revoke_api_key
-        from security.middleware import CurrentUser
+    @pytest.fixture
+    def admin_client(self, client):
+        """Create a client with admin JWT token."""
+        from security import JWTAuth, SecurityConfig
 
-        admin_user = CurrentUser(
-            user_id="1",
-            is_authenticated=True,
-            auth_method="jwt",
-            roles=["admin"],
+        config = SecurityConfig()
+        jwt_auth = JWTAuth(config=config)
+        # Create admin user in store first
+        user_store.create_user(
+            username="admin",
+            email="admin@example.com",
+            password="adminpass123",
+            is_admin=True,
         )
+        token = jwt_auth.create_token(user_id="1", roles=["admin"])
+        client.headers["Authorization"] = f"Bearer {token}"
+        return client
 
+    def test_revoke_api_key_success(self, admin_client):
+        """Test revoking an API key with admin privileges."""
         # Create a key first
         result = api_key_manager.generate(name="Key to Revoke")
         key_id = result.key_info.key_id
 
         # Revoke it
-        response = await revoke_api_key(key_id=key_id, current_user=admin_user)
-        assert response["status"] == "ok"
-        assert "revoked" in response["message"]
+        response = admin_client.delete(f"/admin/keys/{key_id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert "revoked" in data["message"]
 
         # Verify key is no longer valid
         key_info = api_key_manager.verify(result.raw_key)
         assert key_info is None
 
-    @pytest.mark.asyncio
-    async def test_revoke_nonexistent_key(self):
+    def test_revoke_nonexistent_key(self, admin_client):
         """Test revoking a non-existent key returns 404."""
-        from fastapi import HTTPException
+        response = admin_client.delete("/admin/keys/nonexistent-key-id")
+        assert response.status_code == 404
 
-        from api_server import revoke_api_key
-        from security.middleware import CurrentUser
-
-        admin_user = CurrentUser(
-            user_id="1",
-            is_authenticated=True,
-            auth_method="jwt",
-            roles=["admin"],
-        )
-
-        with pytest.raises(HTTPException) as exc_info:
-            await revoke_api_key(key_id="nonexistent-key-id", current_user=admin_user)
-        assert exc_info.value.status_code == 404
-
-    @pytest.mark.asyncio
-    async def test_revoke_already_revoked_key(self):
+    def test_revoke_already_revoked_key(self, admin_client):
         """Test revoking an already revoked key returns 400."""
-        from fastapi import HTTPException
-
-        from api_server import revoke_api_key
-        from security.middleware import CurrentUser
-
-        admin_user = CurrentUser(
-            user_id="1",
-            is_authenticated=True,
-            auth_method="jwt",
-            roles=["admin"],
-        )
-
         # Create and revoke a key
         result = api_key_manager.generate(name="Already Revoked Key")
         key_id = result.key_info.key_id
         api_key_manager.revoke(key_id)
 
         # Try to revoke again
-        with pytest.raises(HTTPException) as exc_info:
-            await revoke_api_key(key_id=key_id, current_user=admin_user)
-        assert exc_info.value.status_code == 400
-        assert "already revoked" in str(exc_info.value.detail)
+        response = admin_client.delete(f"/admin/keys/{key_id}")
+        assert response.status_code == 400
+        assert "already revoked" in response.json()["detail"]
 
 
 class TestRequireAdminDependency:

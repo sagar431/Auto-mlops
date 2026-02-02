@@ -48,6 +48,9 @@ dependencies = [
 
     # System monitoring
     "psutil>=5.9.0",
+
+    # Rate limiting
+    "slowapi>=0.1.9",
 ]
 
 [project.optional-dependencies]

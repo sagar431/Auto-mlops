@@ -16,13 +16,21 @@ import pytest
 from fastapi.testclient import TestClient
 
 from security import JWTAuth, SecurityConfig
-from security.middleware import CurrentUser
 
-# Set auth disabled before importing api_server
+# Set auth disabled, high rate limit, and JWT secret for testing
 os.environ["ENABLE_API_KEY_AUTH"] = "false"
 os.environ["ENABLE_JWT_AUTH"] = "false"
+os.environ["RATE_LIMIT"] = "1000/minute"
+os.environ["JWT_SECRET"] = "test-secret-for-all-tests"
 
-from api_server import app
+from api_server import app, limiter
+
+
+@pytest.fixture(autouse=True)
+def reset_limiter():
+    """Reset rate limiter storage before each test."""
+    limiter.reset()
+    yield
 
 
 @pytest.fixture
@@ -212,11 +220,9 @@ class TestEndpointsWithJWTAuth:
     @pytest.fixture
     def jwt_headers(self):
         """Generate JWT auth headers for testing."""
-        os.environ["JWT_SECRET"] = "test-secret-for-jwt"
         config = SecurityConfig()
         jwt_auth = JWTAuth(config=config)
         token = jwt_auth.create_token(user_id="testuser", roles=["user"])
-        del os.environ["JWT_SECRET"]
         return {"Authorization": f"Bearer {token}"}
 
     def test_tools_with_jwt(self, client, jwt_headers):
@@ -259,46 +265,23 @@ class TestEndpointsWithAPIKey:
 class TestCurrentUserInjection:
     """Tests that current_user is properly injected into endpoints."""
 
-    @pytest.mark.asyncio
-    async def test_run_agent_receives_current_user(self):
-        """Test that run_agent receives current_user parameter."""
-        from fastapi import BackgroundTasks
+    def test_run_agent_receives_current_user(self, client):
+        """Test that run_agent receives current_user parameter via test client."""
+        # Test that the endpoint accepts requests via the test client
+        # which validates that current_user is properly injected
+        response = client.post("/run", json={"query": "test query"})
+        # Should start successfully (status 200), not error about missing current_user
+        assert response.status_code == 200
+        result = response.json()
+        assert "session_id" in result
 
-        from api_server import RunRequest, run_agent
-
-        mock_user = CurrentUser(
-            user_id="test-user-123",
-            is_authenticated=True,
-            auth_method="jwt",
-        )
-        request = RunRequest(query="test query", project_path=None)
-        background_tasks = BackgroundTasks()
-
-        # The function should accept current_user parameter
-        # We're just testing that it accepts the parameter without error
-        try:
-            # This may fail for other reasons (no project path), but it should
-            # accept the current_user parameter
-            await run_agent(
-                request=request, background_tasks=background_tasks, current_user=mock_user
-            )
-        except Exception as e:
-            # It's okay if it fails for reasons other than the current_user param
-            assert "current_user" not in str(e)
-
-    @pytest.mark.asyncio
-    async def test_list_tools_receives_current_user(self):
+    def test_list_tools_receives_current_user(self, client):
         """Test that list_available_tools receives current_user parameter."""
-        from api_server import list_available_tools
-
-        mock_user = CurrentUser(
-            user_id="test-user-123",
-            is_authenticated=True,
-            auth_method="api_key",
-        )
-
-        # The function should accept current_user parameter and work
-        result = await list_available_tools(current_user=mock_user)
+        # Test that the endpoint works via the test client
+        # which validates that current_user is properly injected
+        response = client.get("/tools")
+        assert response.status_code == 200
+        result = response.json()
         assert "tools" in result
         assert "categories" in result
 

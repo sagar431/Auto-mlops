@@ -23,9 +23,20 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from agent.agent_loop import AgentLoop
 from memory.memory_search import MemorySearch
@@ -53,6 +64,21 @@ def get_cors_origins() -> list[str]:
     if not cors_origins_env:
         return ["*"]
     return [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+
+
+def get_rate_limit() -> str:
+    """
+    Get rate limit from environment variable.
+
+    Returns rate limit string for slowapi.
+    Default: 100 requests per minute.
+    Format: "{count}/{period}" where period is one of: second, minute, hour, day
+    """
+    return os.environ.get("RATE_LIMIT", "100/minute")
+
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ============================================================================
@@ -444,6 +470,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # CORS middleware - origins configurable via CORS_ORIGINS env var
 app.add_middleware(
     CORSMiddleware,
@@ -460,7 +490,8 @@ app.add_middleware(
 
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
-async def health_check():
+@limiter.limit(get_rate_limit)
+async def health_check(request: Request):
     """Health check endpoint."""
     return HealthResponse(
         status="healthy", version="1.0.0", timestamp=datetime.utcnow().isoformat()
@@ -468,8 +499,10 @@ async def health_check():
 
 
 @app.post("/run", response_model=RunResponse, tags=["Agent"])
+@limiter.limit(get_rate_limit)
 async def run_agent(
-    request: RunRequest,
+    request: Request,
+    run_request: RunRequest,
     background_tasks: BackgroundTasks,
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -480,16 +513,18 @@ async def run_agent(
     WebSocket /ws/{session_id} to monitor progress.
     """
     # Validate project path if provided
-    if request.project_path:
-        path = Path(request.project_path)
+    if run_request.project_path:
+        path = Path(run_request.project_path)
         if not path.exists():
             raise HTTPException(
-                status_code=400, detail=f"Project path does not exist: {request.project_path}"
+                status_code=400, detail=f"Project path does not exist: {run_request.project_path}"
             )
 
     # Create session
     session_id = session_manager.create_session(
-        query=request.query, project_path=request.project_path, threshold=request.accuracy_threshold
+        query=run_request.query,
+        project_path=run_request.project_path,
+        threshold=run_request.accuracy_threshold,
     )
 
     # Run agent in background
@@ -503,7 +538,9 @@ async def run_agent(
 
 
 @app.get("/status/{session_id}", response_model=SessionStatus, tags=["Agent"])
+@limiter.limit(get_rate_limit)
 async def get_session_status(
+    request: Request,
     session_id: str,
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -530,7 +567,9 @@ async def get_session_status(
 
 
 @app.get("/sessions", response_model=list[SessionSummary], tags=["History"])
+@limiter.limit(get_rate_limit)
 async def list_sessions(
+    request: Request,
     limit: int = 20,
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -555,7 +594,9 @@ async def list_sessions(
 
 
 @app.get("/sessions/{session_id}", tags=["History"])
+@limiter.limit(get_rate_limit)
 async def get_session_details(
+    request: Request,
     session_id: str,
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -626,7 +667,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
 
 @app.get("/tools", tags=["Info"])
+@limiter.limit(get_rate_limit)
 async def list_available_tools(
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """List all available MLOps tools."""
@@ -683,7 +726,9 @@ async def list_available_tools(
 
 
 @app.get("/metrics", response_model=MetricsSummary, tags=["Metrics"])
+@limiter.limit(get_rate_limit)
 async def get_metrics(
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
@@ -696,7 +741,9 @@ async def get_metrics(
 
 
 @app.get("/metrics/system", response_model=SystemMetrics, tags=["Metrics"])
+@limiter.limit(get_rate_limit)
 async def get_system_metrics(
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Get system resource metrics (CPU, memory, disk)."""
@@ -704,7 +751,9 @@ async def get_system_metrics(
 
 
 @app.get("/metrics/agent", response_model=AgentMetrics, tags=["Metrics"])
+@limiter.limit(get_rate_limit)
 async def get_agent_metrics(
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Get agent performance metrics (sessions, success rate, execution time)."""
@@ -712,7 +761,9 @@ async def get_agent_metrics(
 
 
 @app.get("/metrics/pipeline", response_model=PipelineMetrics, tags=["Metrics"])
+@limiter.limit(get_rate_limit)
 async def get_pipeline_metrics(
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Get pipeline and tool usage metrics."""
@@ -720,7 +771,9 @@ async def get_pipeline_metrics(
 
 
 @app.get("/metrics/demo", tags=["Metrics"])
+@limiter.limit(get_rate_limit)
 async def generate_demo_metrics(
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Generate demo data for frontend testing."""
@@ -734,7 +787,9 @@ async def generate_demo_metrics(
 
 
 @app.get("/logs", response_model=LogsResponse, tags=["Logs"])
+@limiter.limit(get_rate_limit)
 async def get_logs(
+    request: Request,
     page: int = 1,
     page_size: int = 50,
     level: str = None,
@@ -759,7 +814,9 @@ async def get_logs(
 
 
 @app.post("/logs", tags=["Logs"])
+@limiter.limit(get_rate_limit)
 async def create_log(
+    request: Request,
     level: str,
     source: str,
     message: str,
@@ -777,8 +834,10 @@ async def create_log(
 
 
 @app.post("/admin/users", response_model=UserResponse, tags=["Admin"])
+@limiter.limit(get_rate_limit)
 async def create_user(
-    request: CreateUserRequest,
+    request: Request,
+    user_request: CreateUserRequest,
     current_user: CurrentUser = Depends(require_admin),
 ):
     """
@@ -788,10 +847,10 @@ async def create_user(
     """
     try:
         user = user_store.create_user(
-            username=request.username,
-            email=request.email,
-            password=request.password,
-            is_admin=request.is_admin,
+            username=user_request.username,
+            email=user_request.email,
+            password=user_request.password,
+            is_admin=user_request.is_admin,
         )
         return UserResponse(
             id=user["id"],
@@ -806,8 +865,10 @@ async def create_user(
 
 
 @app.post("/admin/keys", response_model=CreateAPIKeyResponse, tags=["Admin"])
+@limiter.limit(get_rate_limit)
 async def create_api_key(
-    request: CreateAPIKeyRequest,
+    request: Request,
+    key_request: CreateAPIKeyRequest,
     current_user: CurrentUser = Depends(require_admin),
 ):
     """
@@ -817,10 +878,10 @@ async def create_api_key(
     The raw key is only returned once and should be stored securely.
     """
     result = api_key_manager.generate(
-        name=request.name,
-        user_id=request.user_id,
-        expires_in_days=request.expires_in_days,
-        scopes=request.scopes,
+        name=key_request.name,
+        user_id=key_request.user_id,
+        expires_in_days=key_request.expires_in_days,
+        scopes=key_request.scopes,
     )
 
     return CreateAPIKeyResponse(
@@ -834,7 +895,9 @@ async def create_api_key(
 
 
 @app.delete("/admin/keys/{key_id}", tags=["Admin"])
+@limiter.limit(get_rate_limit)
 async def revoke_api_key(
+    request: Request,
     key_id: str,
     current_user: CurrentUser = Depends(require_admin),
 ):
