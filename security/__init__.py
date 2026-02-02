@@ -11,6 +11,7 @@ Components:
 - InputValidator: Input sanitization and validation
 - SecurityMiddleware: Security headers middleware
 - SessionOwnership: Session access control
+- get_current_user: FastAPI dependency for user authentication
 """
 
 import hashlib
@@ -807,4 +808,31 @@ __all__ = [
     # Decorators
     "require_auth",
     "require_rate_limit",
+]
+
+
+# Import middleware components for convenience
+from security.middleware import (
+    CurrentUser,
+    CurrentUserDep,
+    OptionalUserDep,
+    AuthenticationError,
+    AuthorizationError,
+    get_current_user,
+    get_current_user_optional,
+    require_roles,
+    require_scopes,
+)
+
+__all__ += [
+    # Middleware
+    "CurrentUser",
+    "CurrentUserDep",
+    "OptionalUserDep",
+    "AuthenticationError",
+    "AuthorizationError",
+    "get_current_user",
+    "get_current_user_optional",
+    "require_roles",
+    "require_scopes",
 ]
