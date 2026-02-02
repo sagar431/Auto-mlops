@@ -894,6 +894,60 @@ async def create_api_key(
     )
 
 
+@app.get("/admin/users", response_model=list[UserResponse], tags=["Admin"])
+@limiter.limit(get_rate_limit)
+async def list_users(
+    request: Request,
+    current_user: CurrentUser = Depends(require_admin),
+):
+    """
+    List all users (admin only).
+
+    Returns a list of all registered users.
+    """
+    users = user_store.list_users()
+    return [
+        UserResponse(
+            id=user["id"],
+            username=user["username"],
+            email=user["email"],
+            is_active=user["is_active"],
+            is_admin=user["is_admin"],
+            created_at=user["created_at"],
+        )
+        for user in users
+    ]
+
+
+@app.get("/admin/keys", response_model=list[APIKeyResponse], tags=["Admin"])
+@limiter.limit(get_rate_limit)
+async def list_api_keys(
+    request: Request,
+    user_id: str | None = None,
+    include_revoked: bool = False,
+    current_user: CurrentUser = Depends(require_admin),
+):
+    """
+    List all API keys (admin only).
+
+    Returns a list of all API keys, optionally filtered by user.
+    """
+    keys = api_key_manager.list_keys(user_id=user_id, include_revoked=include_revoked)
+    return [
+        APIKeyResponse(
+            key_id=key.key_id,
+            name=key.name,
+            key_prefix=key.key_prefix,
+            user_id=key.user_id,
+            is_active=key.is_active,
+            created_at=key.created_at.isoformat(),
+            expires_at=key.expires_at.isoformat() if key.expires_at else None,
+            last_used_at=key.last_used_at.isoformat() if key.last_used_at else None,
+        )
+        for key in keys
+    ]
+
+
 @app.delete("/admin/keys/{key_id}", tags=["Admin"])
 @limiter.limit(get_rate_limit)
 async def revoke_api_key(

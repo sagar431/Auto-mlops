@@ -301,6 +301,144 @@ class TestCreateAPIKeyEndpoint:
         assert key_info.user_id == "test-user"
 
 
+class TestListUsersEndpoint:
+    """Tests for GET /admin/users endpoint."""
+
+    @pytest.fixture
+    def admin_client(self, client):
+        """Create a client with admin JWT token."""
+        from security import JWTAuth, SecurityConfig
+
+        config = SecurityConfig()
+        jwt_auth = JWTAuth(config=config)
+        # Create admin user in store first
+        user_store.create_user(
+            username="admin",
+            email="admin@example.com",
+            password="adminpass123",
+            is_admin=True,
+        )
+        token = jwt_auth.create_token(user_id="1", roles=["admin"])
+        client.headers["Authorization"] = f"Bearer {token}"
+        return client
+
+    def test_list_users_success(self, admin_client):
+        """Test listing users with admin privileges."""
+        # Create some additional users
+        user_store.create_user(
+            username="user1",
+            email="user1@example.com",
+            password="password123",
+        )
+        user_store.create_user(
+            username="user2",
+            email="user2@example.com",
+            password="password123",
+        )
+
+        response = admin_client.get("/admin/users")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 3  # admin + 2 users
+        usernames = [u["username"] for u in data]
+        assert "admin" in usernames
+        assert "user1" in usernames
+        assert "user2" in usernames
+
+    def test_list_users_empty(self, admin_client):
+        """Test listing users when only admin exists."""
+        response = admin_client.get("/admin/users")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1  # Just the admin
+        assert data[0]["username"] == "admin"
+
+    def test_list_users_requires_admin(self, client):
+        """Test that list users requires admin privileges."""
+        response = client.get("/admin/users")
+        assert response.status_code == 403
+
+
+class TestListAPIKeysEndpoint:
+    """Tests for GET /admin/keys endpoint."""
+
+    @pytest.fixture
+    def admin_client(self, client):
+        """Create a client with admin JWT token."""
+        from security import JWTAuth, SecurityConfig
+
+        config = SecurityConfig()
+        jwt_auth = JWTAuth(config=config)
+        # Create admin user in store first
+        user_store.create_user(
+            username="admin",
+            email="admin@example.com",
+            password="adminpass123",
+            is_admin=True,
+        )
+        token = jwt_auth.create_token(user_id="1", roles=["admin"])
+        client.headers["Authorization"] = f"Bearer {token}"
+        return client
+
+    def test_list_keys_success(self, admin_client):
+        """Test listing API keys with admin privileges."""
+        # Create some keys
+        api_key_manager.generate(name="Key 1", user_id="user-1")
+        api_key_manager.generate(name="Key 2", user_id="user-2")
+
+        response = admin_client.get("/admin/keys")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        names = [k["name"] for k in data]
+        assert "Key 1" in names
+        assert "Key 2" in names
+
+    def test_list_keys_empty(self, admin_client):
+        """Test listing keys when none exist."""
+        response = admin_client.get("/admin/keys")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 0
+
+    def test_list_keys_filter_by_user(self, admin_client):
+        """Test listing API keys filtered by user."""
+        api_key_manager.generate(name="Key 1", user_id="user-1")
+        api_key_manager.generate(name="Key 2", user_id="user-2")
+        api_key_manager.generate(name="Key 3", user_id="user-1")
+
+        response = admin_client.get("/admin/keys", params={"user_id": "user-1"})
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        for key in data:
+            assert key["user_id"] == "user-1"
+
+    def test_list_keys_include_revoked(self, admin_client):
+        """Test listing API keys including revoked ones."""
+        api_key_manager.generate(name="Active Key")
+        result2 = api_key_manager.generate(name="Revoked Key")
+        api_key_manager.revoke(result2.key_info.key_id)
+
+        # Without include_revoked
+        response = admin_client.get("/admin/keys")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "Active Key"
+
+        # With include_revoked
+        response = admin_client.get("/admin/keys", params={"include_revoked": "true"})
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+
+    def test_list_keys_requires_admin(self, client):
+        """Test that list keys requires admin privileges."""
+        response = client.get("/admin/keys")
+        assert response.status_code == 403
+
+
 class TestRevokeAPIKeyEndpoint:
     """Tests for DELETE /admin/keys/{id} endpoint."""
 
