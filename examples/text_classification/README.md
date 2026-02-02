@@ -7,7 +7,7 @@ This example demonstrates how to use Auto-MLOps to set up, train, and deploy a t
 This example shows the complete MLOps workflow:
 1. **Setup** - Create modular Hydra configs, initialize MLflow experiment
 2. **Data** - Download IMDB dataset or use synthetic data, version control with DVC
-3. **Training** - Train a TextCNN or LSTM model with metric logging
+3. **Training** - Train a TextCNN, LSTM, or DistilBERT model with metric logging
 4. **Evaluation** - Check accuracy against threshold
 5. **Improvement** - Auto-tune hyperparameters if needed
 6. **Deployment** - Deploy to your chosen target (Gradio, LitServe, Lambda, etc.)
@@ -45,6 +45,9 @@ python train.py +experiment=quick_test
 
 # Use LSTM model
 python train.py +experiment=lstm_baseline
+
+# Use DistilBERT (highest accuracy, requires transformers library)
+python train.py +experiment=distilbert_baseline
 
 # Extended training for best accuracy
 python train.py +experiment=high_accuracy
@@ -87,7 +90,7 @@ examples/text_classification/
 │   ├── evaluate.py             # Evaluation script
 │   ├── prepare_data.py         # Data preparation script
 │   ├── inference.py            # Inference utilities
-│   ├── model.py                # Model definitions (TextCNN, LSTM)
+│   ├── model.py                # Model definitions (TextCNN, LSTM, DistilBERT)
 │   ├── dataset.py              # Dataset utilities
 │   ├── requirements.txt        # Python dependencies
 │   ├── dvc.yaml                # DVC pipeline definition
@@ -95,7 +98,8 @@ examples/text_classification/
 │   │   ├── config.yaml         # Main config with defaults
 │   │   ├── model/              # Model configs
 │   │   │   ├── textcnn.yaml
-│   │   │   └── lstm.yaml
+│   │   │   ├── lstm.yaml
+│   │   │   └── distilbert.yaml
 │   │   ├── training/           # Training configs
 │   │   │   ├── default.yaml
 │   │   │   ├── fast.yaml
@@ -109,6 +113,7 @@ examples/text_classification/
 │   │       ├── baseline.yaml
 │   │       ├── quick_test.yaml
 │   │       ├── lstm_baseline.yaml
+│   │       ├── distilbert_baseline.yaml
 │   │       └── high_accuracy.yaml
 │   ├── data/                   # Dataset directory
 │   └── models/                 # Saved model checkpoints
@@ -146,12 +151,27 @@ A CNN architecture for text classification:
 - Max pooling over time
 - Fully connected layer with dropout
 
+**Expected accuracy:** ~82-85% on IMDB
+
 ### LSTM
 A bidirectional LSTM with attention:
 - Embedding layer
 - 2-layer bidirectional LSTM
 - Attention mechanism
 - Fully connected layer with dropout
+
+**Expected accuracy:** ~84-87% on IMDB
+
+### DistilBERT
+A pretrained transformer model for high accuracy:
+- Pretrained DistilBERT encoder (`distilbert-base-uncased`)
+- [CLS] token pooling
+- Classification head with dropout
+- Optional encoder freezing for fine-tuning
+
+**Expected accuracy:** ~88-92% on IMDB
+
+**Note:** Requires the `transformers` library. Training is slower but achieves the best accuracy.
 
 ## Hydra Configuration
 
@@ -161,7 +181,7 @@ The project uses modular Hydra configs for flexible experiment management:
 
 | Group | Options | Description |
 |-------|---------|-------------|
-| `model` | `textcnn`, `lstm` | Model architecture |
+| `model` | `textcnn`, `lstm`, `distilbert` | Model architecture |
 | `training` | `default`, `fast`, `long` | Training hyperparameters |
 | `data` | `imdb`, `synthetic` | Dataset configuration |
 | `paths` | `default` | Output paths |
@@ -173,6 +193,7 @@ The project uses modular Hydra configs for flexible experiment management:
 | `baseline` | Standard training (10 epochs) | `python train.py +experiment=baseline` |
 | `quick_test` | Fast testing with synthetic data | `python train.py +experiment=quick_test` |
 | `lstm_baseline` | LSTM model training | `python train.py +experiment=lstm_baseline` |
+| `distilbert_baseline` | DistilBERT (highest accuracy) | `python train.py +experiment=distilbert_baseline` |
 | `high_accuracy` | Extended training (30 epochs) | `python train.py +experiment=high_accuracy` |
 
 ### Override Examples
@@ -184,7 +205,10 @@ python train.py training.learning_rate=0.01
 # Use LSTM with more epochs
 python train.py model=lstm training.epochs=20
 
-# Change embedding dimension
+# Use DistilBERT with frozen encoder (faster fine-tuning)
+python train.py model=distilbert model.freeze_encoder=true
+
+# Change embedding dimension (TextCNN/LSTM only)
 python train.py model.embedding_dim=256
 
 # Combine multiple overrides
