@@ -539,6 +539,46 @@ class MonitorModelPerformanceInput(BaseModel):
     )
 
 
+class SetupAlertingInput(BaseModel):
+    """Setup alerting configuration for model monitoring."""
+
+    project_path: str = Field(..., description="Path to the project")
+    alert_name: str = Field(..., description="Name for the alerting configuration")
+    alert_type: str = Field(
+        default="threshold",
+        description="Type of alert: threshold, anomaly, drift, or composite",
+    )
+    metrics: list[str] = Field(
+        default=["accuracy", "latency"],
+        description="List of metrics to monitor for alerts",
+    )
+    thresholds: dict[str, float] | None = Field(
+        default=None,
+        description="Threshold values for each metric (e.g., {'accuracy': 0.9, 'latency': 100})",
+    )
+    notification_channels: list[str] = Field(
+        default=["email"],
+        description="Notification channels: email, slack, pagerduty, webhook",
+    )
+    notification_config: dict[str, Any] | None = Field(
+        default=None,
+        description="Configuration for notification channels (e.g., {'email': {'recipients': ['team@example.com']}, 'slack': {'webhook_url': '...'}})",
+    )
+    evaluation_window: str = Field(
+        default="5m",
+        description="Time window for metric evaluation (e.g., '5m', '1h', '1d')",
+    )
+    cooldown_period: str = Field(
+        default="15m",
+        description="Minimum time between repeated alerts (e.g., '15m', '1h')",
+    )
+    severity: str = Field(
+        default="warning",
+        description="Alert severity: info, warning, critical",
+    )
+    enabled: bool = Field(default=True, description="Whether the alert is enabled")
+
+
 # --- Deployment Tools (Phase 4) ---
 
 
@@ -3440,6 +3480,334 @@ def monitor_model_performance(
         return {"success": False, "error": f"Model performance monitoring failed: {str(e)}"}
 
 
+def setup_alerting(
+    project_path: str,
+    alert_name: str,
+    alert_type: str = "threshold",
+    metrics: list[str] | None = None,
+    thresholds: dict[str, float] | None = None,
+    notification_channels: list[str] | None = None,
+    notification_config: dict[str, Any] | None = None,
+    evaluation_window: str = "5m",
+    cooldown_period: str = "15m",
+    severity: str = "warning",
+    enabled: bool = True,
+) -> dict[str, Any]:
+    """
+    Setup alerting configuration for model monitoring.
+
+    Creates alerting rules and notification configurations for monitoring
+    model performance metrics. Supports threshold-based, anomaly detection,
+    drift detection, and composite alerts.
+
+    Args:
+        project_path: Path to the project
+        alert_name: Name for the alerting configuration
+        alert_type: Type of alert (threshold, anomaly, drift, composite)
+        metrics: List of metrics to monitor
+        thresholds: Threshold values for each metric
+        notification_channels: Notification channels to use
+        notification_config: Configuration for each notification channel
+        evaluation_window: Time window for metric evaluation
+        cooldown_period: Minimum time between repeated alerts
+        severity: Alert severity level
+        enabled: Whether the alert is enabled
+
+    Returns:
+        Dictionary with alerting configuration details including:
+        - config_path: Path to the created configuration file
+        - alert_rules: Generated alert rules
+        - notification_setup: Notification channel configurations
+    """
+    try:
+        path = Path(project_path)
+        if not path.exists():
+            return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+        # Set defaults
+        if metrics is None:
+            metrics = ["accuracy", "latency"]
+        if notification_channels is None:
+            notification_channels = ["email"]
+        if thresholds is None:
+            thresholds = {}
+
+        # Validate alert_type
+        valid_alert_types = ["threshold", "anomaly", "drift", "composite"]
+        if alert_type not in valid_alert_types:
+            return {
+                "success": False,
+                "error": f"Invalid alert_type '{alert_type}'. Must be one of: {valid_alert_types}",
+            }
+
+        # Validate severity
+        valid_severities = ["info", "warning", "critical"]
+        if severity not in valid_severities:
+            return {
+                "success": False,
+                "error": f"Invalid severity '{severity}'. Must be one of: {valid_severities}",
+            }
+
+        # Validate notification channels
+        valid_channels = ["email", "slack", "pagerduty", "webhook"]
+        for channel in notification_channels:
+            if channel not in valid_channels:
+                return {
+                    "success": False,
+                    "error": f"Invalid notification channel '{channel}'. Must be one of: {valid_channels}",
+                }
+
+        # Create alerting directory structure
+        alerting_dir = ensure_directory(path / "monitoring" / "alerting")
+        configs_dir = ensure_directory(alerting_dir / "configs")
+        rules_dir = ensure_directory(alerting_dir / "rules")
+
+        # Generate alert rules based on alert_type
+        alert_rules = []
+        for metric in metrics:
+            rule = {
+                "name": f"{alert_name}_{metric}",
+                "metric": metric,
+                "alert_type": alert_type,
+                "evaluation_window": evaluation_window,
+                "cooldown_period": cooldown_period,
+                "severity": severity,
+                "enabled": enabled,
+            }
+
+            if alert_type == "threshold":
+                if metric in thresholds:
+                    rule["threshold"] = thresholds[metric]
+                    rule["condition"] = f"{metric} < {thresholds[metric]}"
+                else:
+                    # Default thresholds for common metrics
+                    default_thresholds = {
+                        "accuracy": 0.9,
+                        "precision": 0.85,
+                        "recall": 0.85,
+                        "f1_score": 0.85,
+                        "latency": 100,  # ms
+                        "error_rate": 0.05,
+                        "throughput": 100,  # requests/sec
+                    }
+                    if metric in default_thresholds:
+                        rule["threshold"] = default_thresholds[metric]
+                        if metric in ["latency", "error_rate"]:
+                            rule["condition"] = f"{metric} > {default_thresholds[metric]}"
+                        else:
+                            rule["condition"] = f"{metric} < {default_thresholds[metric]}"
+            elif alert_type == "anomaly":
+                rule["detection_method"] = "zscore"
+                rule["sensitivity"] = 2.5  # z-score threshold
+                rule["condition"] = f"anomaly detected in {metric}"
+            elif alert_type == "drift":
+                rule["drift_threshold"] = thresholds.get(metric, 0.1)
+                rule["statistical_test"] = "ks_test"
+                rule["condition"] = f"drift detected in {metric}"
+            elif alert_type == "composite":
+                rule["sub_rules"] = [
+                    {
+                        "metric": metric,
+                        "condition": "threshold",
+                        "threshold": thresholds.get(metric),
+                    }
+                ]
+                rule["operator"] = "AND"
+
+            alert_rules.append(rule)
+
+        # Generate notification configurations
+        notification_setup = {}
+        for channel in notification_channels:
+            channel_config = {"enabled": True, "severity_filter": severity}
+
+            if notification_config and channel in notification_config:
+                channel_config.update(notification_config[channel])
+            else:
+                # Default configurations
+                if channel == "email":
+                    channel_config["recipients"] = ["mlops-alerts@example.com"]
+                    channel_config["subject_template"] = "[{severity}] {alert_name}: {metric} alert"
+                elif channel == "slack":
+                    channel_config["webhook_url"] = "${SLACK_WEBHOOK_URL}"
+                    channel_config["channel"] = "#ml-alerts"
+                    channel_config["mention_on_critical"] = True
+                elif channel == "pagerduty":
+                    channel_config["routing_key"] = "${PAGERDUTY_ROUTING_KEY}"
+                    channel_config["severity_mapping"] = {
+                        "info": "info",
+                        "warning": "warning",
+                        "critical": "critical",
+                    }
+                elif channel == "webhook":
+                    channel_config["url"] = "${ALERT_WEBHOOK_URL}"
+                    channel_config["method"] = "POST"
+                    channel_config["headers"] = {"Content-Type": "application/json"}
+
+            notification_setup[channel] = channel_config
+
+        # Create the alerting configuration
+        alert_config = {
+            "name": alert_name,
+            "version": "1.0",
+            "description": f"Alerting configuration for {alert_name}",
+            "enabled": enabled,
+            "alert_type": alert_type,
+            "metrics": metrics,
+            "evaluation_window": evaluation_window,
+            "cooldown_period": cooldown_period,
+            "severity": severity,
+            "rules": alert_rules,
+            "notifications": notification_setup,
+            "metadata": {
+                "created_by": "mlops-agent",
+                "project_path": str(path),
+            },
+        }
+
+        # Write configuration file
+        config_filename = f"{alert_name.lower().replace(' ', '_')}_alerting.yaml"
+        config_path = configs_dir / config_filename
+        with open(config_path, "w") as f:
+            yaml.dump(alert_config, f, default_flow_style=False, sort_keys=False)
+
+        # Write individual rule files for each metric
+        rules_written = []
+        for rule in alert_rules:
+            rule_filename = f"{rule['name'].lower().replace(' ', '_')}.yaml"
+            rule_path = rules_dir / rule_filename
+            with open(rule_path, "w") as f:
+                yaml.dump(rule, f, default_flow_style=False, sort_keys=False)
+            rules_written.append(str(rule_path))
+
+        # Create a sample alerting runner script
+        runner_script = f'''#!/usr/bin/env python3
+"""
+Alerting Runner for {alert_name}
+
+Auto-generated by MLOps Agent
+Load this configuration and run alerting checks.
+"""
+import yaml
+from pathlib import Path
+
+
+def load_alerting_config(config_path: str) -> dict:
+    """Load alerting configuration from YAML file."""
+    with open(config_path) as f:
+        return yaml.safe_load(f)
+
+
+def check_alert_condition(rule: dict, current_value: float) -> bool:
+    """Check if alert condition is met."""
+    alert_type = rule.get("alert_type", "threshold")
+
+    if alert_type == "threshold":
+        threshold = rule.get("threshold")
+        if threshold is None:
+            return False
+
+        # Check condition based on metric type
+        metric = rule.get("metric", "")
+        if metric in ["latency", "error_rate"]:
+            return current_value > threshold
+        else:
+            return current_value < threshold
+
+    return False
+
+
+def send_notification(channel: str, config: dict, alert_data: dict) -> bool:
+    """Send notification through specified channel."""
+    print(f"[{{channel.upper()}}] Alert: {{alert_data}}")
+    # Implement actual notification logic here
+    return True
+
+
+def run_alerting_check(config_path: str, metrics_values: dict):
+    """Run alerting checks against current metric values."""
+    config = load_alerting_config(config_path)
+
+    if not config.get("enabled", True):
+        print("Alerting is disabled")
+        return
+
+    alerts_triggered = []
+    for rule in config.get("rules", []):
+        if not rule.get("enabled", True):
+            continue
+
+        metric = rule.get("metric")
+        if metric not in metrics_values:
+            continue
+
+        current_value = metrics_values[metric]
+        if check_alert_condition(rule, current_value):
+            alert_data = {{
+                "name": rule.get("name"),
+                "metric": metric,
+                "current_value": current_value,
+                "threshold": rule.get("threshold"),
+                "severity": rule.get("severity"),
+            }}
+            alerts_triggered.append(alert_data)
+
+            # Send notifications
+            for channel, channel_config in config.get("notifications", {{}}).items():
+                if channel_config.get("enabled", True):
+                    send_notification(channel, channel_config, alert_data)
+
+    return alerts_triggered
+
+
+if __name__ == "__main__":
+    # Example usage
+    config_path = "{config_path}"
+    sample_metrics = {{
+        "accuracy": 0.85,  # Below threshold
+        "latency": 150,    # Above threshold
+    }}
+    alerts = run_alerting_check(config_path, sample_metrics)
+    print(f"Triggered alerts: {{len(alerts)}}")
+'''
+
+        runner_path = alerting_dir / f"run_{alert_name.lower().replace(' ', '_')}_alerting.py"
+        with open(runner_path, "w") as f:
+            f.write(runner_script)
+
+        # Build result
+        result: dict[str, Any] = {
+            "success": True,
+            "alert_name": alert_name,
+            "alert_type": alert_type,
+            "config_path": str(config_path),
+            "rules_dir": str(rules_dir),
+            "runner_script": str(runner_path),
+            "rules_count": len(alert_rules),
+            "rules_written": rules_written,
+            "metrics_monitored": metrics,
+            "notification_channels": notification_channels,
+            "alert_rules": alert_rules,
+            "notification_setup": notification_setup,
+            "evaluation_window": evaluation_window,
+            "cooldown_period": cooldown_period,
+            "severity": severity,
+            "enabled": enabled,
+            "message": f"Alerting configuration '{alert_name}' created successfully with {len(alert_rules)} rules",
+            "next_steps": [
+                f"Review configuration at {config_path}",
+                "Set environment variables for notification channels (SLACK_WEBHOOK_URL, etc.)",
+                f"Run alerting checks with: python {runner_path}",
+                "Integrate with your monitoring pipeline",
+            ],
+        }
+
+        return result
+
+    except Exception as e:
+        return {"success": False, "error": f"Alerting setup failed: {str(e)}"}
+
+
 # --- Deployment Tools (Phase 4) ---
 
 
@@ -4667,6 +5035,11 @@ async def list_tools() -> list[Tool]:
             description="Monitor model performance metrics and detect degradation. Calculates classification metrics (accuracy, precision, recall, F1, AUC-ROC) or regression metrics (MSE, RMSE, MAE, R²), tracks performance over time, compares to baseline, and provides health status with recommendations.",
             inputSchema=MonitorModelPerformanceInput.model_json_schema(),
         ),
+        Tool(
+            name="setup_alerting",
+            description="Setup alerting configuration for model monitoring. Creates threshold, anomaly, drift, or composite alerts with configurable notification channels (email, Slack, PagerDuty, webhook). Generates alert rules, notification configs, and runner scripts.",
+            inputSchema=SetupAlertingInput.model_json_schema(),
+        ),
         # Deployment Tools (Phase 4)
         # LitServe
         Tool(
@@ -5018,6 +5391,22 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 input_data.metrics_to_check,
                 input_data.record_snapshot,
                 input_data.storage_path,
+            )
+
+        elif name == "setup_alerting":
+            input_data = SetupAlertingInput(**arguments)
+            result = setup_alerting(
+                input_data.project_path,
+                input_data.alert_name,
+                input_data.alert_type,
+                input_data.metrics,
+                input_data.thresholds,
+                input_data.notification_channels,
+                input_data.notification_config,
+                input_data.evaluation_window,
+                input_data.cooldown_period,
+                input_data.severity,
+                input_data.enabled,
             )
 
         # Deployment Tools (Phase 4)
