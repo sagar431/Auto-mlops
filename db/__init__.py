@@ -22,6 +22,17 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlmodel import SQLModel
 
 from db.models import AgentSession, ExperimentState, Step
+from db.session import (
+    AsyncDatabaseConfig,
+    close_async_db,
+    get_async_config,
+    get_async_db,
+    get_async_engine,
+    get_async_session,
+    get_async_session_factory,
+    init_async_db,
+    reset_async_db,
+)
 from security.models import APIKey, User
 
 
@@ -240,6 +251,18 @@ __all__ = [
     "init_db",
     "reset_db",
     "close_db",
+    # Async configuration
+    "AsyncDatabaseConfig",
+    "get_async_config",
+    # Async engine and sessions
+    "get_async_engine",
+    "get_async_session",
+    "get_async_session_factory",
+    "get_async_db",
+    # Async initialization
+    "init_async_db",
+    "reset_async_db",
+    "close_async_db",
     # Re-export models for convenience
     "User",
     "APIKey",
