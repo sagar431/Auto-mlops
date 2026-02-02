@@ -502,6 +502,43 @@ class DetectDataDriftInput(BaseModel):
     )
 
 
+class MonitorModelPerformanceInput(BaseModel):
+    """Monitor model performance metrics and detect degradation."""
+
+    model_name: str = Field(..., description="Name of the model to monitor")
+    y_true: list[float | int] = Field(..., description="Ground truth labels/values")
+    y_pred: list[float | int] = Field(..., description="Predicted labels/values")
+    y_prob: list[list[float]] | None = Field(
+        default=None,
+        description="Prediction probabilities (for classification, shape: [n_samples, n_classes])",
+    )
+    task_type: str = Field(
+        default="classification",
+        description="Task type: 'classification' or 'regression'",
+    )
+    model_version: str | None = Field(default=None, description="Version of the model")
+    degradation_threshold: float = Field(
+        default=0.05,
+        description="Threshold for degradation detection (0-1). Default 0.05 (5%)",
+    )
+    baseline_metrics: dict[str, float] | None = Field(
+        default=None,
+        description="Baseline metrics to compare against (e.g., {'accuracy': 0.95, 'f1_score': 0.92})",
+    )
+    metrics_to_check: list[str] | None = Field(
+        default=None,
+        description="List of metrics to evaluate for health status. Default: ['accuracy', 'f1_score', 'precision', 'recall']",
+    )
+    record_snapshot: bool = Field(
+        default=True,
+        description="Whether to record this evaluation as a performance snapshot",
+    )
+    storage_path: str | None = Field(
+        default=None,
+        description="Path to save/load performance history (JSON file)",
+    )
+
+
 # --- Deployment Tools (Phase 4) ---
 
 
@@ -3209,6 +3246,200 @@ def detect_data_drift(
         return {"success": False, "error": f"Drift detection failed: {str(e)}"}
 
 
+def monitor_model_performance(
+    model_name: str,
+    y_true: list[float | int],
+    y_pred: list[float | int],
+    y_prob: list[list[float]] | None = None,
+    task_type: str = "classification",
+    model_version: str | None = None,
+    degradation_threshold: float = 0.05,
+    baseline_metrics: dict[str, float] | None = None,
+    metrics_to_check: list[str] | None = None,
+    record_snapshot: bool = True,
+    storage_path: str | None = None,
+) -> dict[str, Any]:
+    """
+    Monitor model performance metrics and detect degradation.
+
+    Uses the ModelMonitor from the monitoring module to calculate metrics,
+    track performance over time, detect degradation, and provide health status.
+
+    Args:
+        model_name: Name of the model to monitor
+        y_true: Ground truth labels/values
+        y_pred: Predicted labels/values
+        y_prob: Prediction probabilities (for classification)
+        task_type: "classification" or "regression"
+        model_version: Version of the model
+        degradation_threshold: Threshold for degradation detection (0-1)
+        baseline_metrics: Baseline metrics to compare against
+        metrics_to_check: List of metrics to evaluate for health status
+        record_snapshot: Whether to record this evaluation as a performance snapshot
+        storage_path: Path to save/load performance history (JSON file)
+
+    Returns:
+        Dictionary with performance monitoring results including:
+        - metrics: Calculated performance metrics
+        - health_status: Overall health status (healthy, warning, critical)
+        - baseline_comparison: Comparison to baseline if provided
+        - recommendations: Suggested actions based on performance
+    """
+    try:
+        import numpy as np
+
+        from monitoring import HealthStatus, ModelMonitor
+        from monitoring.models import ModelMetrics
+
+        # Convert inputs to numpy arrays
+        y_true_arr = np.array(y_true)
+        y_pred_arr = np.array(y_pred)
+        y_prob_arr = np.array(y_prob) if y_prob is not None else None
+
+        # Validate inputs
+        if len(y_true_arr) != len(y_pred_arr):
+            return {
+                "success": False,
+                "error": f"Length mismatch: y_true has {len(y_true_arr)} samples, "
+                f"y_pred has {len(y_pred_arr)} samples",
+            }
+
+        if len(y_true_arr) == 0:
+            return {"success": False, "error": "Empty input arrays provided"}
+
+        # Create baseline metrics object if provided
+        baseline = None
+        if baseline_metrics:
+            baseline = ModelMetrics(**baseline_metrics)
+
+        # Initialize monitor
+        monitor = ModelMonitor(
+            model_name=model_name,
+            model_version=model_version,
+            degradation_threshold=degradation_threshold,
+            baseline_metrics=baseline,
+        )
+
+        # Load existing snapshots if storage path provided
+        snapshots_loaded = 0
+        if storage_path:
+            snapshots_loaded = monitor.load_snapshots(storage_path)
+
+        # Calculate metrics
+        metrics = monitor.calculate_metrics(
+            y_true=y_true_arr,
+            y_pred=y_pred_arr,
+            y_prob=y_prob_arr,
+            task_type=task_type,
+        )
+
+        # Record snapshot if requested
+        snapshot_id = None
+        if record_snapshot:
+            snapshot = monitor.record_snapshot(
+                metrics=metrics,
+                sample_size=len(y_true_arr),
+            )
+            snapshot_id = snapshot.snapshot_id
+
+            # Save snapshots if storage path provided
+            if storage_path:
+                monitor.save_snapshots(storage_path)
+
+        # Get health status
+        health = monitor.get_health_status(
+            metrics_to_check=metrics_to_check,
+            days=7,
+        )
+
+        # Compare to baseline if provided
+        baseline_comparison = None
+        if baseline_metrics:
+            baseline_comparison = monitor.compare_to_baseline(metrics)
+
+        # Build metrics output
+        metrics_output: dict[str, Any] = {}
+        if task_type == "classification":
+            if metrics.accuracy is not None:
+                metrics_output["accuracy"] = metrics.accuracy
+            if metrics.precision is not None:
+                metrics_output["precision"] = metrics.precision
+            if metrics.recall is not None:
+                metrics_output["recall"] = metrics.recall
+            if metrics.f1_score is not None:
+                metrics_output["f1_score"] = metrics.f1_score
+            if metrics.auc_roc is not None:
+                metrics_output["auc_roc"] = metrics.auc_roc
+            if metrics.log_loss is not None:
+                metrics_output["log_loss"] = metrics.log_loss
+        else:  # regression
+            if metrics.mse is not None:
+                metrics_output["mse"] = metrics.mse
+            if metrics.rmse is not None:
+                metrics_output["rmse"] = metrics.rmse
+            if metrics.mae is not None:
+                metrics_output["mae"] = metrics.mae
+            if metrics.r2_score is not None:
+                metrics_output["r2_score"] = metrics.r2_score
+
+        # Build result
+        result: dict[str, Any] = {
+            "success": True,
+            "model_name": model_name,
+            "model_version": model_version,
+            "task_type": task_type,
+            "sample_size": len(y_true_arr),
+            "metrics": metrics_output,
+            "health_status": (
+                health["status"].value
+                if isinstance(health["status"], HealthStatus)
+                else health["status"]
+            ),
+            "health_message": health["message"],
+            "health_details": {
+                "metrics": health["metrics"],
+                "issues": health.get("issues", []),
+                "warnings": health.get("warnings", []),
+            },
+            "recommendations": health.get("recommendations", []),
+            "snapshot_count": health.get("snapshot_count", 0),
+        }
+
+        # Add snapshot info if recorded
+        if snapshot_id:
+            result["snapshot_id"] = snapshot_id
+            result["snapshot_recorded"] = True
+
+        # Add baseline comparison if available
+        if baseline_comparison:
+            result["baseline_comparison"] = baseline_comparison
+
+        # Add storage info
+        if storage_path:
+            result["storage_path"] = storage_path
+            result["snapshots_loaded"] = snapshots_loaded
+
+        # Add summary message
+        if health["status"] == HealthStatus.HEALTHY:
+            result["message"] = f"Model '{model_name}' is performing well"
+        elif health["status"] == HealthStatus.WARNING:
+            result["message"] = f"Model '{model_name}' shows warning signs: {health['message']}"
+        elif health["status"] == HealthStatus.CRITICAL:
+            result["message"] = f"Model '{model_name}' has critical issues: {health['message']}"
+        else:
+            result["message"] = f"Model '{model_name}' status unknown: {health['message']}"
+
+        return result
+
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": f"Required module not available: {str(e)}. Install numpy and scikit-learn.",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Model performance monitoring failed: {str(e)}"}
+
+
 # --- Deployment Tools (Phase 4) ---
 
 
@@ -4431,6 +4662,11 @@ async def list_tools() -> list[Tool]:
             description="Detect data drift between reference and current datasets using Evidently AI. Provides comprehensive drift analysis with per-feature results, severity levels, and recommendations. Supports both numerical and categorical columns with configurable thresholds.",
             inputSchema=DetectDataDriftInput.model_json_schema(),
         ),
+        Tool(
+            name="monitor_model_performance",
+            description="Monitor model performance metrics and detect degradation. Calculates classification metrics (accuracy, precision, recall, F1, AUC-ROC) or regression metrics (MSE, RMSE, MAE, R²), tracks performance over time, compares to baseline, and provides health status with recommendations.",
+            inputSchema=MonitorModelPerformanceInput.model_json_schema(),
+        ),
         # Deployment Tools (Phase 4)
         # LitServe
         Tool(
@@ -4766,6 +5002,22 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 input_data.numerical_columns,
                 input_data.drift_threshold,
                 input_data.dataset_name,
+            )
+
+        elif name == "monitor_model_performance":
+            input_data = MonitorModelPerformanceInput(**arguments)
+            result = monitor_model_performance(
+                input_data.model_name,
+                input_data.y_true,
+                input_data.y_pred,
+                input_data.y_prob,
+                input_data.task_type,
+                input_data.model_version,
+                input_data.degradation_threshold,
+                input_data.baseline_metrics,
+                input_data.metrics_to_check,
+                input_data.record_snapshot,
+                input_data.storage_path,
             )
 
         # Deployment Tools (Phase 4)
