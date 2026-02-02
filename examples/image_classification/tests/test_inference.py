@@ -20,7 +20,7 @@ class TestImageClassifier:
     @pytest.fixture
     def trained_model(self, tmp_path):
         """Create and save a mock trained model."""
-        model = create_model(num_classes=2)
+        model = create_model(num_classes=2, input_size=224)
         model_path = tmp_path / "model.pt"
         torch.save(model.state_dict(), model_path)
 

@@ -29,7 +29,12 @@ class ImageClassifier:
             self.classes = ["cat", "dog"]
 
         # Load model
-        self.model = load_model(model_path, num_classes=len(self.classes), device=self.device)
+        self.model = load_model(
+            model_path,
+            num_classes=len(self.classes),
+            device=self.device,
+            input_size=image_size,
+        )
 
         # Setup transforms
         self.transform = transforms.Compose(
