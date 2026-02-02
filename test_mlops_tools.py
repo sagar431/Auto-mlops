@@ -28,9 +28,12 @@ from mcp_mlops_tools import (
     # Hydra tools
     analyze_project_config,
     build_ml_docker_image,
+    # Data quality tools
+    check_data_quality,
     check_tool_installed,
     configure_dvc_remote,
     create_dvc_pipeline,
+    create_expectation_suite,
     # GitHub Actions tools
     create_github_workflow,
     create_hydra_config,
@@ -48,10 +51,8 @@ from mcp_mlops_tools import (
     # Training control tools
     suggest_improvements,
     update_hydra_config,
-    validate_hydra_config,
-    # Data quality tools
-    create_expectation_suite,
     validate_dataset,
+    validate_hydra_config,
 )
 
 
@@ -689,6 +690,141 @@ print("Training...")
         print_test("Handle non-existent path", passed)
         if passed:
             print(f"       Error: {result.get('error', '')[:50]}...")
+        self.record_result(passed)
+
+        # Test 13: check_data_quality (basic - no expectations)
+        print(f"\n{Colors.BOLD}Test: check_data_quality (basic){Colors.END}")
+        csv_path = Path(self.project_path) / "data" / "test_data.csv"
+        # Create test CSV if not exists
+        if not csv_path.exists():
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            csv_content = """id,label,value,category
+1,cat,10.5,A
+2,dog,15.2,B
+3,cat,12.3,A
+4,,18.1,C
+5,dog,14.7,B
+"""
+            csv_path.write_text(csv_content)
+
+        result = check_data_quality(str(csv_path))
+        passed = result.get("success", False)
+        print_test("Basic data quality check", passed)
+        if passed:
+            print(f"       Overall score: {result.get('overall_score')}")
+            print(f"       Passed checks: {result.get('passed_checks')}")
+            print(f"       Failed checks: {result.get('failed_checks')}")
+            print(f"       Is valid: {result.get('is_valid')}")
+        self.record_result(passed)
+
+        # Test 14: check_data_quality (with custom expectations)
+        print(f"\n{Colors.BOLD}Test: check_data_quality (custom expectations){Colors.END}")
+        expectations = [
+            {
+                "expectation_type": "expect_column_values_to_not_be_null",
+                "column": "id",
+                "severity": "error",
+            },
+            {
+                "expectation_type": "expect_column_values_to_be_between",
+                "column": "value",
+                "kwargs": {"min_value": 0, "max_value": 100},
+                "severity": "warning",
+            },
+        ]
+        result = check_data_quality(str(csv_path), expectations=expectations)
+        passed = result.get("success", False)
+        print_test("Check with custom expectations", passed)
+        if passed:
+            print(f"       Overall score: {result.get('overall_score')}")
+            val_results = result.get("validation_results", [])
+            print(f"       Validation results: {len(val_results)}")
+        self.record_result(passed)
+
+        # Test 15: check_data_quality (with statistics)
+        print(f"\n{Colors.BOLD}Test: check_data_quality (with statistics){Colors.END}")
+        result = check_data_quality(str(csv_path), include_statistics=True)
+        passed = result.get("success", False) and "statistics" in result
+        print_test("Check includes statistics", passed)
+        if passed:
+            stats = result.get("statistics", {})
+            print(f"       Row count: {stats.get('row_count')}")
+            print(f"       Column count: {stats.get('column_count')}")
+            print(f"       Missing %: {stats.get('missing_percentage')}")
+        self.record_result(passed)
+
+        # Test 16: check_data_quality (without statistics)
+        print(f"\n{Colors.BOLD}Test: check_data_quality (without statistics){Colors.END}")
+        result = check_data_quality(str(csv_path), include_statistics=False)
+        passed = result.get("success", False) and "statistics" not in result
+        print_test("Check without statistics", passed)
+        self.record_result(passed)
+
+        # Test 17: check_data_quality (fail_on_error=True with failing check)
+        print(f"\n{Colors.BOLD}Test: check_data_quality (fail_on_error){Colors.END}")
+        # Create CSV with null values in 'id' column to trigger failure
+        csv_with_nulls = Path(self.project_path) / "data" / "data_with_nulls.csv"
+        csv_with_nulls.write_text("""id,value
+1,10
+,20
+3,30
+,40
+""")
+        expectations_strict = [
+            {
+                "expectation_type": "expect_column_values_to_not_be_null",
+                "column": "id",
+                "severity": "error",
+            }
+        ]
+        result = check_data_quality(
+            str(csv_with_nulls), expectations=expectations_strict, fail_on_error=True
+        )
+        # Should fail because id column has nulls and fail_on_error=True
+        passed = result.get("success", True) is False
+        print_test("Fail on error-level check failure", passed)
+        if passed:
+            print(f"       Message: {result.get('message', '')[:60]}...")
+        self.record_result(passed)
+
+        # Test 18: check_data_quality (non-existent file)
+        print(f"\n{Colors.BOLD}Test: check_data_quality (non-existent file){Colors.END}")
+        result = check_data_quality("/nonexistent/path/data.csv")
+        passed = result.get("success", False) is False
+        print_test("Handle non-existent file", passed)
+        if passed:
+            print(f"       Error: {result.get('error', '')[:50]}...")
+        self.record_result(passed)
+
+        # Test 19: check_data_quality (unsupported file type)
+        print(f"\n{Colors.BOLD}Test: check_data_quality (unsupported file type){Colors.END}")
+        txt_file = Path(self.project_path) / "data" / "data.txt"
+        txt_file.write_text("some text data")
+        result = check_data_quality(str(txt_file))
+        passed = result.get("success", False) is False
+        print_test("Reject unsupported file type", passed)
+        if passed:
+            print(f"       Error: {result.get('error', '')[:50]}...")
+        self.record_result(passed)
+
+        # Test 20: check_data_quality (parquet file)
+        print(f"\n{Colors.BOLD}Test: check_data_quality (parquet file){Colors.END}")
+        try:
+            import pandas as pd
+
+            parquet_path = Path(self.project_path) / "data" / "test_data.parquet"
+            df = pd.DataFrame({"id": [1, 2, 3], "value": [10.5, 20.3, 15.7]})
+            df.to_parquet(parquet_path)
+
+            result = check_data_quality(str(parquet_path))
+            passed = result.get("success", False)
+            print_test("Check parquet file", passed)
+            if passed:
+                print(f"       Overall score: {result.get('overall_score')}")
+        except ImportError:
+            print_test("Check parquet file", True)
+            print("       (Skipped - pandas/pyarrow not available)")
+            passed = True
         self.record_result(passed)
 
     def run_all(self, tool_filter: str = None):

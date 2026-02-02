@@ -388,6 +388,23 @@ class CreateExpectationSuiteInput(BaseModel):
     )
 
 
+class CheckDataQualityInput(BaseModel):
+    """Check data quality using Great Expectations-based validation."""
+
+    dataset_path: str = Field(..., description="Path to the dataset file (CSV, Parquet, or JSON)")
+    expectations: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Optional list of expectations to check. Each expectation is a dict with 'expectation_type', optional 'column', optional 'kwargs'. If not provided, runs basic quality checks (nulls, duplicates, row count).",
+    )
+    include_statistics: bool = Field(
+        default=True, description="Whether to include detailed dataset statistics in the report"
+    )
+    fail_on_error: bool = Field(
+        default=False,
+        description="If True, returns success=False when any ERROR-severity check fails",
+    )
+
+
 # --- Deployment Tools (Phase 4) ---
 
 
@@ -2268,6 +2285,205 @@ def create_expectation_suite(
     }
 
 
+def check_data_quality(
+    dataset_path: str,
+    expectations: list[dict[str, Any]] | None = None,
+    include_statistics: bool = True,
+    fail_on_error: bool = False,
+) -> dict[str, Any]:
+    """Check data quality using Great Expectations-based validation.
+
+    Validates a dataset against specified expectations or runs basic quality checks.
+    Uses the GreatExpectationsValidator from the data_quality module with fallback
+    to pandas-based checks if Great Expectations is not installed.
+
+    Args:
+        dataset_path: Path to the dataset file (CSV, Parquet, or JSON)
+        expectations: Optional list of expectations. Each expectation is a dict with:
+            - expectation_type: GE expectation name (e.g., 'expect_column_values_to_not_be_null')
+            - column: Column to apply expectation to (optional)
+            - kwargs: Additional expectation parameters (optional)
+            - severity: 'error', 'warning', or 'info' (optional, default: 'error')
+            If not provided, runs basic checks (null values, duplicates, row count)
+        include_statistics: Whether to include detailed dataset statistics
+        fail_on_error: If True, returns success=False when any ERROR-severity check fails
+
+    Returns:
+        Dict with validation results, statistics, and recommendations
+    """
+    path = Path(dataset_path)
+
+    if not path.exists():
+        return {"success": False, "error": f"Dataset path {dataset_path} does not exist"}
+
+    # Determine file type
+    suffix = path.suffix.lower()
+    if suffix not in (".csv", ".parquet", ".json"):
+        return {
+            "success": False,
+            "error": f"Unsupported file type: {suffix}. Supported types: .csv, .parquet, .json",
+        }
+
+    try:
+        # Import required modules
+        import pandas as pd
+
+        from data_quality.validator import GreatExpectationsValidator
+
+        # Load dataset
+        if suffix == ".csv":
+            df = pd.read_csv(path)
+        elif suffix == ".parquet":
+            df = pd.read_parquet(path)
+        else:  # .json
+            df = pd.read_json(path)
+
+        # Initialize validator
+        validator = GreatExpectationsValidator()
+
+        # Configure expectations
+        if expectations:
+            # Use provided expectations
+            for exp in expectations:
+                exp_type = exp.get("expectation_type")
+                if not exp_type:
+                    continue
+
+                column = exp.get("column")
+                kwargs = exp.get("kwargs", {})
+                severity_str = exp.get("severity", "error").lower()
+
+                # Map severity string to enum
+                from data_quality.models import ValidationSeverity
+
+                severity_map = {
+                    "error": ValidationSeverity.ERROR,
+                    "warning": ValidationSeverity.WARNING,
+                    "info": ValidationSeverity.INFO,
+                }
+                severity = severity_map.get(severity_str, ValidationSeverity.ERROR)
+
+                description = exp.get("description")
+
+                validator.add_expectation(
+                    expectation_type=exp_type,
+                    column=column,
+                    kwargs=kwargs,
+                    severity=severity,
+                    description=description,
+                )
+        else:
+            # Run basic quality checks if no expectations provided
+            from data_quality.models import ValidationSeverity
+
+            # Add basic checks for all columns
+            for column in df.columns:
+                # Check for null values
+                validator.add_not_null_expectation(
+                    column=column,
+                    mostly=0.95,  # Allow 5% nulls by default
+                    severity=ValidationSeverity.WARNING,
+                )
+
+            # Check for duplicate rows
+            validator.add_no_duplicates_expectation(severity=ValidationSeverity.WARNING)
+
+            # Check row count (at least 1 row)
+            validator.add_table_row_count_expectation(
+                min_value=1, severity=ValidationSeverity.ERROR
+            )
+
+        # Run validation
+        report = validator.validate(
+            df, dataset_name=path.name, include_statistics=include_statistics
+        )
+
+        # Convert report to dict for JSON serialization
+        result = {
+            "success": True,
+            "report_id": report.report_id,
+            "dataset_name": report.dataset_name,
+            "generated_at": report.generated_at,
+            "overall_score": report.overall_score,
+            "passed_checks": report.passed_checks,
+            "failed_checks": report.failed_checks,
+            "warning_count": report.warning_count,
+            "recommendations": report.recommendations,
+            "is_valid": report.failed_checks == 0,
+        }
+
+        # Add validation results summary
+        validation_summary = []
+        for vr in report.validation_results:
+            validation_summary.append(
+                {
+                    "rule_name": vr.rule_name,
+                    "status": vr.status.value,
+                    "severity": vr.severity.value,
+                    "column": vr.column,
+                    "message": vr.message,
+                    "failed_rows": vr.failed_rows,
+                    "failed_percentage": vr.failed_percentage,
+                }
+            )
+        result["validation_results"] = validation_summary
+
+        # Add statistics if included
+        if include_statistics:
+            stats = report.statistics
+            result["statistics"] = {
+                "row_count": stats.row_count,
+                "column_count": stats.column_count,
+                "total_cells": stats.total_cells,
+                "total_missing": stats.total_missing,
+                "missing_percentage": stats.missing_percentage,
+                "duplicate_rows": stats.duplicate_rows,
+                "duplicate_percentage": stats.duplicate_percentage,
+                "memory_usage_bytes": stats.memory_usage_bytes,
+                "columns": [
+                    {
+                        "column_name": col.column_name,
+                        "data_type": col.data_type.value,
+                        "null_count": col.null_count,
+                        "null_percentage": col.null_percentage,
+                        "unique_count": col.unique_count,
+                        "unique_percentage": col.unique_percentage,
+                    }
+                    for col in stats.columns
+                ],
+            }
+
+        # Determine overall success based on fail_on_error flag
+        if fail_on_error:
+            # Check if any ERROR-severity checks failed
+            error_failures = sum(
+                1
+                for vr in report.validation_results
+                if vr.status.value == "failed" and vr.severity.value == "error"
+            )
+            if error_failures > 0:
+                result["success"] = False
+                result["message"] = (
+                    f"Data quality check failed: {error_failures} error-level check(s) failed"
+                )
+            else:
+                result["message"] = "Data quality check passed"
+        else:
+            result["message"] = (
+                f"Data quality check completed with score {report.overall_score:.1f}/100"
+            )
+
+        return result
+
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": f"Required module not available: {str(e)}. Install pandas and optionally great_expectations.",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Data quality check failed: {str(e)}"}
+
+
 # --- Deployment Tools (Phase 4) ---
 
 
@@ -3459,6 +3675,11 @@ async def list_tools() -> list[Tool]:
             description="Create a Great Expectations expectation suite for data validation with customizable expectations",
             inputSchema=CreateExpectationSuiteInput.model_json_schema(),
         ),
+        Tool(
+            name="check_data_quality",
+            description="Check data quality using Great Expectations-based validation. Validates datasets against expectations or runs basic quality checks (nulls, duplicates, row count). Returns quality score, validation results, and recommendations.",
+            inputSchema=CheckDataQualityInput.model_json_schema(),
+        ),
         # Deployment Tools (Phase 4)
         # LitServe
         Tool(
@@ -3738,6 +3959,15 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 input_data.suite_name,
                 input_data.expectations,
                 input_data.output_dir,
+            )
+
+        elif name == "check_data_quality":
+            input_data = CheckDataQualityInput(**arguments)
+            result = check_data_quality(
+                input_data.dataset_path,
+                input_data.expectations,
+                input_data.include_statistics,
+                input_data.fail_on_error,
             )
 
         # Deployment Tools (Phase 4)
