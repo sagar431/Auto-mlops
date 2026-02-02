@@ -15,6 +15,7 @@ Endpoints:
 """
 
 import asyncio
+import hashlib
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -35,7 +36,8 @@ from metrics.models import (
     PipelineMetrics,
     SystemMetrics,
 )
-from security.middleware import CurrentUser, get_current_user
+from security.api_keys import api_key_manager
+from security.middleware import AuthorizationError, CurrentUser, get_current_user
 
 # ============================================================================
 # Data Models
@@ -93,6 +95,64 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     timestamp: str
+
+
+# ============================================================================
+# Admin Data Models
+# ============================================================================
+
+
+class CreateUserRequest(BaseModel):
+    """Request model for creating a new user."""
+
+    username: str = Field(..., description="Username", min_length=1, max_length=50)
+    email: str = Field(..., description="Email address", min_length=5, max_length=255)
+    password: str = Field(..., description="Password", min_length=8)
+    is_admin: bool = Field(default=False, description="Whether user is an admin")
+
+
+class UserResponse(BaseModel):
+    """Response model for user data."""
+
+    id: str
+    username: str
+    email: str
+    is_active: bool
+    is_admin: bool
+    created_at: str
+
+
+class CreateAPIKeyRequest(BaseModel):
+    """Request model for creating a new API key."""
+
+    name: str = Field(..., description="Name for the API key", min_length=1, max_length=100)
+    user_id: str | None = Field(default=None, description="User ID to associate with the key")
+    expires_in_days: int | None = Field(default=None, ge=1, description="Days until expiration")
+    scopes: list[str] | None = Field(default=None, description="Allowed scopes")
+
+
+class CreateAPIKeyResponse(BaseModel):
+    """Response model for created API key."""
+
+    raw_key: str = Field(..., description="The raw API key (only shown once)")
+    key_id: str
+    name: str
+    user_id: str | None
+    created_at: str
+    expires_at: str | None
+
+
+class APIKeyResponse(BaseModel):
+    """Response model for API key info."""
+
+    key_id: str
+    name: str
+    key_prefix: str
+    user_id: str | None
+    is_active: bool
+    created_at: str
+    expires_at: str | None
+    last_used_at: str | None
 
 
 # ============================================================================
@@ -174,6 +234,96 @@ class SessionManager:
 
 # Global session manager
 session_manager = SessionManager()
+
+
+# ============================================================================
+# User Store (In-Memory)
+# ============================================================================
+
+
+class UserStore:
+    """Simple in-memory user store for admin operations."""
+
+    def __init__(self):
+        self._users: dict[str, dict] = {}
+        self._next_id: int = 1
+
+    def create_user(
+        self,
+        username: str,
+        email: str,
+        password: str,
+        is_admin: bool = False,
+    ) -> dict:
+        """Create a new user."""
+        # Check for duplicate username or email
+        for user in self._users.values():
+            if user["username"] == username:
+                raise ValueError(f"Username already exists: {username}")
+            if user["email"] == email:
+                raise ValueError(f"Email already exists: {email}")
+
+        user_id = str(self._next_id)
+        self._next_id += 1
+
+        user = {
+            "id": user_id,
+            "username": username,
+            "email": email,
+            "hashed_password": hashlib.sha256(password.encode()).hexdigest(),
+            "is_active": True,
+            "is_admin": is_admin,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+        self._users[user_id] = user
+        return user
+
+    def get_user(self, user_id: str) -> dict | None:
+        """Get user by ID."""
+        return self._users.get(user_id)
+
+    def get_user_by_username(self, username: str) -> dict | None:
+        """Get user by username."""
+        for user in self._users.values():
+            if user["username"] == username:
+                return user
+        return None
+
+    def list_users(self) -> list[dict]:
+        """List all users."""
+        return list(self._users.values())
+
+
+# Global user store
+user_store = UserStore()
+
+
+# ============================================================================
+# Admin Authorization Dependency
+# ============================================================================
+
+
+async def require_admin(current_user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    """
+    Dependency that requires admin privileges.
+
+    Checks if the current user has admin role or is authenticated as an admin user.
+    """
+    if not current_user.is_authenticated:
+        raise AuthorizationError("Authentication required for admin access")
+
+    # Check for admin role in JWT claims
+    if "admin" in current_user.roles:
+        return current_user
+
+    # Check if user_id corresponds to an admin user in the store
+    if current_user.user_id and not current_user.user_id.startswith("apikey:"):
+        user = user_store.get_user(current_user.user_id)
+        if user and user.get("is_admin"):
+            return current_user
+
+    raise AuthorizationError("Admin privileges required")
 
 
 # ============================================================================
@@ -603,6 +753,93 @@ async def create_log(
     """Create a new log entry (for internal use)."""
     metrics_collector.log(level, source, message, session_id)
     return {"status": "ok"}
+
+
+# ============================================================================
+# Admin Endpoints
+# ============================================================================
+
+
+@app.post("/admin/users", response_model=UserResponse, tags=["Admin"])
+async def create_user(
+    request: CreateUserRequest,
+    current_user: CurrentUser = Depends(require_admin),
+):
+    """
+    Create a new user (admin only).
+
+    Creates a new user account with the specified credentials.
+    """
+    try:
+        user = user_store.create_user(
+            username=request.username,
+            email=request.email,
+            password=request.password,
+            is_admin=request.is_admin,
+        )
+        return UserResponse(
+            id=user["id"],
+            username=user["username"],
+            email=user["email"],
+            is_active=user["is_active"],
+            is_admin=user["is_admin"],
+            created_at=user["created_at"],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/admin/keys", response_model=CreateAPIKeyResponse, tags=["Admin"])
+async def create_api_key(
+    request: CreateAPIKeyRequest,
+    current_user: CurrentUser = Depends(require_admin),
+):
+    """
+    Create a new API key (admin only).
+
+    Generates a new API key with the specified configuration.
+    The raw key is only returned once and should be stored securely.
+    """
+    result = api_key_manager.generate(
+        name=request.name,
+        user_id=request.user_id,
+        expires_in_days=request.expires_in_days,
+        scopes=request.scopes,
+    )
+
+    return CreateAPIKeyResponse(
+        raw_key=result.raw_key,
+        key_id=result.key_info.key_id,
+        name=result.key_info.name,
+        user_id=result.key_info.user_id,
+        created_at=result.key_info.created_at.isoformat(),
+        expires_at=result.key_info.expires_at.isoformat() if result.key_info.expires_at else None,
+    )
+
+
+@app.delete("/admin/keys/{key_id}", tags=["Admin"])
+async def revoke_api_key(
+    key_id: str,
+    current_user: CurrentUser = Depends(require_admin),
+):
+    """
+    Revoke an API key (admin only).
+
+    Revokes the specified API key, making it invalid for authentication.
+    """
+    # First check if the key exists
+    key_info = api_key_manager.get_key_info(key_id)
+    if key_info is None:
+        raise HTTPException(status_code=404, detail=f"API key not found: {key_id}")
+
+    if not key_info.is_active:
+        raise HTTPException(status_code=400, detail="API key is already revoked")
+
+    success = api_key_manager.revoke(key_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to revoke API key")
+
+    return {"status": "ok", "message": f"API key {key_id} revoked successfully"}
 
 
 # ============================================================================
