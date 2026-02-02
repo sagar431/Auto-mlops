@@ -468,6 +468,40 @@ class CompareDistributionsInput(BaseModel):
     )
 
 
+# --- Monitoring Tools ---
+
+
+class DetectDataDriftInput(BaseModel):
+    """Detect data drift between reference and current datasets using Evidently AI."""
+
+    reference_path: str = Field(
+        ..., description="Path to the reference dataset file (e.g., training data)"
+    )
+    current_path: str = Field(
+        ..., description="Path to the current dataset file to compare against reference"
+    )
+    feature_columns: list[str] | None = Field(
+        default=None,
+        description="List of column names to check for drift. If None, checks all columns.",
+    )
+    categorical_columns: list[str] | None = Field(
+        default=None,
+        description="Explicitly specify which columns are categorical.",
+    )
+    numerical_columns: list[str] | None = Field(
+        default=None,
+        description="Explicitly specify which columns are numerical.",
+    )
+    drift_threshold: float = Field(
+        default=0.1,
+        description="Threshold for drift detection (0-1, lower = stricter). Default 0.1.",
+    )
+    dataset_name: str = Field(
+        default="dataset",
+        description="Name for the dataset in the report.",
+    )
+
+
 # --- Deployment Tools (Phase 4) ---
 
 
@@ -3026,6 +3060,155 @@ def compare_distributions(
         return {"success": False, "error": f"Distribution comparison failed: {str(e)}"}
 
 
+# --- Monitoring Tools ---
+
+
+def detect_data_drift(
+    reference_path: str,
+    current_path: str,
+    feature_columns: list[str] | None = None,
+    categorical_columns: list[str] | None = None,
+    numerical_columns: list[str] | None = None,
+    drift_threshold: float = 0.1,
+    dataset_name: str = "dataset",
+) -> dict[str, Any]:
+    """
+    Detect data drift between reference and current datasets using Evidently AI.
+
+    Uses the DriftDetector from the monitoring module which leverages Evidently AI
+    for comprehensive drift detection with support for multiple statistical tests.
+
+    Args:
+        reference_path: Path to the reference dataset file (e.g., training data)
+        current_path: Path to the current dataset file to compare against reference
+        feature_columns: List of column names to check for drift. If None, checks all columns.
+        categorical_columns: Explicitly specify which columns are categorical.
+        numerical_columns: Explicitly specify which columns are numerical.
+        drift_threshold: Threshold for drift detection (0-1, lower = stricter). Default 0.1.
+        dataset_name: Name for the dataset in the report.
+
+    Returns:
+        Dictionary with drift detection results including:
+        - overall_drift_detected: Whether overall drift was detected
+        - drift_share: Proportion of features with drift
+        - severity: Drift severity level (none, low, medium, high, critical)
+        - feature_results: Per-feature drift analysis
+        - recommendations: Suggested actions based on drift analysis
+    """
+    try:
+        import pandas as pd
+
+        from monitoring import DriftDetector
+
+        ref_path = Path(reference_path)
+        cur_path = Path(current_path)
+
+        if not ref_path.exists():
+            return {"success": False, "error": f"Reference dataset {reference_path} does not exist"}
+        if not cur_path.exists():
+            return {"success": False, "error": f"Current dataset {current_path} does not exist"}
+
+        # Load reference dataset
+        ref_suffix = ref_path.suffix.lower()
+        if ref_suffix == ".csv":
+            df_reference = pd.read_csv(reference_path)
+        elif ref_suffix == ".parquet":
+            df_reference = pd.read_parquet(reference_path)
+        elif ref_suffix == ".json":
+            df_reference = pd.read_json(reference_path)
+        else:
+            return {
+                "success": False,
+                "error": f"Unsupported file type for reference: {ref_suffix}. Supported: .csv, .parquet, .json",
+            }
+
+        # Load current dataset
+        cur_suffix = cur_path.suffix.lower()
+        if cur_suffix == ".csv":
+            df_current = pd.read_csv(current_path)
+        elif cur_suffix == ".parquet":
+            df_current = pd.read_parquet(current_path)
+        elif cur_suffix == ".json":
+            df_current = pd.read_json(current_path)
+        else:
+            return {
+                "success": False,
+                "error": f"Unsupported file type for current: {cur_suffix}. Supported: .csv, .parquet, .json",
+            }
+
+        # Initialize drift detector
+        detector = DriftDetector(drift_threshold=drift_threshold)
+
+        # Detect drift
+        report = detector.detect_drift(
+            reference_data=df_reference,
+            current_data=df_current,
+            feature_columns=feature_columns,
+            dataset_name=dataset_name,
+            categorical_columns=categorical_columns,
+            numerical_columns=numerical_columns,
+        )
+
+        # Build feature results for output
+        feature_results_output = []
+        for fr in report.feature_results:
+            feature_results_output.append(
+                {
+                    "feature_name": fr.feature_name,
+                    "drift_detected": fr.drift_detected,
+                    "drift_score": fr.drift_score,
+                    "stattest_name": fr.stattest_name,
+                    "stattest_threshold": fr.stattest_threshold,
+                    "p_value": fr.p_value,
+                    "reference_distribution": fr.reference_distribution,
+                    "current_distribution": fr.current_distribution,
+                }
+            )
+
+        # Build result
+        result: dict[str, Any] = {
+            "success": True,
+            "report_id": report.report_id,
+            "dataset_name": report.dataset_name,
+            "timestamp": report.timestamp.isoformat(),
+            "drift_type": report.drift_type.value,
+            "overall_drift_detected": report.overall_drift_detected,
+            "drift_share": report.drift_share,
+            "severity": report.severity.value,
+            "reference_rows": report.reference_rows,
+            "current_rows": report.current_rows,
+            "feature_results": feature_results_output,
+            "recommendations": report.recommendations,
+            "evidently_available": detector.evidently_available,
+        }
+
+        # Add drifted features summary
+        drifted_features = [fr.feature_name for fr in report.feature_results if fr.drift_detected]
+        result["drifted_features"] = drifted_features
+        result["total_features_checked"] = len(report.feature_results)
+        result["drifted_features_count"] = len(drifted_features)
+
+        # Add summary message
+        if not report.overall_drift_detected:
+            result["message"] = f"No significant data drift detected in {dataset_name}"
+        else:
+            result["message"] = (
+                f"Data drift detected in {dataset_name}: "
+                f"{len(drifted_features)}/{len(report.feature_results)} features drifted "
+                f"(severity: {report.severity.value})"
+            )
+
+        return result
+
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": f"Required module not available: {str(e)}. Install pandas and scipy.",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Drift detection failed: {str(e)}"}
+
+
 # --- Deployment Tools (Phase 4) ---
 
 
@@ -4242,6 +4425,12 @@ async def list_tools() -> list[Tool]:
             description="Compare distributions between a reference dataset and current dataset for drift detection. Uses Kolmogorov-Smirnov test to identify significant distribution shifts in numeric columns.",
             inputSchema=CompareDistributionsInput.model_json_schema(),
         ),
+        # Monitoring Tools
+        Tool(
+            name="detect_data_drift",
+            description="Detect data drift between reference and current datasets using Evidently AI. Provides comprehensive drift analysis with per-feature results, severity levels, and recommendations. Supports both numerical and categorical columns with configurable thresholds.",
+            inputSchema=DetectDataDriftInput.model_json_schema(),
+        ),
         # Deployment Tools (Phase 4)
         # LitServe
         Tool(
@@ -4564,6 +4753,19 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 input_data.current_path,
                 input_data.columns,
                 input_data.significance_level,
+            )
+
+        # Monitoring Tools
+        elif name == "detect_data_drift":
+            input_data = DetectDataDriftInput(**arguments)
+            result = detect_data_drift(
+                input_data.reference_path,
+                input_data.current_path,
+                input_data.feature_columns,
+                input_data.categorical_columns,
+                input_data.numerical_columns,
+                input_data.drift_threshold,
+                input_data.dataset_name,
             )
 
         # Deployment Tools (Phase 4)
