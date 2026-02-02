@@ -1,0 +1,12 @@
+# LSTM Model Configuration
+# Bidirectional LSTM with attention for text classification
+
+name: lstm
+num_classes: 2
+embedding_dim: 128
+dropout: 0.5
+
+# LSTM-specific settings
+hidden_dim: 256
+num_layers: 2
+bidirectional: true

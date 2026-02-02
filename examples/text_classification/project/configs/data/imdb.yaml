@@ -1,0 +1,9 @@
+# IMDB Dataset Configuration
+# Movie review sentiment classification
+
+dataset: imdb
+data_dir: ${hydra:runtime.cwd}/data
+vocab_size: 30000
+max_length: 256
+num_workers: 4
+use_synthetic: false

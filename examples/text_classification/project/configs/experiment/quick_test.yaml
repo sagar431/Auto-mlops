@@ -1,0 +1,10 @@
+# @package _global_
+# Quick test experiment configuration
+# Use for rapid testing with synthetic data
+
+defaults:
+  - override /model: textcnn
+  - override /training: fast
+  - override /data: synthetic
+
+seed: 42

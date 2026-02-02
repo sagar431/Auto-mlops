@@ -1,0 +1,9 @@
+# Synthetic Dataset Configuration
+# For testing without downloading real data
+
+dataset: synthetic
+data_dir: ${hydra:runtime.cwd}/data
+vocab_size: 1000
+max_length: 128
+num_workers: 2
+use_synthetic: true

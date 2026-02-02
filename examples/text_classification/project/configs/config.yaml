@@ -1,0 +1,19 @@
+# Hydra Configuration for Text Classification
+# Uses modular config groups: model, training, data, paths
+
+defaults:
+  - model: textcnn
+  - training: default
+  - data: imdb
+  - paths: default
+  - _self_
+
+# Random seed for reproducibility
+seed: 42
+
+# Hydra settings
+hydra:
+  run:
+    dir: ${paths.output_dir}/runs/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${paths.output_dir}/multirun/${now:%Y-%m-%d_%H-%M-%S}

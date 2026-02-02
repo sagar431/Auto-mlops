@@ -1,0 +1,11 @@
+# TextCNN Model Configuration
+# CNN with multiple parallel convolutions for text classification
+
+name: textcnn
+num_classes: 2
+embedding_dim: 128
+dropout: 0.5
+
+# CNN-specific settings
+num_filters: 100
+kernel_sizes: [3, 4, 5]

@@ -1,0 +1,69 @@
+# DVC Pipeline for Text Classification
+# This pipeline defines the stages for data preparation, training, and evaluation.
+#
+# Usage:
+#   dvc repro                    # Run all stages
+#   dvc repro train              # Run up to train stage
+#   dvc repro evaluate           # Run all stages including evaluate
+#   dvc repro -f                 # Force re-run all stages
+#
+# Pipeline DAG:
+#   prepare_data -> train -> evaluate
+
+stages:
+  prepare_data:
+    cmd: python prepare_data.py --data-dir data --output data/data_info.json --synthetic
+    deps:
+      - prepare_data.py
+    outs:
+      - data/train:
+          cache: false
+      - data/test:
+          cache: false
+      - data/data_info.json:
+          cache: false
+
+  train:
+    cmd: python train.py
+    deps:
+      - train.py
+      - model.py
+      - dataset.py
+      - data/train
+      - data/test
+      - configs/config.yaml
+      - configs/model/textcnn.yaml
+      - configs/training/default.yaml
+      - configs/data/imdb.yaml
+      - configs/paths/default.yaml
+    params:
+      - configs/config.yaml:
+          - seed
+      - configs/model/textcnn.yaml:
+          - num_classes
+          - dropout
+          - embedding_dim
+      - configs/training/default.yaml:
+          - epochs
+          - batch_size
+          - learning_rate
+      - configs/data/imdb.yaml:
+          - max_length
+          - vocab_size
+          - num_workers
+    outs:
+      - models/best_model.pt
+      - models/final_model.pt
+      - models/vocab.json
+      - models/classes.txt
+
+  evaluate:
+    cmd: python evaluate.py --model-path models/best_model.pt --vocab-path models/vocab.json --data-dir data --output metrics.json
+    deps:
+      - evaluate.py
+      - models/best_model.pt
+      - models/vocab.json
+      - data/test
+    metrics:
+      - metrics.json:
+          cache: false

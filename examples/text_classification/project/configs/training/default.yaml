@@ -1,0 +1,12 @@
+# Default Training Configuration
+# Balanced settings for most use cases
+
+epochs: 10
+batch_size: 64
+learning_rate: 0.001
+optimizer: adam
+weight_decay: 0.0
+scheduler:
+  name: reduce_on_plateau
+  patience: 3
+  factor: 0.1

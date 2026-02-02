@@ -1,0 +1,9 @@
+# @package _global_
+# Baseline experiment configuration
+
+defaults:
+  - override /model: textcnn
+  - override /training: default
+  - override /data: imdb
+
+seed: 42

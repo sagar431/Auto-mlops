@@ -1,0 +1,9 @@
+# @package _global_
+# LSTM baseline experiment configuration
+
+defaults:
+  - override /model: lstm
+  - override /training: default
+  - override /data: imdb
+
+seed: 42
