@@ -54,6 +54,9 @@ dependencies = [
 
     # Rate limiting
     "slowapi>=0.1.9",
+
+    # Structured logging
+    "structlog>=24.0.0",
 ]
 
 [project.optional-dependencies]

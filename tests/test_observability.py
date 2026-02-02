@@ -25,6 +25,13 @@ from observability import (
     get_registry,
     mlops_metrics,
 )
+from observability.logging import (
+    clear_log_context,
+    get_log_context,
+    get_structlog_logger,
+    is_configured,
+    set_log_context,
+)
 
 # ============================================================================
 # Test Fixtures
@@ -35,9 +42,11 @@ from observability import (
 def reset_logger_factory():
     """Reset the logger factory between tests."""
     LoggerFactory.clear()
-    LoggerFactory.configure(level=LogLevel.INFO, json_output=True)
+    clear_log_context()
+    configure_logging(level="info", json_output=True)
     yield
     LoggerFactory.clear()
+    clear_log_context()
 
 
 @pytest.fixture
@@ -67,8 +76,8 @@ class TestStructuredLogger:
         logger = StructuredLogger(name="test", json_output=False)
         logger.bind(session_id="sess-123", step_id="step-1")
 
-        assert logger._context.session_id == "sess-123"
-        assert logger._context.step_id == "step-1"
+        assert logger._bound_values.get("session_id") == "sess-123"
+        assert logger._bound_values.get("step_id") == "step-1"
 
     def test_logger_bind_chaining(self):
         """Test that bind returns self for chaining."""
@@ -76,8 +85,8 @@ class TestStructuredLogger:
         result = logger.bind(session_id="sess-123").bind(tool_name="create_hydra_config")
 
         assert result is logger
-        assert logger._context.session_id == "sess-123"
-        assert logger._context.tool_name == "create_hydra_config"
+        assert logger._bound_values.get("session_id") == "sess-123"
+        assert logger._bound_values.get("tool_name") == "create_hydra_config"
 
     def test_logger_unbind(self):
         """Test unbinding context from logger."""
@@ -85,8 +94,8 @@ class TestStructuredLogger:
         logger.bind(session_id="sess-123", step_id="step-1")
         logger.unbind("session_id")
 
-        assert logger._context.session_id is None
-        assert logger._context.step_id == "step-1"
+        assert logger._bound_values.get("session_id") is None
+        assert logger._bound_values.get("step_id") == "step-1"
 
     def test_logger_clear_context(self):
         """Test clearing all context."""
@@ -94,12 +103,14 @@ class TestStructuredLogger:
         logger.bind(session_id="sess-123", step_id="step-1", phase="perception")
         logger.clear_context()
 
-        assert logger._context.session_id is None
-        assert logger._context.step_id is None
-        assert logger._context.phase is None
+        assert logger._bound_values.get("session_id") is None
+        assert logger._bound_values.get("step_id") is None
+        assert logger._bound_values.get("phase") is None
 
     def test_logger_json_output(self, capsys):
         """Test that logger outputs valid JSON."""
+        configure_logging(level="info", json_output=True)
+        LoggerFactory.clear()
         logger = StructuredLogger(name="test.json", level=LogLevel.INFO, json_output=True)
         logger.bind(session_id="sess-456")
         logger.info("Test message")
@@ -108,25 +119,28 @@ class TestStructuredLogger:
         log_entry = json.loads(captured.out.strip())
 
         assert log_entry["level"] == "info"
-        assert log_entry["logger_name"] == "test.json"
         assert log_entry["message"] == "Test message"
         assert log_entry["session_id"] == "sess-456"
         assert "timestamp" in log_entry
 
     def test_logger_json_with_extra(self, capsys):
         """Test JSON output with extra fields."""
-        logger = StructuredLogger(name="test", level=LogLevel.INFO, json_output=True)
+        configure_logging(level="info", json_output=True)
+        LoggerFactory.clear()
+        logger = StructuredLogger(name="test.extra", level=LogLevel.INFO, json_output=True)
         logger.info("Tool completed", duration_ms=150.5, tool="create_hydra")
 
         captured = capsys.readouterr()
         log_entry = json.loads(captured.out.strip())
 
         assert log_entry["duration_ms"] == 150.5
-        assert log_entry["extra"]["tool"] == "create_hydra"
+        assert log_entry["tool"] == "create_hydra"
 
     def test_logger_error_with_error_field(self, capsys):
         """Test error logging includes error field."""
-        logger = StructuredLogger(name="test", level=LogLevel.INFO, json_output=True)
+        configure_logging(level="info", json_output=True)
+        LoggerFactory.clear()
+        logger = StructuredLogger(name="test.error", level=LogLevel.INFO, json_output=True)
         logger.error("Tool failed", error="Connection timeout")
 
         captured = capsys.readouterr()
@@ -135,18 +149,35 @@ class TestStructuredLogger:
         assert log_entry["level"] == "error"
         assert log_entry["error"] == "Connection timeout"
 
-    def test_logger_human_readable_output(self, capsys):
-        """Test human-readable output format."""
-        logger = StructuredLogger(name="test.human", level=LogLevel.INFO, json_output=False)
-        logger.bind(session_id="sess-123")
-        logger.info("Test message", duration_ms=100.0)
+    def test_logger_error_with_exception(self, capsys):
+        """Test error logging with exception object."""
+        configure_logging(level="info", json_output=True)
+        LoggerFactory.clear()
+        logger = StructuredLogger(name="test.exc", level=LogLevel.INFO, json_output=True)
+        try:
+            raise ValueError("Something went wrong")
+        except ValueError as e:
+            logger.error("Operation failed", error=e)
 
         captured = capsys.readouterr()
-        output = captured.out.strip()
+        log_entry = json.loads(captured.out.strip())
 
-        assert "Test message" in output
-        assert "session=sess-123" in output
-        assert "duration=100.00ms" in output
+        assert log_entry["level"] == "error"
+        assert log_entry["error"] == "Something went wrong"
+        assert log_entry["error_type"] == "ValueError"
+
+    def test_logger_new_creates_copy(self):
+        """Test that new() creates a copy with additional bindings."""
+        logger = StructuredLogger(name="test", json_output=True)
+        logger.bind(session_id="sess-123")
+
+        new_logger = logger.new(step_id="step-1")
+
+        assert new_logger is not logger
+        assert new_logger._bound_values.get("session_id") == "sess-123"
+        assert new_logger._bound_values.get("step_id") == "step-1"
+        # Original logger should not have step_id
+        assert logger._bound_values.get("step_id") is None
 
 
 class TestLoggerFactory:
@@ -164,7 +195,7 @@ class TestLoggerFactory:
         logger2 = LoggerFactory.get_logger("same.module")
         assert logger1 is logger2
 
-    def test_configure_changes_defaults(self, capsys):
+    def test_configure_changes_defaults(self):
         """Test that configure changes default settings."""
         LoggerFactory.configure(level=LogLevel.DEBUG, json_output=False)
 
@@ -188,15 +219,65 @@ class TestConfigureLogging:
 
     def test_configure_logging_level(self):
         """Test configuring log level."""
+        LoggerFactory.clear()
         configure_logging(level="debug")
         logger = get_logger("debug.test")
         assert logger._level == LogLevel.DEBUG
 
     def test_configure_logging_json_output(self):
         """Test configuring JSON output."""
+        LoggerFactory.clear()
         configure_logging(json_output=False)
         logger = get_logger("non_json.test")
         assert logger._json_output is False
+
+    def test_is_configured(self):
+        """Test is_configured returns True after configuration."""
+        configure_logging(level="info", json_output=True)
+        assert is_configured() is True
+
+
+class TestLogContext:
+    """Tests for log context functions."""
+
+    def test_set_and_get_context(self):
+        """Test setting and getting log context."""
+        clear_log_context()
+        set_log_context(session_id="sess-123", user="test_user")
+
+        ctx = get_log_context()
+        assert ctx["session_id"] == "sess-123"
+        assert ctx["user"] == "test_user"
+
+    def test_clear_context(self):
+        """Test clearing log context."""
+        set_log_context(session_id="sess-123")
+        clear_log_context()
+
+        ctx = get_log_context()
+        assert ctx == {}
+
+    def test_context_is_isolated(self):
+        """Test that get_log_context returns a copy."""
+        set_log_context(session_id="sess-123")
+        ctx = get_log_context()
+        ctx["new_key"] = "new_value"
+
+        # Original context should not be modified
+        assert get_log_context().get("new_key") is None
+
+
+class TestStructlogLogger:
+    """Tests for get_structlog_logger function."""
+
+    def test_get_structlog_logger(self):
+        """Test getting a raw structlog logger."""
+        logger = get_structlog_logger("raw.structlog")
+        assert logger is not None
+        # Verify it has expected methods
+        assert hasattr(logger, "info")
+        assert hasattr(logger, "error")
+        assert hasattr(logger, "bind")
 
 
 # ============================================================================

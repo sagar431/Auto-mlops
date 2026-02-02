@@ -7,11 +7,14 @@ Supports both development (colored console) and production (JSON) output.
 
 import logging
 import sys
-from datetime import datetime
+from contextvars import ContextVar
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
+import structlog
 from pydantic import BaseModel, Field
+from structlog.types import EventDict, Processor
 
 
 class LogLevel(str, Enum):
@@ -37,7 +40,7 @@ class LogContext(BaseModel):
 class StructuredLogEntry(BaseModel):
     """A structured log entry for JSON serialization."""
 
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     level: str
     logger_name: str
     message: str
@@ -50,11 +53,151 @@ class StructuredLogEntry(BaseModel):
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
+# Context variable for request-scoped logging context
+_log_context: ContextVar[dict[str, Any]] = ContextVar("log_context", default={})
+
+
+def get_log_context() -> dict[str, Any]:
+    """Get the current logging context."""
+    return _log_context.get().copy()
+
+
+def set_log_context(**kwargs) -> None:
+    """Set values in the logging context."""
+    ctx = _log_context.get().copy()
+    ctx.update(kwargs)
+    _log_context.set(ctx)
+
+
+def clear_log_context() -> None:
+    """Clear the logging context."""
+    _log_context.set({})
+
+
+def _add_context_processor(
+    logger: logging.Logger, method_name: str, event_dict: EventDict
+) -> EventDict:
+    """Processor that adds context variables to log entries."""
+    ctx = _log_context.get()
+    for key, value in ctx.items():
+        if key not in event_dict:
+            event_dict[key] = value
+    return event_dict
+
+
+def _add_timestamp_processor(
+    logger: logging.Logger, method_name: str, event_dict: EventDict
+) -> EventDict:
+    """Processor that adds ISO timestamp to log entries."""
+    event_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
+    return event_dict
+
+
+def _rename_event_to_message(
+    logger: logging.Logger, method_name: str, event_dict: EventDict
+) -> EventDict:
+    """Processor that renames 'event' to 'message' for consistency."""
+    if "event" in event_dict:
+        event_dict["message"] = event_dict.pop("event")
+    return event_dict
+
+
+def _add_logger_name(logger: logging.Logger, method_name: str, event_dict: EventDict) -> EventDict:
+    """Processor that adds logger name to log entries."""
+    if logger:
+        event_dict["logger_name"] = logger.name if hasattr(logger, "name") else str(logger)
+    return event_dict
+
+
+def _get_json_processors() -> list[Processor]:
+    """Get processors for JSON output."""
+    return [
+        structlog.stdlib.add_log_level,
+        _add_timestamp_processor,
+        _add_logger_name,
+        _add_context_processor,
+        _rename_event_to_message,
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        structlog.processors.JSONRenderer(),
+    ]
+
+
+def _get_console_processors() -> list[Processor]:
+    """Get processors for console output."""
+    return [
+        structlog.stdlib.add_log_level,
+        _add_timestamp_processor,
+        _add_logger_name,
+        _add_context_processor,
+        _rename_event_to_message,
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        structlog.dev.ConsoleRenderer(colors=True),
+    ]
+
+
+# Track configuration state
+_configured: bool = False
+
+
+def configure_logging(level: str = "info", json_output: bool = True) -> None:
+    """Configure the logging system.
+
+    Args:
+        level: Log level (debug, info, warning, error, critical)
+        json_output: Whether to output JSON (True) or human-readable format (False)
+
+    Example:
+        from observability import configure_logging
+
+        # Development
+        configure_logging(level="debug", json_output=False)
+
+        # Production
+        configure_logging(level="info", json_output=True)
+    """
+    global _configured
+
+    log_level = getattr(logging, level.upper())
+
+    # Configure standard library logging
+    logging.basicConfig(
+        format="%(message)s",
+        stream=sys.stdout,
+        level=log_level,
+        force=True,
+    )
+
+    # Select processors based on output format
+    processors = _get_json_processors() if json_output else _get_console_processors()
+
+    # Configure structlog
+    structlog.configure(
+        processors=processors,
+        wrapper_class=structlog.stdlib.BoundLogger,
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+    # Update factory settings
+    LoggerFactory._default_level = LogLevel(level.lower())
+    LoggerFactory._json_output = json_output
+
+    _configured = True
+
+
+def is_configured() -> bool:
+    """Check if logging has been configured."""
+    return _configured
+
+
 class StructuredLogger:
     """
     Structured logger with context binding.
 
-    Provides JSON-formatted logging with support for:
+    Wraps structlog to provide a consistent interface with support for:
     - Session and step context
     - Tool invocation tracking
     - Duration metrics
@@ -70,138 +213,82 @@ class StructuredLogger:
         self.name = name
         self._level = level
         self._json_output = json_output
-        self._context = LogContext()
+        self._bound_values: dict[str, Any] = {}
 
-        # Set up Python logger
-        self._logger = logging.getLogger(name)
-        self._logger.setLevel(getattr(logging, level.value.upper()))
+        # Ensure structlog is configured
+        if not _configured:
+            configure_logging(level=level.value, json_output=json_output)
 
-        # Remove existing handlers to avoid duplicates
-        self._logger.handlers.clear()
-
-        # Add console handler
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(getattr(logging, level.value.upper()))
-
-        if json_output:
-            formatter = logging.Formatter("%(message)s")
-        else:
-            formatter = logging.Formatter(
-                "[%(asctime)s] %(levelname)s [%(name)s] %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
-            )
-        handler.setFormatter(formatter)
-        self._logger.addHandler(handler)
-
-        # Prevent propagation to root logger
-        self._logger.propagate = False
+        # Create structlog logger
+        self._logger = structlog.get_logger(name)
 
     def bind(self, **kwargs) -> "StructuredLogger":
         """Bind context values to the logger. Returns self for chaining."""
-        if "session_id" in kwargs:
-            self._context.session_id = kwargs.pop("session_id")
-        if "step_id" in kwargs:
-            self._context.step_id = kwargs.pop("step_id")
-        if "tool_name" in kwargs:
-            self._context.tool_name = kwargs.pop("tool_name")
-        if "phase" in kwargs:
-            self._context.phase = kwargs.pop("phase")
-        self._context.extra.update(kwargs)
+        self._bound_values.update(kwargs)
+        self._logger = self._logger.bind(**kwargs)
         return self
 
     def unbind(self, *keys: str) -> "StructuredLogger":
         """Remove context keys. Returns self for chaining."""
-        if "session_id" in keys:
-            self._context.session_id = None
-        if "step_id" in keys:
-            self._context.step_id = None
-        if "tool_name" in keys:
-            self._context.tool_name = None
-        if "phase" in keys:
-            self._context.phase = None
         for key in keys:
-            self._context.extra.pop(key, None)
+            self._bound_values.pop(key, None)
+        self._logger = self._logger.unbind(*keys)
         return self
 
     def clear_context(self) -> "StructuredLogger":
-        """Clear all context. Returns self for chaining."""
-        self._context = LogContext()
+        """Clear all bound context. Returns self for chaining."""
+        keys = list(self._bound_values.keys())
+        self._bound_values.clear()
+        if keys:
+            self._logger = self._logger.unbind(*keys)
         return self
 
-    def _log(
-        self,
-        level: LogLevel,
-        message: str,
-        duration_ms: float | None = None,
-        error: str | None = None,
-        **extra,
-    ):
-        """Internal logging method."""
-        merged_extra = {**self._context.extra, **extra}
-
-        entry = StructuredLogEntry(
-            level=level.value,
-            logger_name=self.name,
-            message=message,
-            session_id=self._context.session_id,
-            step_id=self._context.step_id,
-            tool_name=self._context.tool_name,
-            phase=self._context.phase,
-            duration_ms=duration_ms,
-            error=error,
-            extra=merged_extra if merged_extra else {},
+    def new(self, **kwargs) -> "StructuredLogger":
+        """Create a new logger with additional bound values."""
+        new_logger = StructuredLogger(
+            name=self.name,
+            level=self._level,
+            json_output=self._json_output,
         )
+        new_logger._bound_values = {**self._bound_values, **kwargs}
+        new_logger._logger = self._logger.bind(**kwargs)
+        return new_logger
 
-        if self._json_output:
-            # Output as JSON
-            log_dict = entry.model_dump(exclude_none=True)
-            if not log_dict.get("extra"):
-                log_dict.pop("extra", None)
-            import json
-
-            log_line = json.dumps(log_dict)
-        else:
-            # Human-readable format
-            parts = [message]
-            if entry.session_id:
-                parts.append(f"session={entry.session_id}")
-            if entry.step_id:
-                parts.append(f"step={entry.step_id}")
-            if entry.tool_name:
-                parts.append(f"tool={entry.tool_name}")
-            if entry.phase:
-                parts.append(f"phase={entry.phase}")
-            if duration_ms is not None:
-                parts.append(f"duration={duration_ms:.2f}ms")
-            if error:
-                parts.append(f"error={error}")
-            if merged_extra:
-                for k, v in merged_extra.items():
-                    parts.append(f"{k}={v}")
-            log_line = " | ".join(parts)
-
-        python_level = getattr(logging, level.value.upper())
-        self._logger.log(python_level, log_line)
-
-    def debug(self, message: str, **kwargs):
+    def debug(self, message: str, **kwargs) -> None:
         """Log at DEBUG level."""
-        self._log(LogLevel.DEBUG, message, **kwargs)
+        self._logger.debug(message, **kwargs)
 
-    def info(self, message: str, **kwargs):
+    def info(self, message: str, **kwargs) -> None:
         """Log at INFO level."""
-        self._log(LogLevel.INFO, message, **kwargs)
+        self._logger.info(message, **kwargs)
 
-    def warning(self, message: str, **kwargs):
+    def warning(self, message: str, **kwargs) -> None:
         """Log at WARNING level."""
-        self._log(LogLevel.WARNING, message, **kwargs)
+        self._logger.warning(message, **kwargs)
 
-    def error(self, message: str, error: str | None = None, **kwargs):
+    def error(self, message: str, error: str | Exception | None = None, **kwargs) -> None:
         """Log at ERROR level."""
-        self._log(LogLevel.ERROR, message, error=error, **kwargs)
+        if error is not None:
+            if isinstance(error, Exception):
+                kwargs["error"] = str(error)
+                kwargs["error_type"] = type(error).__name__
+            else:
+                kwargs["error"] = error
+        self._logger.error(message, **kwargs)
 
-    def critical(self, message: str, error: str | None = None, **kwargs):
+    def critical(self, message: str, error: str | Exception | None = None, **kwargs) -> None:
         """Log at CRITICAL level."""
-        self._log(LogLevel.CRITICAL, message, error=error, **kwargs)
+        if error is not None:
+            if isinstance(error, Exception):
+                kwargs["error"] = str(error)
+                kwargs["error_type"] = type(error).__name__
+            else:
+                kwargs["error"] = error
+        self._logger.critical(message, **kwargs)
+
+    def exception(self, message: str, **kwargs) -> None:
+        """Log at ERROR level with exception info."""
+        self._logger.exception(message, **kwargs)
 
     # Aliases
     warn = warning
@@ -219,10 +306,11 @@ class LoggerFactory:
     _json_output: bool = True
 
     @classmethod
-    def configure(cls, level: LogLevel = LogLevel.INFO, json_output: bool = True):
+    def configure(cls, level: LogLevel = LogLevel.INFO, json_output: bool = True) -> None:
         """Configure default settings for new loggers."""
         cls._default_level = level
         cls._json_output = json_output
+        configure_logging(level=level.value, json_output=json_output)
 
     @classmethod
     def get_logger(cls, name: str) -> StructuredLogger:
@@ -236,7 +324,7 @@ class LoggerFactory:
         return cls._loggers[name]
 
     @classmethod
-    def clear(cls):
+    def clear(cls) -> None:
         """Clear all registered loggers."""
         cls._loggers.clear()
 
@@ -263,21 +351,16 @@ def get_logger(name: str) -> StructuredLogger:
     return LoggerFactory.get_logger(name)
 
 
-def configure_logging(level: str = "info", json_output: bool = True):
-    """Configure the logging system.
+# Convenience function to get a structlog logger directly
+def get_structlog_logger(name: str) -> structlog.stdlib.BoundLogger:
+    """Get a raw structlog logger for advanced use cases.
 
     Args:
-        level: Log level (debug, info, warning, error, critical)
-        json_output: Whether to output JSON (True) or human-readable format (False)
+        name: Logger name
 
-    Example:
-        from observability import configure_logging
-
-        # Development
-        configure_logging(level="debug", json_output=False)
-
-        # Production
-        configure_logging(level="info", json_output=True)
+    Returns:
+        structlog BoundLogger instance
     """
-    log_level = LogLevel(level.lower())
-    LoggerFactory.configure(level=log_level, json_output=json_output)
+    if not _configured:
+        configure_logging()
+    return structlog.get_logger(name)
