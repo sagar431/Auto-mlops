@@ -1,0 +1,10 @@
+# @package _global_
+# DistilBERT baseline experiment configuration
+# Pretrained transformer model for high accuracy
+
+defaults:
+  - override /model: distilbert
+  - override /training: default
+  - override /data: imdb
+
+seed: 42

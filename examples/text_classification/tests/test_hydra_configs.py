@@ -34,6 +34,7 @@ class TestConfigFiles:
         assert model_dir.exists()
         assert (model_dir / "textcnn.yaml").exists()
         assert (model_dir / "lstm.yaml").exists()
+        assert (model_dir / "distilbert.yaml").exists()
 
     def test_textcnn_config_valid(self, config_dir):
         """Test TextCNN config is valid."""
@@ -55,6 +56,16 @@ class TestConfigFiles:
         assert "hidden_dim" in config
         assert "num_layers" in config
         assert "bidirectional" in config
+
+    def test_distilbert_config_valid(self, config_dir):
+        """Test DistilBERT config is valid."""
+        config = OmegaConf.load(config_dir / "model" / "distilbert.yaml")
+        assert config.name == "distilbert"
+        assert "num_classes" in config
+        assert "embedding_dim" in config
+        assert "dropout" in config
+        assert "pretrained_model_name" in config
+        assert "freeze_encoder" in config
 
     def test_training_configs_exist(self, config_dir):
         """Test that training config files exist."""
@@ -107,6 +118,7 @@ class TestConfigFiles:
         assert (experiment_dir / "quick_test.yaml").exists()
         assert (experiment_dir / "lstm_baseline.yaml").exists()
         assert (experiment_dir / "high_accuracy.yaml").exists()
+        assert (experiment_dir / "distilbert_baseline.yaml").exists()
 
     def test_experiment_config_structure(self, config_dir):
         """Test experiment configs have correct structure."""
