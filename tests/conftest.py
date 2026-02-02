@@ -261,3 +261,332 @@ Experiment State: {experiment_state}
 
 Output JSON with: strategy, plan_graph (nodes with id, description, tool, args, depends_on), next_step_id
 """
+
+
+# ============================================================================
+# Test Project Fixture
+# ============================================================================
+
+
+@pytest.fixture
+def test_project(tmp_path):
+    """
+    Create a temporary test project directory with basic ML project structure.
+
+    Returns:
+        Path to the temporary project directory
+    """
+    project_dir = tmp_path / "test_ml_project"
+    project_dir.mkdir()
+
+    # Create basic project structure
+    (project_dir / "config").mkdir()
+    (project_dir / "data").mkdir()
+    (project_dir / "src").mkdir()
+    (project_dir / "models").mkdir()
+
+    # Create a basic config file
+    config_content = """
+defaults:
+  - _self_
+
+experiment:
+  name: test_experiment
+  seed: 42
+
+model:
+  type: mlp
+  hidden_dim: 128
+  dropout: 0.1
+
+training:
+  epochs: 10
+  batch_size: 32
+  learning_rate: 0.001
+"""
+    (project_dir / "config" / "config.yaml").write_text(config_content)
+
+    # Create a basic training script placeholder
+    train_script = """
+#!/usr/bin/env python3
+\"\"\"Placeholder training script for testing.\"\"\"
+
+def train():
+    print("Training model...")
+    return {"accuracy": 0.85, "loss": 0.15}
+
+if __name__ == "__main__":
+    train()
+"""
+    (project_dir / "src" / "train.py").write_text(train_script)
+
+    # Create requirements.txt
+    (project_dir / "requirements.txt").write_text("torch>=2.0.0\nhydra-core>=1.3.0\n")
+
+    return str(project_dir)
+
+
+# ============================================================================
+# Async Client Fixture (for FastAPI testing)
+# ============================================================================
+
+
+@pytest.fixture
+async def async_client(db_session):
+    """
+    Create an async HTTP client for testing FastAPI endpoints.
+
+    Uses httpx.AsyncClient with the app's TestClient transport.
+    Requires db_session fixture to ensure database is initialized.
+
+    Yields:
+        httpx.AsyncClient configured to test the FastAPI app
+    """
+    from httpx import ASGITransport, AsyncClient
+
+    from api_server import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+
+# ============================================================================
+# Database Session Fixture
+# ============================================================================
+
+
+@pytest.fixture
+async def db_session(tmp_path, monkeypatch):
+    """
+    Create an async database session for testing.
+
+    Sets up a temporary SQLite database, initializes the schema,
+    and yields an async session. Cleans up after the test.
+
+    Yields:
+        AsyncSession connected to a temporary test database
+    """
+    from db import close_async_db, get_async_session_factory, init_async_db
+
+    # Create temporary database
+    db_path = tmp_path / "test_db.sqlite"
+    db_url = f"sqlite:///{db_path}"
+    monkeypatch.setenv("DATABASE_URL", db_url)
+
+    # Reset any existing global state
+    await close_async_db()
+
+    # Initialize database
+    await init_async_db()
+
+    # Get a session
+    session_factory = get_async_session_factory()
+    async with session_factory() as session:
+        yield session
+
+    # Cleanup
+    await close_async_db()
+
+
+# ============================================================================
+# Mock LLM Fixture
+# ============================================================================
+
+
+@pytest.fixture
+def mock_llm(monkeypatch):
+    """
+    Create a mock LLM (ModelManager) for testing without real API calls.
+
+    Provides configurable mock responses for generate_json and generate_text.
+    The mock can be configured by setting attributes on the returned object:
+        mock_llm.json_response = {"key": "value"}
+        mock_llm.text_response = "response text"
+
+    Returns:
+        Mock ModelManager instance with configurable responses
+    """
+
+    class MockLLM:
+        """Mock LLM class for testing."""
+
+        def __init__(self):
+            self.json_response = {}
+            self.text_response = ""
+            self.call_history = []
+            self._generate_calls = 0
+
+        async def generate_json(
+            self, prompt, model_name=None, system_prompt=None, use_fallback=True
+        ):
+            """Mock generate_json that returns configured response."""
+            self.call_history.append(
+                {
+                    "method": "generate_json",
+                    "prompt": prompt,
+                    "model_name": model_name,
+                    "system_prompt": system_prompt,
+                }
+            )
+            self._generate_calls += 1
+
+            # Support callable for dynamic responses
+            if callable(self.json_response):
+                return self.json_response(prompt)
+            return self.json_response
+
+        async def generate_text(
+            self, prompt, model_name=None, system_prompt=None, use_fallback=True
+        ):
+            """Mock generate_text that returns configured response."""
+            self.call_history.append(
+                {
+                    "method": "generate_text",
+                    "prompt": prompt,
+                    "model_name": model_name,
+                    "system_prompt": system_prompt,
+                }
+            )
+            self._generate_calls += 1
+
+            # Support callable for dynamic responses
+            if callable(self.text_response):
+                return self.text_response(prompt)
+            return self.text_response
+
+        async def generate(
+            self,
+            prompt,
+            model_name=None,
+            system_prompt=None,
+            temperature=None,
+            max_tokens=None,
+            response_format="text",
+            use_fallback=True,
+        ):
+            """Mock generate that returns configured response based on format."""
+            self.call_history.append(
+                {
+                    "method": "generate",
+                    "prompt": prompt,
+                    "model_name": model_name,
+                    "response_format": response_format,
+                }
+            )
+            self._generate_calls += 1
+
+            if response_format == "json":
+                if callable(self.json_response):
+                    return self.json_response(prompt)
+                return self.json_response
+            else:
+                if callable(self.text_response):
+                    return self.text_response(prompt)
+                return self.text_response
+
+        def list_models(self):
+            """Return list of mock model names."""
+            return ["mock_model", "mock_model_2"]
+
+        def get_model_info(self, model_name):
+            """Return mock model info."""
+            return {
+                "provider": "mock",
+                "model": model_name,
+                "temperature": 0.7,
+                "max_tokens": 4096,
+            }
+
+        def get_call_count(self):
+            """Return the number of generate calls made."""
+            return self._generate_calls
+
+        def reset(self):
+            """Reset call history and counters."""
+            self.call_history = []
+            self._generate_calls = 0
+
+    mock = MockLLM()
+
+    # Patch the get_model_manager function to return our mock
+    def get_mock_manager():
+        return mock
+
+    monkeypatch.setattr("agent.model_manager.get_model_manager", get_mock_manager)
+
+    return mock
+
+
+# ============================================================================
+# Additional Helper Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def mock_tool_executor():
+    """
+    Create a mock tool executor for testing action execution.
+
+    Returns:
+        Mock that can be used to simulate tool execution
+    """
+    mock = MagicMock()
+    mock.return_value = {"success": True, "result": "Mock execution completed"}
+    return mock
+
+
+@pytest.fixture
+def sample_execution_plan():
+    """
+    Return a sample execution plan for testing decision/action modules.
+
+    Returns:
+        Dict containing a sample plan graph with nodes and dependencies
+    """
+    return {
+        "strategy": "sequential",
+        "reasoning": "Execute setup steps in order",
+        "plan_graph": {
+            "nodes": [
+                {
+                    "id": "0",
+                    "description": "Analyze project configuration",
+                    "tool": "analyze_project_config",
+                    "args": {"project_path": "/test/project"},
+                    "depends_on": [],
+                },
+                {
+                    "id": "1",
+                    "description": "Create Hydra configuration",
+                    "tool": "create_hydra_config",
+                    "args": {"project_path": "/test/project"},
+                    "depends_on": ["0"],
+                },
+                {
+                    "id": "2",
+                    "description": "Initialize MLflow experiment",
+                    "tool": "init_mlflow_experiment",
+                    "args": {"experiment_name": "test_experiment"},
+                    "depends_on": ["1"],
+                },
+            ]
+        },
+        "next_step_id": "0",
+    }
+
+
+@pytest.fixture
+def mock_api_server_dependencies(mock_llm, db_session):
+    """
+    Combined fixture that sets up all dependencies needed for API server testing.
+
+    Provides mock LLM and database session together.
+
+    Returns:
+        Dict with mock_llm and db_session
+    """
+    return {
+        "mock_llm": mock_llm,
+        "db_session": db_session,
+    }
