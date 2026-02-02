@@ -17,6 +17,7 @@ from decision.decision import Decision, build_decision_input
 from memory.memory_search import MemorySearch
 from observability import get_logger
 from perception.perception import Perception, build_perception_input
+from resilience import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError
 from summarization.summarizer import Summarizer
 
 logger = get_logger("agent.agent_loop")
@@ -40,15 +41,48 @@ class StepType:
     DEPLOY = "DEPLOY"
 
 
-class StepExecutionTracker:
-    """Tracks step execution attempts and limits."""
+class StepExecutionError(Exception):
+    """Raised when a step execution fails."""
 
-    def __init__(self, max_steps: int = 15, max_retries: int = 3):
+    def __init__(self, step_id: str, error_message: str):
+        self.step_id = step_id
+        self.error_message = error_message
+        super().__init__(f"Step '{step_id}' failed: {error_message}")
+
+
+class StepExecutionTracker:
+    """
+    Tracks step execution attempts and limits with circuit breaker protection.
+
+    The circuit breaker prevents cascading failures by temporarily stopping
+    execution when too many consecutive failures occur.
+    """
+
+    def __init__(
+        self,
+        max_steps: int = 15,
+        max_retries: int = 3,
+        circuit_breaker_config: CircuitBreakerConfig | None = None,
+    ):
         self.max_steps = max_steps
         self.max_retries = max_retries
         self.attempts: dict[str, int] = {}
         self.tries = 0
         self.root_failures = 0
+
+        # Initialize circuit breaker with custom or default config
+        cb_config = circuit_breaker_config or CircuitBreakerConfig(
+            failure_threshold=3,
+            success_threshold=2,
+            timeout_seconds=30.0,
+            half_open_max_calls=1,
+        )
+        self._circuit_breaker = CircuitBreaker("step_execution", cb_config)
+
+    @property
+    def circuit_breaker(self) -> CircuitBreaker:
+        """Access the circuit breaker for monitoring or testing."""
+        return self._circuit_breaker
 
     def increment(self):
         self.tries += 1
@@ -65,6 +99,29 @@ class StepExecutionTracker:
 
     def has_exceeded_retries(self, step_id: str) -> bool:
         return self.attempts.get(step_id, 0) >= self.max_retries
+
+    def is_circuit_open(self) -> bool:
+        """Check if the circuit breaker is in open state."""
+        from resilience import CircuitState
+
+        return self._circuit_breaker.state == CircuitState.OPEN
+
+    def get_circuit_stats(self) -> dict:
+        """Get circuit breaker statistics."""
+        stats = self._circuit_breaker.stats
+        return {
+            "state": self._circuit_breaker.state.value,
+            "total_calls": stats.total_calls,
+            "successful_calls": stats.successful_calls,
+            "failed_calls": stats.failed_calls,
+            "rejected_calls": stats.rejected_calls,
+            "consecutive_failures": stats.consecutive_failures,
+            "consecutive_successes": stats.consecutive_successes,
+        }
+
+    def reset_circuit(self):
+        """Reset the circuit breaker to closed state."""
+        self._circuit_breaker.reset()
 
 
 class AgentLoop:
@@ -287,13 +344,31 @@ class AgentLoop:
         await self._execute_steps_loop()
 
     async def _execute_steps_loop(self):
-        """Execute steps with perception feedback."""
+        """Execute steps with perception feedback and circuit breaker protection."""
         await self._emit("phase", {"phase": "execution", "message": "Executing steps..."})
 
         tracker = StepExecutionTracker(max_steps=15, max_retries=3)
 
         while tracker.should_continue():
             tracker.increment()
+
+            # Check if circuit breaker is open
+            if tracker.is_circuit_open():
+                retry_after = tracker.circuit_breaker.get_retry_after()
+                await self._emit(
+                    "circuit_open",
+                    {
+                        "message": "Circuit breaker is open due to repeated failures",
+                        "retry_after": retry_after,
+                        "stats": tracker.get_circuit_stats(),
+                    },
+                )
+                logger.warning(
+                    "Circuit breaker is open, stopping execution",
+                    retry_after=retry_after,
+                    stats=tracker.get_circuit_stats(),
+                )
+                break
 
             # Skip completed steps
             if self.ctx.is_step_completed(self.next_step_id):
@@ -318,27 +393,53 @@ class AgentLoop:
                 },
             )
 
-            # Execute step
-            success, result = await execute_step(
-                step_id=self.next_step_id,
-                tool=step_data.tool,
-                args=step_data.args or {},
-                ctx=self.ctx,
-                tools_module=self.tools_module,
-            )
+            # Execute step with circuit breaker protection
+            try:
+                async with tracker.circuit_breaker:
+                    success, result = await execute_step(
+                        step_id=self.next_step_id,
+                        tool=step_data.tool,
+                        args=step_data.args or {},
+                        ctx=self.ctx,
+                        tools_module=self.tools_module,
+                    )
 
-            if not success:
-                self.ctx.mark_step_failed(
-                    self.next_step_id, str(result.get("error", "Unknown error"))
+                    if not success:
+                        # Raise an exception to trigger circuit breaker failure recording
+                        raise StepExecutionError(
+                            self.next_step_id, str(result.get("error", "Unknown error"))
+                        )
+
+            except CircuitBreakerError as e:
+                # Circuit breaker rejected the call
+                await self._emit(
+                    "step_rejected",
+                    {
+                        "step_id": self.next_step_id,
+                        "reason": "circuit_breaker_open",
+                        "retry_after": e.retry_after,
+                        "stats": tracker.get_circuit_stats(),
+                    },
                 )
+                logger.warning(
+                    "Step rejected by circuit breaker",
+                    step_id=self.next_step_id,
+                    circuit_state=e.state.value,
+                    retry_after=e.retry_after,
+                )
+                break
+
+            except StepExecutionError as e:
+                self.ctx.mark_step_failed(self.next_step_id, e.error_message)
                 tracker.record_failure(self.next_step_id)
 
                 await self._emit(
                     "step_failed",
                     {
                         "step_id": self.next_step_id,
-                        "error": str(result.get("error", ""))[:200],
+                        "error": e.error_message[:200],
                         "attempts": tracker.attempts.get(self.next_step_id, 1),
+                        "circuit_stats": tracker.get_circuit_stats(),
                     },
                 )
 
