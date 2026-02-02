@@ -1,0 +1,12 @@
+# Fast Training Configuration
+# Quick experiments with fewer epochs
+
+epochs: 3
+batch_size: 256
+learning_rate: 0.01
+optimizer: adam
+weight_decay: 0.0
+scheduler:
+  name: reduce_on_plateau
+  patience: 1
+  factor: 0.5

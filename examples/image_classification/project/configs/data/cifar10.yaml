@@ -1,0 +1,13 @@
+# CIFAR-10 Dataset Configuration
+
+dataset: cifar10
+data_dir: ${hydra:runtime.cwd}/data
+image_size: 32
+num_workers: 4
+augmentation:
+  horizontal_flip: true
+  random_crop: true
+  crop_padding: 4
+normalize:
+  mean: [0.4914, 0.4822, 0.4465]
+  std: [0.2470, 0.2435, 0.2616]

@@ -293,8 +293,29 @@ def train(
 
 @hydra.main(config_path="configs", config_name="config", version_base=None)
 def main(cfg: DictConfig) -> dict:
-    """Main entry point with Hydra configuration."""
+    """Main entry point with Hydra configuration.
+
+    Supports modular config structure with groups:
+    - model: cifar10_cnn, resnet18
+    - training: default, fast, long, sgd
+    - data: cifar10, cifar10_minimal
+    - paths: default
+
+    Run with experiment configs:
+        python train.py +experiment=baseline
+        python train.py +experiment=quick_test
+        python train.py +experiment=high_accuracy
+        python train.py +experiment=resnet_baseline
+
+    Override individual settings:
+        python train.py model=resnet18 training=sgd
+        python train.py training.epochs=20 training.learning_rate=0.01
+    """
     log.info("Configuration:\n" + OmegaConf.to_yaml(cfg))
+
+    # Extract model config - handle both old flat structure and new modular structure
+    num_classes = cfg.model.get("num_classes", 10)
+    dropout = cfg.model.get("dropout", 0.5)
 
     results = train(
         data_dir=cfg.data.data_dir,
@@ -302,8 +323,8 @@ def main(cfg: DictConfig) -> dict:
         epochs=cfg.training.epochs,
         batch_size=cfg.training.batch_size,
         learning_rate=cfg.training.learning_rate,
-        num_classes=cfg.model.num_classes,
-        dropout=cfg.model.dropout,
+        num_classes=num_classes,
+        dropout=dropout,
         image_size=cfg.data.image_size,
         num_workers=cfg.data.num_workers,
         seed=cfg.get("seed", 42),

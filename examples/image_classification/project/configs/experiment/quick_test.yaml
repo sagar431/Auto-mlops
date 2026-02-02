@@ -1,0 +1,16 @@
+# @package _global_
+# Quick Test Experiment Configuration
+# Fast training for testing and debugging
+
+defaults:
+  - override /model: cifar10_cnn
+  - override /training: fast
+  - override /data: cifar10_minimal
+  - override /paths: default
+
+experiment_name: quick_test
+seed: 42
+
+hydra:
+  run:
+    dir: ${paths.output_dir}/experiments/${experiment_name}/${now:%Y-%m-%d_%H-%M-%S}

@@ -1,0 +1,5 @@
+# Default Paths Configuration
+
+output_dir: ${hydra:runtime.cwd}/models
+log_dir: ${hydra:runtime.cwd}/logs
+checkpoint_dir: ${paths.output_dir}/checkpoints

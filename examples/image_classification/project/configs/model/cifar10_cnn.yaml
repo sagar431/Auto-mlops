@@ -1,0 +1,6 @@
+# CIFAR-10 CNN Model Configuration
+# Custom CNN optimized for 32x32 images
+
+name: cifar10_cnn
+num_classes: 10
+dropout: 0.5

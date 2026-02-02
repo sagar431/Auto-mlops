@@ -1,0 +1,13 @@
+# SGD Training Configuration
+# Classic SGD with momentum for robust training
+
+epochs: 30
+batch_size: 128
+learning_rate: 0.1
+optimizer: sgd
+momentum: 0.9
+weight_decay: 0.0005
+scheduler:
+  name: step
+  step_size: 10
+  gamma: 0.1

@@ -1,0 +1,6 @@
+# ResNet18 Model Configuration
+# Deep residual network adapted for CIFAR-10
+
+name: resnet18
+num_classes: 10
+pretrained: false

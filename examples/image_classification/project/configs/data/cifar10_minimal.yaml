@@ -1,0 +1,14 @@
+# CIFAR-10 Minimal Augmentation Configuration
+# For fast experiments with less augmentation
+
+dataset: cifar10
+data_dir: ${hydra:runtime.cwd}/data
+image_size: 32
+num_workers: 2
+augmentation:
+  horizontal_flip: true
+  random_crop: false
+  crop_padding: 0
+normalize:
+  mean: [0.4914, 0.4822, 0.4465]
+  std: [0.2470, 0.2435, 0.2616]

@@ -1,0 +1,16 @@
+# @package _global_
+# ResNet18 Baseline Experiment Configuration
+# Using ResNet18 architecture for CIFAR-10
+
+defaults:
+  - override /model: resnet18
+  - override /training: sgd
+  - override /data: cifar10
+  - override /paths: default
+
+experiment_name: resnet_baseline
+seed: 42
+
+hydra:
+  run:
+    dir: ${paths.output_dir}/experiments/${experiment_name}/${now:%Y-%m-%d_%H-%M-%S}

@@ -1,0 +1,16 @@
+# @package _global_
+# Baseline Experiment Configuration
+# Standard CIFAR-10 training with default settings
+
+defaults:
+  - override /model: cifar10_cnn
+  - override /training: default
+  - override /data: cifar10
+  - override /paths: default
+
+experiment_name: baseline
+seed: 42
+
+hydra:
+  run:
+    dir: ${paths.output_dir}/experiments/${experiment_name}/${now:%Y-%m-%d_%H-%M-%S}

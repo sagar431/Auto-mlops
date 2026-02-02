@@ -1,0 +1,20 @@
+# @package _global_
+# High Accuracy Experiment Configuration
+# Extended training for best results
+
+defaults:
+  - override /model: cifar10_cnn
+  - override /training: long
+  - override /data: cifar10
+  - override /paths: default
+
+experiment_name: high_accuracy
+seed: 42
+
+# Override for higher accuracy target
+model:
+  dropout: 0.3
+
+hydra:
+  run:
+    dir: ${paths.output_dir}/experiments/${experiment_name}/${now:%Y-%m-%d_%H-%M-%S}
