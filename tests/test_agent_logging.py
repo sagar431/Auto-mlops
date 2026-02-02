@@ -295,3 +295,124 @@ class TestLogMessageContent:
         assert len(error_records) >= 1
         # The structured logger adds extra fields that get included in the message
         assert "Error generating with LLM" in error_records[0].message
+
+
+class TestExecuteStepLogging:
+    """Tests for structured logging in execute_step.py."""
+
+    def test_execute_step_logger_import(self):
+        """Test that execute_step module has logger configured."""
+        import sys
+
+        # Ensure module is loaded by importing it (even if result isn't directly used)
+        __import__("action.execute_step")
+
+        module = sys.modules["action.execute_step"]
+        assert hasattr(module, "logger")
+        assert module.logger.name == "action.execute_step"
+
+    @pytest.mark.asyncio
+    async def test_execute_step_logs_info_on_execution(self, caplog):
+        """Test that execute_step logs info when executing a tool."""
+        from action.execute_step import execute_step
+
+        # Create a mock tools module with a simple tool
+        mock_tools = MagicMock()
+        mock_tools.test_tool = MagicMock(return_value={"success": True, "output": "test"})
+
+        # Create a mock context
+        mock_ctx = MagicMock()
+        mock_ctx.project_path = "/tmp/test"
+
+        with caplog.at_level(logging.INFO, logger="action.execute_step"):
+            success, result = await execute_step(
+                step_id="step-1",
+                tool="test_tool",
+                args={"param": "value"},
+                ctx=mock_ctx,
+                tools_module=mock_tools,
+            )
+
+        # Check that info was logged
+        info_records = [r for r in caplog.records if r.levelno == logging.INFO]
+        assert len(info_records) >= 1
+        assert "Executing tool" in info_records[0].message
+
+    @pytest.mark.asyncio
+    async def test_execute_step_logs_error_on_exception(self, caplog):
+        """Test that execute_step logs error when tool raises exception."""
+        from action.execute_step import execute_step
+
+        # Create a mock tools module with a failing tool
+        mock_tools = MagicMock()
+        mock_tools.failing_tool = MagicMock(side_effect=RuntimeError("Tool failed"))
+
+        # Create a mock context
+        mock_ctx = MagicMock()
+        mock_ctx.project_path = "/tmp/test"
+
+        with caplog.at_level(logging.ERROR, logger="action.execute_step"):
+            success, result = await execute_step(
+                step_id="step-1",
+                tool="failing_tool",
+                args={"param": "value"},
+                ctx=mock_ctx,
+                tools_module=mock_tools,
+            )
+
+        # Check that error was logged
+        error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert len(error_records) >= 1
+        assert "Error executing tool" in error_records[0].message
+
+        # Check return value indicates failure
+        assert success is False
+        assert "RuntimeError" in result["error"]
+
+
+class TestPerceptionLogging:
+    """Tests for structured logging in perception.py."""
+
+    def test_perception_logger_import(self):
+        """Test that perception module has logger configured."""
+        from perception import perception
+
+        assert hasattr(perception, "logger")
+        assert perception.logger.name == "perception.perception"
+
+    def test_perception_logs_warning_on_prompt_load_failure(self, caplog):
+        """Test that Perception logs warning when prompt file not found."""
+        from perception.perception import Perception
+
+        with caplog.at_level(logging.WARNING, logger="perception.perception"):
+            Perception("/nonexistent/path/prompt.txt")
+
+        # Check warning was logged
+        warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning_records) >= 1
+        assert "Could not load perception prompt" in warning_records[0].message
+
+    @pytest.mark.asyncio
+    async def test_perception_logs_error_on_run_failure(self, caplog):
+        """Test that Perception.run logs error when LLM fails."""
+        from perception.perception import Perception
+
+        perception = Perception("/nonexistent/path/prompt.txt")
+
+        # Mock model_manager to raise exception
+        perception.model_manager = MagicMock()
+        perception.model_manager.generate_json = AsyncMock(
+            side_effect=Exception("LLM generation failed")
+        )
+
+        with caplog.at_level(logging.ERROR, logger="perception.perception"):
+            result = await perception.run({"query": "test query"})
+
+        # Check that error was logged
+        error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert len(error_records) >= 1
+        assert "Perception error" in error_records[0].message
+
+        # Check return value is fallback
+        assert result["route"] == "decision"
+        assert result["reasoning"] == "Fallback due to LLM error"

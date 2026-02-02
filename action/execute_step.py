@@ -8,6 +8,10 @@ import traceback
 from datetime import datetime
 from typing import Any
 
+from observability import get_logger
+
+logger = get_logger("action.execute_step")
+
 
 async def execute_step(
     step_id: str, tool: str, args: dict[str, Any], ctx: Any, tools_module: Any = None
@@ -43,7 +47,7 @@ async def execute_step(
             args.setdefault("project_path", ctx.project_path)
 
         # Execute the tool
-        print(f"  Executing: {tool}({_format_args(args)})")
+        logger.info("Executing tool", tool=tool, args=_format_args(args), step_id=step_id)
 
         if asyncio.iscoroutinefunction(tool_func):
             result = await tool_func(**args)
@@ -92,7 +96,7 @@ async def execute_step(
         }
 
     except Exception as e:
-        print(f"  Error executing {tool}: {e}")
+        logger.error("Error executing tool", tool=tool, error=str(e), step_id=step_id)
         return False, {
             "error": f"{type(e).__name__}: {str(e)}",
             "traceback": traceback.format_exc(),
