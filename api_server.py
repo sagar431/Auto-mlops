@@ -880,6 +880,32 @@ async def generate_demo_metrics(
     return {"status": "ok", "message": "Demo data generated"}
 
 
+@app.get("/metrics/prometheus", tags=["Metrics"])
+@limiter.limit(get_rate_limit)
+async def get_prometheus_metrics(request: Request):
+    """
+    Get metrics in Prometheus text format.
+
+    This endpoint is designed to be scraped by Prometheus.
+    Returns metrics in the standard Prometheus exposition format.
+
+    Example scrape config for prometheus.yml:
+        scrape_configs:
+          - job_name: 'mlops-agent'
+            static_configs:
+              - targets: ['localhost:8000']
+            metrics_path: '/metrics/prometheus'
+    """
+    from fastapi.responses import Response
+
+    from observability.metrics import get_metrics_endpoint
+
+    return Response(
+        content=get_metrics_endpoint(),
+        media_type="text/plain; charset=utf-8",
+    )
+
+
 # ============================================================================
 # Logs Endpoints
 # ============================================================================
