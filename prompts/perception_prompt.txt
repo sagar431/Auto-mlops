@@ -31,8 +31,8 @@ Analyze the user query and current experiment context to understand:
 
 ## Output JSON Format
 ```json
-{
-  "entities": {
+{{
+  "entities": {{
     "project_path": "/path/to/project or null",
     "experiment_name": "experiment name or null",
     "model_type": "resnet18, custom, etc or null",
@@ -40,7 +40,7 @@ Analyze the user query and current experiment context to understand:
     "current_accuracy": null,
     "data_path": "path to data or null",
     "deployment_target": "litserve|gradio|fastapi_lambda|torchserve|kserve|null"
-  },
+  }},
   "pipeline_stage": "setup|config|data|training|evaluation|improvement|cicd|deploy",
   "required_tools": ["tool1", "tool2"],
   "result_requirement": "What needs to be achieved in next step",
@@ -50,7 +50,7 @@ Analyze the user query and current experiment context to understand:
   "route": "decision|summarize|improve|deploy",
   "confidence": 0.85,
   "reasoning": "Brief explanation of analysis"
-}
+}}
 ```
 
 ## Routing Logic
