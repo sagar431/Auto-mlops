@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "auto-mlops.fullname" . }}-model-api
+  labels:
+    app.kubernetes.io/name: {{ include "auto-mlops.name" . }}
+    app.kubernetes.io/component: model-api
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "auto-mlops.name" . }}
+    app.kubernetes.io/component: model-api
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP

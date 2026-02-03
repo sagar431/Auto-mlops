@@ -1,0 +1,59 @@
+nameOverride: ""
+fullnameOverride: ""
+
+modelApi:
+  image: auto-mlops/model-api:latest
+  imagePullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+webUi:
+  image: auto-mlops/web-ui:latest
+  imagePullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: standard
+
+ingress:
+  enabled: true
+  className: nginx
+  host: auto-mlops.local
+
+hpa:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  cpuUtilization: 60
+
+config:
+  imageSize: 224
+
+secrets:
+  modelApiKey: change-me

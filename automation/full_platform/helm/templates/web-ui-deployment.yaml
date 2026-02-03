@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "auto-mlops.fullname" . }}-web-ui
+  labels:
+    app.kubernetes.io/name: {{ include "auto-mlops.name" . }}
+    app.kubernetes.io/component: web-ui
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.webUi.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "auto-mlops.name" . }}
+      app.kubernetes.io/component: web-ui
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "auto-mlops.name" . }}
+        app.kubernetes.io/component: web-ui
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: web-ui
+          image: {{ .Values.webUi.image }}
+          imagePullPolicy: {{ .Values.webUi.imagePullPolicy }}
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: {{ include "auto-mlops.fullname" . }}-web-ui
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.webUi.resources | nindent 12 }}

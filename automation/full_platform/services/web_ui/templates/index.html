@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Auto-mlops Demo</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <h1>Auto-mlops Image Classifier</h1>
+        <p>Upload an image to test the model API. Redis caching is enabled.</p>
+      </header>
+
+      <section class="status">
+        <span>Model API: <strong>{{ api_status }}</strong></span>
+      </section>
+
+      <form class="upload" method="post" action="/predict" enctype="multipart/form-data">
+        <input type="file" name="file" accept="image/*" required />
+        <button type="submit">Run Inference</button>
+      </form>
+
+      {% if error %}
+        <div class="card error">
+          <h2>Error</h2>
+          <p>{{ error }}</p>
+        </div>
+      {% endif %}
+
+      {% if prediction %}
+        <div class="card">
+          <h2>Prediction</h2>
+          <p class="prediction">{{ prediction }}</p>
+          <p class="detail">{{ detail }}</p>
+          {% if image_data %}
+            <img class="preview" src="data:image/jpeg;base64,{{ image_data }}" alt="uploaded" />
+          {% endif %}
+        </div>
+      {% endif %}
+    </main>
+  </body>
+</html>

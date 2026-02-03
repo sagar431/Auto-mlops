@@ -1,0 +1,32 @@
+version: "3.9"
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  model-api:
+    build:
+      context: ./services/model_api
+    environment:
+      MODEL_PATH: /app/models/model.ts
+      CLASSES_PATH: /app/models/classes.txt
+      REDIS_URL: redis://redis:6379/0
+      IMAGE_SIZE: "224"
+    volumes:
+      - ./models:/app/models
+    depends_on:
+      - redis
+    ports:
+      - "8000:8000"
+
+  web-ui:
+    build:
+      context: ./services/web_ui
+    environment:
+      MODEL_API_URL: http://model-api:8000/predict
+      MODEL_API_HEALTH_URL: http://model-api:8000/health
+    depends_on:
+      - model-api
+    ports:
+      - "8080:8080"

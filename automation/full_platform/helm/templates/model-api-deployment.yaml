@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "auto-mlops.fullname" . }}-model-api
+  labels:
+    app.kubernetes.io/name: {{ include "auto-mlops.name" . }}
+    app.kubernetes.io/component: model-api
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.modelApi.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "auto-mlops.name" . }}
+      app.kubernetes.io/component: model-api
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "auto-mlops.name" . }}
+        app.kubernetes.io/component: model-api
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: model-api
+          image: {{ .Values.modelApi.image }}
+          imagePullPolicy: {{ .Values.modelApi.imagePullPolicy }}
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: {{ include "auto-mlops.fullname" . }}-model-api
+            - secretRef:
+                name: {{ include "auto-mlops.fullname" . }}-secret
+          volumeMounts:
+            - name: model-storage
+              mountPath: /app/models
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.modelApi.resources | nindent 12 }}
+      volumes:
+        - name: model-storage
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "auto-mlops.fullname" . }}-model-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

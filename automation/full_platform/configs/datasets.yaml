@@ -1,0 +1,21 @@
+datasets:
+  intel_image_classification:
+    kaggle_slug: "puneet6060/intel-image-classification"
+    raw_dir: "data/intel/raw"
+    train_dir: "data/intel/train"
+    val_dir: "data/intel/val"
+    test_dir: "data/intel/test"
+    split:
+      train: 0.8
+      val: 0.1
+      test: 0.1
+  fruits_vegetables:
+    kaggle_slug: "moltean/fruits"
+    raw_dir: "data/fruits/raw"
+    train_dir: "data/fruits/train"
+    val_dir: "data/fruits/val"
+    test_dir: "data/fruits/test"
+    split:
+      train: 0.8
+      val: 0.1
+      test: 0.1

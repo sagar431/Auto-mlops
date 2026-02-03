@@ -1,0 +1,38 @@
+{
+  "title": "ImageNet Canary Metrics",
+  "time": {"from": "now-15m", "to": "now"},
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Service Request Volume",
+      "targets": [
+        {
+          "expr": "sum(rate(inference_requests_total[1m]))",
+          "legendFormat": "req/s"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Response Time p95",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(inference_latency_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Success Rate",
+      "targets": [
+        {
+          "expr": "sum(rate(inference_requests_total{status=\"success\"}[1m])) / sum(rate(inference_requests_total[1m]))",
+          "legendFormat": "success_rate"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 37,
+  "version": 1
+}

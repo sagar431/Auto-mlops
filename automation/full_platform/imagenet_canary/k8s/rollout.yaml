@@ -1,0 +1,60 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: imagenet-rollout
+  namespace: auto-mlops-canary
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: imagenet-api
+  template:
+    metadata:
+      labels:
+        app: imagenet-api
+    spec:
+      containers:
+        - name: imagenet-api
+          image: auto-mlops/imagenet-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: HF_MODEL_ID
+              value: google/vit-base-patch16-224
+            - name: REDIS_URL
+              value: redis://redis:6379/0
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "1500m"
+              memory: "2Gi"
+  strategy:
+    canary:
+      stableService: imagenet-stable
+      canaryService: imagenet-canary
+      trafficRouting:
+        nginx:
+          stableIngress: imagenet-ingress
+      steps:
+        - setWeight: 30
+        - pause:
+            duration: 120
+        - setWeight: 100
+        - pause:
+            duration: 60

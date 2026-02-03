@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: model-api-config
+  namespace: auto-mlops
+data:
+  MODEL_PATH: /app/models/model.ts
+  CLASSES_PATH: /app/models/classes.txt
+  IMAGE_SIZE: "224"
+  REDIS_URL: redis://redis:6379/0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-ui-config
+  namespace: auto-mlops
+data:
+  MODEL_API_URL: http://model-api:8000/predict
+  MODEL_API_HEALTH_URL: http://model-api:8000/health

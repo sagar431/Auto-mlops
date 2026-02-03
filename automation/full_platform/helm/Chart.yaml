@@ -1,0 +1,6 @@
+apiVersion: v2
+name: auto-mlops
+description: Auto-mlops demo stack (model API + web UI + redis)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: auto-mlops-canary
+resources:
+  - namespace.yaml
+  - redis.yaml
+  - rollout.yaml
+  - services.yaml
+  - ingress.yaml
+  - analysis-template.yaml
