@@ -593,6 +593,260 @@ def admin_revoke_key(args: argparse.Namespace) -> int:
         return 1
 
 
+# ============================================================================
+# Init, Deploy, Monitor, Validate Commands
+# ============================================================================
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    """Initialize a new ML project structure."""
+    project_path = Path(args.path).resolve()
+    # template = args.template  # TODO: Use template for different project structures
+
+    console.print(f"[cyan]Initializing ML project at:[/cyan] {project_path}")
+
+    # Create directory structure
+    dirs = [
+        "configs",
+        "configs/model",
+        "configs/training",
+        "configs/data",
+        "data/raw",
+        "data/processed",
+        "models",
+        "src",
+        "notebooks",
+        "tests",
+    ]
+
+    try:
+        project_path.mkdir(parents=True, exist_ok=True)
+        for d in dirs:
+            (project_path / d).mkdir(parents=True, exist_ok=True)
+            console.print(f"  [green]✓[/green] Created {d}/")
+
+        # Create basic config.yaml
+        config_content = """# Hydra configuration
+defaults:
+  - model: default
+  - training: default
+  - data: default
+
+project_name: my_ml_project
+seed: 42
+"""
+        (project_path / "configs" / "config.yaml").write_text(config_content)
+        console.print("  [green]✓[/green] Created configs/config.yaml")
+
+        # Create model config
+        model_config = """# Model configuration
+name: resnet18
+pretrained: true
+num_classes: 10
+"""
+        (project_path / "configs" / "model" / "default.yaml").write_text(model_config)
+
+        # Create training config
+        training_config = """# Training configuration
+epochs: 10
+batch_size: 32
+learning_rate: 0.001
+optimizer: adam
+"""
+        (project_path / "configs" / "training" / "default.yaml").write_text(training_config)
+
+        # Create data config
+        data_config = """# Data configuration
+dataset: custom
+train_split: 0.8
+val_split: 0.1
+test_split: 0.1
+"""
+        (project_path / "configs" / "data" / "default.yaml").write_text(data_config)
+
+        # Create train.py template
+        train_template = '''#!/usr/bin/env python3
+"""Training script with Hydra configuration."""
+import hydra
+from omegaconf import DictConfig
+
+@hydra.main(config_path="configs", config_name="config", version_base=None)
+def train(cfg: DictConfig) -> float:
+    """Train the model."""
+    print(f"Training {cfg.project_name}")
+    print(f"Model: {cfg.model.name}")
+    print(f"Epochs: {cfg.training.epochs}")
+    print(f"Learning rate: {cfg.training.learning_rate}")
+
+    # TODO: Implement training logic
+    accuracy = 0.0
+    return accuracy
+
+if __name__ == "__main__":
+    train()
+'''
+        (project_path / "train.py").write_text(train_template)
+        console.print("  [green]✓[/green] Created train.py")
+
+        # Create .gitignore
+        gitignore = """# Python
+__pycache__/
+*.py[cod]
+.env
+venv/
+.venv/
+
+# ML artifacts
+*.pt
+*.pth
+*.onnx
+mlruns/
+outputs/
+
+# Data
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+"""
+        (project_path / ".gitignore").write_text(gitignore)
+        console.print("  [green]✓[/green] Created .gitignore")
+
+        # Create requirements.txt
+        requirements = """torch>=2.0.0
+torchvision>=0.15.0
+hydra-core>=1.3.0
+omegaconf>=2.3.0
+mlflow>=2.10.0
+dvc>=3.0.0
+"""
+        (project_path / "requirements.txt").write_text(requirements)
+        console.print("  [green]✓[/green] Created requirements.txt")
+
+        console.print("\n[green]Project initialized successfully![/green]")
+        console.print("\nNext steps:")
+        console.print(f"  1. cd {project_path}")
+        console.print("  2. pip install -r requirements.txt")
+        console.print("  3. mlops-agent 'Set up MLOps pipeline'")
+        return 0
+
+    except Exception as e:
+        console.print(f"[red]Error: {str(e)}[/red]")
+        return 1
+
+
+def cmd_deploy(args: argparse.Namespace) -> int:
+    """Deploy a trained model to a target platform."""
+    target = args.target
+    model_path = args.model
+    project_path = args.project or "."
+
+    console.print(f"[cyan]Deploying model to:[/cyan] {target}")
+
+    # Build the deployment query
+    target_descriptions = {
+        "gradio": "Deploy to Gradio for interactive demo",
+        "litserve": "Deploy to LitServe for high-throughput inference",
+        "lambda": "Deploy to AWS Lambda for serverless inference",
+        "torchserve": "Deploy to TorchServe for production serving",
+        "kserve": "Deploy to KServe on Kubernetes",
+    }
+
+    if target not in target_descriptions:
+        console.print(f"[red]Unknown target: {target}[/red]")
+        console.print(f"Available targets: {', '.join(target_descriptions.keys())}")
+        return 1
+
+    query = f"Deploy my model to {target}"
+    if model_path:
+        query += f" using model at {model_path}"
+
+    console.print(f"[dim]Running: {query}[/dim]\n")
+
+    try:
+        asyncio.run(run_agent_with_events(query=query, project_path=project_path))
+        return 0
+    except Exception as e:
+        console.print(f"[red]Deployment failed: {str(e)}[/red]")
+        return 1
+
+
+def cmd_monitor(args: argparse.Namespace) -> int:
+    """Monitor model performance and detect drift."""
+    model_name = args.model
+    api_url = args.api_url
+
+    console.print(f"[cyan]Monitoring model:[/cyan] {model_name or 'all models'}")
+
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            # Get metrics from the API
+            response = client.get(f"{api_url}/metrics")
+            if response.status_code == 200:
+                data = response.json()
+
+                # Display system metrics
+                table = Table(title="System Metrics")
+                table.add_column("Metric", style="cyan")
+                table.add_column("Value", style="white")
+
+                system = data.get("system", {})
+                table.add_row("CPU Usage", f"{system.get('cpu_percent', 0):.1f}%")
+                table.add_row("Memory Usage", f"{system.get('memory_percent', 0):.1f}%")
+                table.add_row("Disk Usage", f"{system.get('disk_percent', 0):.1f}%")
+                console.print(table)
+
+                # Display agent metrics
+                agent = data.get("agent", {})
+                table2 = Table(title="Agent Metrics")
+                table2.add_column("Metric", style="cyan")
+                table2.add_column("Value", style="white")
+                table2.add_row("Total Sessions", str(agent.get("total_sessions", 0)))
+                table2.add_row("Success Rate", f"{agent.get('success_rate', 0):.1%}")
+                table2.add_row("Avg Execution Time", f"{agent.get('avg_execution_time', 0):.1f}s")
+                console.print(table2)
+
+                return 0
+            else:
+                console.print(f"[red]Failed to get metrics: {response.status_code}[/red]")
+                return 1
+
+    except httpx.ConnectError:
+        console.print(f"[red]Could not connect to API server at {api_url}[/red]")
+        console.print("[dim]Make sure the API server is running[/dim]")
+        return 1
+    except Exception as e:
+        console.print(f"[red]Error: {str(e)}[/red]")
+        return 1
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    """Validate a dataset using Great Expectations."""
+    data_path = Path(args.data).resolve()
+    suite_name = args.suite
+
+    console.print(f"[cyan]Validating dataset:[/cyan] {data_path}")
+
+    if not data_path.exists():
+        console.print(f"[red]Error: Data path does not exist: {data_path}[/red]")
+        return 1
+
+    query = f"Validate the dataset at {data_path}"
+    if suite_name:
+        query += f" using expectation suite '{suite_name}'"
+
+    try:
+        asyncio.run(run_agent_with_events(query=query, project_path=str(data_path.parent)))
+        return 0
+    except Exception as e:
+        console.print(f"[red]Validation failed: {str(e)}[/red]")
+        return 1
+
+
 def setup_admin_parser(subparsers: argparse._SubParsersAction) -> None:
     """Set up the admin subcommand parser."""
     admin_parser = subparsers.add_parser(
@@ -723,11 +977,70 @@ Admin Commands:
         """,
     )
 
-    # Create subparsers for admin commands
+    # Create subparsers for commands
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # Set up admin subcommand
     setup_admin_parser(subparsers)
+
+    # Init command
+    init_parser = subparsers.add_parser(
+        "init", help="Initialize a new ML project structure"
+    )
+    init_parser.add_argument(
+        "path", nargs="?", default=".", help="Path for the new project (default: current directory)"
+    )
+    init_parser.add_argument(
+        "--template", "-t", type=str, default="basic",
+        choices=["basic", "pytorch", "sklearn", "huggingface"],
+        help="Project template to use (default: basic)"
+    )
+    init_parser.set_defaults(func=cmd_init)
+
+    # Deploy command
+    deploy_parser = subparsers.add_parser(
+        "deploy", help="Deploy a trained model to a target platform"
+    )
+    deploy_parser.add_argument(
+        "target", choices=["gradio", "litserve", "lambda", "torchserve", "kserve"],
+        help="Deployment target platform"
+    )
+    deploy_parser.add_argument(
+        "--model", "-m", type=str, default=None,
+        help="Path to the trained model"
+    )
+    deploy_parser.add_argument(
+        "--project", "-p", type=str, default=None,
+        help="Project directory"
+    )
+    deploy_parser.set_defaults(func=cmd_deploy)
+
+    # Monitor command
+    monitor_parser = subparsers.add_parser(
+        "monitor", help="Monitor model performance and system metrics"
+    )
+    monitor_parser.add_argument(
+        "--model", "-m", type=str, default=None,
+        help="Specific model to monitor"
+    )
+    monitor_parser.add_argument(
+        "--api-url", type=str, default=DEFAULT_API_URL,
+        help=f"API server URL (default: {DEFAULT_API_URL})"
+    )
+    monitor_parser.set_defaults(func=cmd_monitor)
+
+    # Validate command
+    validate_parser = subparsers.add_parser(
+        "validate", help="Validate a dataset using Great Expectations"
+    )
+    validate_parser.add_argument(
+        "data", help="Path to the dataset to validate"
+    )
+    validate_parser.add_argument(
+        "--suite", "-s", type=str, default=None,
+        help="Name of the expectation suite to use"
+    )
+    validate_parser.set_defaults(func=cmd_validate)
 
     # Agent arguments (for non-admin usage)
     parser.add_argument("query", nargs="?", help="Natural language query for the agent")
@@ -748,11 +1061,11 @@ Admin Commands:
 
     args = parser.parse_args()
 
-    # Handle admin commands
-    if args.command == "admin":
+    # Handle subcommands (admin, init, deploy, monitor, validate)
+    if args.command in ("admin", "init", "deploy", "monitor", "validate"):
         if not hasattr(args, "func") or args.func is None:
-            # No admin subcommand provided, show help
-            parser.parse_args(["admin", "--help"])
+            # No subcommand provided, show help
+            parser.parse_args([args.command, "--help"])
             return
         sys.exit(args.func(args))
 

@@ -4,10 +4,9 @@ Generates final summaries from ML pipeline execution results.
 """
 
 import json
-import os
-from pathlib import Path
-from typing import Dict, Any, Optional
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 from agent.model_manager import get_model_manager
 
@@ -46,11 +45,7 @@ Include:
 - Next recommended steps
 Output as markdown."""
 
-    async def run(
-        self,
-        s_input: Dict[str, Any],
-        session: Any = None
-    ) -> Dict[str, Any]:
+    async def run(self, s_input: dict[str, Any], session: Any = None) -> dict[str, Any]:
         """
         Run summarization on execution results.
 
@@ -71,14 +66,14 @@ Output as markdown."""
                 "summary_markdown": response,
                 "goal_achieved": s_input.get("goal_achieved", False),
                 "confidence": 0.9,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
             if session:
                 session.add_message(
                     role="assistant",
-                    content=f"Summary generated",
-                    metadata={"module": "summarizer"}
+                    content="Summary generated",
+                    metadata={"module": "summarizer"},
                 )
 
             return result
@@ -87,12 +82,12 @@ Output as markdown."""
             print(f"Summarizer error: {e}")
             return self._get_fallback_summary(s_input)
 
-    def _format_prompt(self, s_input: Dict) -> str:
+    def _format_prompt(self, s_input: dict) -> str:
         """Format the summarizer prompt with context."""
         context = json.dumps(s_input, indent=2, default=str)
         return f"{self.prompt_template}\n\nExecution Context:\n```json\n{context}\n```"
 
-    def _get_fallback_summary(self, s_input: Dict) -> Dict:
+    def _get_fallback_summary(self, s_input: dict) -> dict:
         """Generate fallback summary when LLM fails."""
         query = s_input.get("original_query", "MLOps operation")
         exp_state = s_input.get("experiment_state", {})
@@ -116,7 +111,7 @@ Summary generation encountered an error. Please review the execution logs for de
             "summary_markdown": summary,
             "goal_achieved": False,
             "confidence": 0.5,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     def _format_artifacts(self, artifacts: list) -> str:
@@ -126,12 +121,8 @@ Summary generation encountered an error. Please review the execution logs for de
         return "\n".join(f"- `{a}`" for a in artifacts[:10])
 
     async def summarize(
-        self,
-        query: str,
-        ctx: Any,
-        perception: Dict[str, Any],
-        session: Any = None
-    ) -> Dict[str, Any]:
+        self, query: str, ctx: Any, perception: dict[str, Any], session: Any = None
+    ) -> dict[str, Any]:
         """
         Generate final summary for MLOps operation.
 
@@ -158,12 +149,9 @@ Summary generation encountered an error. Please review the execution logs for de
             "failed_steps": ctx.get_failed_steps(),
             "artifacts_created": ctx.experiment_state.artifacts_created,
             "perception": perception,
-            "goal_achieved": perception.get("original_goal_achieved", False) or
-                           ctx.experiment_state.threshold_met(),
-            "globals": {
-                k: str(v)[:200] for k, v in ctx.globals.items()
-                if k not in ["memory"]
-            }
+            "goal_achieved": perception.get("original_goal_achieved", False)
+            or ctx.experiment_state.threshold_met(),
+            "globals": {k: str(v)[:200] for k, v in ctx.globals.items() if k not in ["memory"]},
         }
 
         # Run summarization
@@ -184,7 +172,7 @@ Summary generation encountered an error. Please review the execution logs for de
 
         return summary
 
-    def _save_session(self, ctx: Any, session: Any, summary: Dict):
+    def _save_session(self, ctx: Any, session: Any, summary: dict):
         """Save session logs to disk."""
         try:
             # Create logs directory
@@ -203,7 +191,7 @@ Summary generation encountered an error. Please review the execution logs for de
                 "final_summary": summary.get("summary_markdown", ""),
                 "goal_achieved": summary.get("goal_achieved", False),
                 "status": "success" if summary.get("goal_achieved") else "partial",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
             with open(session_file, "w", encoding="utf-8") as f:

@@ -77,6 +77,7 @@ Agent: ✅ Analyzing project structure...
 - Python 3.10+
 - [uv](https://github.com/astral-sh/uv) (recommended) or pip
 - Git
+- PostgreSQL (for production)
 
 ### Installation
 
@@ -96,17 +97,102 @@ cp .env.example .env
 # Edit .env with your API keys
 ```
 
+### Basic Usage
+
+```bash
+# Initialize a new ML project
+mlops-agent init ./my-project
+
+# Run the agent with natural language
+mlops-agent "Set up MLOps pipeline for my cat-dog classifier"
+
+# Interactive mode
+mlops-agent --interactive
+
+# Deploy a model
+mlops-agent deploy gradio --model ./models/best_model.pt
+```
+
 ### Run Tests
 
 ```bash
 # Test all MCP tools
-python test_mlops_tools.py
+pytest tests/
 
 # Test specific tool categories
 python test_mlops_tools.py --tool hydra
-python test_mlops_tools.py --tool mlflow
-python test_mlops_tools.py --tool dvc
+python test_mlops_tools.py --tool deployment
 ```
+
+---
+
+## 🏭 Production Setup
+
+For production deployments with authentication, database persistence, and monitoring.
+
+### 1. Database Setup
+
+```bash
+# Start PostgreSQL
+docker run -d --name mlops-postgres \
+  -e POSTGRES_PASSWORD=secret \
+  -e POSTGRES_DB=mlops \
+  -p 5432:5432 postgres:15
+
+# Run migrations
+alembic upgrade head
+```
+
+### 2. Configure Environment
+
+```bash
+# .env
+GOOGLE_API_KEY=your-gemini-key
+DATABASE_URL=postgresql+asyncpg://postgres:secret@localhost:5432/mlops
+CORS_ALLOWED_ORIGINS=https://your-frontend.com
+```
+
+### 3. Create Admin User & API Key
+
+```bash
+# Start the API server
+python api_server.py &
+
+# Create admin user
+mlops-agent admin create-user --username admin --email admin@example.com --admin
+
+# Create API key
+mlops-agent admin create-key --name "Production Key"
+# Save the API key! It's only shown once.
+```
+
+### 4. Start Production Server
+
+```bash
+uvicorn api_server:app --host 0.0.0.0 --port 8000 --workers 4
+```
+
+### 5. Use the SDK
+
+```python
+from sdk import MLOpsClient
+
+client = MLOpsClient(api_key="mlops_xxxxx")
+result = client.run("Set up MLOps pipeline", project_path="/my/project")
+print(result.status)
+```
+
+### Production Features
+
+| Feature | Description |
+|---------|-------------|
+| 🔐 **API Key Auth** | Secure authentication with role-based access |
+| 🗄️ **PostgreSQL** | Persistent session and experiment storage |
+| 📊 **Prometheus Metrics** | `/metrics` endpoint for monitoring |
+| 🔄 **LLM Fallback** | Automatic failover: Gemini → OpenAI → Gemini Flash |
+| ⚡ **Circuit Breaker** | Resilient tool execution with retry logic |
+| 📝 **Structured Logging** | JSON logs with structlog |
+| 🚦 **Rate Limiting** | Configurable request limits |
 
 ---
 
@@ -214,7 +300,7 @@ mlops_agent/
 
 ---
 
-## 🔧 Available MCP Tools (28)
+## 🔧 Available MCP Tools (50+)
 
 ### ⚙️ Hydra Configuration (4 tools)
 
@@ -273,6 +359,38 @@ mlops_agent/
 | `analyze_training_results` | Analyze experiment results |
 | `suggest_improvements` | AI-powered improvement suggestions |
 | `check_accuracy_threshold` | Check if threshold is met |
+
+### 🚀 Deployment (11 tools)
+
+| Tool | Target | Description |
+|------|--------|-------------|
+| `create_gradio_interface` | Gradio | Create interactive demo UI |
+| `deploy_to_huggingface` | HF Spaces | One-click Hugging Face deployment |
+| `create_litserve_api` | LitServe | High-throughput inference server |
+| `configure_litserver` | LitServe | Configure batching and scaling |
+| `create_fastapi_app` | Lambda | Create FastAPI application |
+| `create_lambda_dockerfile` | Lambda | Container image for Lambda |
+| `generate_cdk_stack` | Lambda | AWS CDK infrastructure |
+| `create_torchserve_handler` | TorchServe | Custom model handler |
+| `create_mar_archive` | TorchServe | Package model archive |
+| `generate_torchserve_config` | TorchServe | Server configuration |
+| `create_inference_service_yaml` | KServe | Kubernetes InferenceService |
+
+### 📊 Data Quality (3 tools)
+
+| Tool | Description |
+|------|-------------|
+| `validate_dataset` | Validate data with Great Expectations |
+| `create_expectation_suite` | Auto-generate validation rules |
+| `check_data_quality` | Schema and null checks |
+
+### 📈 Model Monitoring (3 tools)
+
+| Tool | Description |
+|------|-------------|
+| `detect_data_drift` | Statistical drift detection with Evidently |
+| `monitor_model_performance` | Track accuracy and latency |
+| `setup_alerting` | Configure drift alerts |
 
 ---
 
@@ -350,14 +468,28 @@ profiles:
 
 ## 🗺️ Roadmap
 
-- [x] **Phase 1**: MCP Tools (28 tools) ✅
-- [ ] **Phase 2**: Agent Architecture (in progress)
-  - [x] Folder structure
-  - [ ] Core agent loop
-  - [ ] Perception/Decision/Action layers
-- [ ] **Phase 3**: Self-Improvement Loop
-- [ ] **Phase 4**: Frontend Integration
-- [ ] **Phase 5**: Multi-cloud Support
+- [x] **Phase 1**: MCP Tools (50+ tools) ✅
+- [x] **Phase 2**: Agent Architecture ✅
+  - [x] Core agent loop (Perception → Decision → Action → Summarize)
+  - [x] Graph-based execution with NetworkX
+  - [x] LLM provider abstraction (Gemini, OpenAI)
+- [x] **Phase 3**: Self-Improvement Loop ✅
+  - [x] Automatic hyperparameter tuning
+  - [x] Multi-attempt training with config updates
+- [x] **Phase 4**: Multi-Deployment Targets ✅
+  - [x] Gradio, LitServe, Lambda, TorchServe, KServe
+- [x] **Phase 5**: Production Infrastructure ✅
+  - [x] API key authentication
+  - [x] PostgreSQL persistence
+  - [x] Structured logging & Prometheus metrics
+  - [x] LLM fallback chain
+  - [x] Circuit breaker & retry logic
+- [x] **Phase 6**: Data Quality & Monitoring ✅
+  - [x] Great Expectations integration
+  - [x] Evidently drift detection
+- [ ] **Phase 7**: Multi-cloud Support (planned)
+  - [ ] Azure ML
+  - [ ] GCP Vertex AI
 
 ---
 

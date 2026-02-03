@@ -813,11 +813,11 @@ __all__ = [
 
 # Import middleware components for convenience
 from security.middleware import (
+    AuthenticationError,
+    AuthorizationError,
     CurrentUser,
     CurrentUserDep,
     OptionalUserDep,
-    AuthenticationError,
-    AuthorizationError,
     get_current_user,
     get_current_user_optional,
     require_roles,

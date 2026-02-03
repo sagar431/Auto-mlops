@@ -4,10 +4,9 @@ Generates graph-based execution plans with tool calls for ML pipeline automation
 """
 
 import json
-import asyncio
-from pathlib import Path
-from typing import Dict, Any, Optional, List
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 from agent.model_manager import get_model_manager
 
@@ -47,11 +46,7 @@ Output JSON with:
 - code_variants: optional alternative implementations
 """
 
-    async def run(
-        self,
-        decision_input: Dict[str, Any],
-        session: Any = None
-    ) -> Dict[str, Any]:
+    async def run(self, decision_input: dict[str, Any], session: Any = None) -> dict[str, Any]:
         """
         Run decision to generate execution plan.
 
@@ -77,7 +72,7 @@ Output JSON with:
                 session.add_message(
                     role="assistant",
                     content=f"Decision: Generated plan with {len(result.get('plan_graph', {}).get('nodes', []))} steps",
-                    metadata={"module": "decision", "next_step": result.get("next_step_id")}
+                    metadata={"module": "decision", "next_step": result.get("next_step_id")},
                 )
 
             return result
@@ -86,7 +81,7 @@ Output JSON with:
             print(f"Decision error: {e}")
             return self._get_fallback_output(decision_input)
 
-    def _format_prompt(self, decision_input: Dict) -> str:
+    def _format_prompt(self, decision_input: dict) -> str:
         """Format the decision prompt with input context."""
         try:
             # Try to use template variables
@@ -96,21 +91,21 @@ Output JSON with:
                 state=json.dumps(decision_input.get("state", {}), indent=2),
                 completed_steps=json.dumps(decision_input.get("completed_steps", []), indent=2),
                 failed_steps=json.dumps(decision_input.get("failed_steps", []), indent=2),
-                experiment_state=json.dumps(decision_input.get("experiment_state", {}), indent=2)
+                experiment_state=json.dumps(decision_input.get("experiment_state", {}), indent=2),
             )
             return formatted
         except KeyError:
             # If template formatting fails, append as JSON
             return f"{self.prompt_template}\n\nInput Context:\n```json\n{json.dumps(decision_input, indent=2)}\n```"
 
-    def _normalize_output(self, output: Dict) -> Dict:
+    def _normalize_output(self, output: dict) -> dict:
         """Normalize and validate decision output."""
         defaults = {
             "strategy": "sequential",
             "reasoning": "",
             "plan_graph": {"nodes": []},
             "next_step_id": "0",
-            "code_variants": {}
+            "code_variants": {},
         }
 
         for key, default in defaults.items():
@@ -135,7 +130,7 @@ Output JSON with:
 
         return output
 
-    def _get_fallback_output(self, decision_input: Dict) -> Dict:
+    def _get_fallback_output(self, decision_input: dict) -> dict:
         """Get fallback output when LLM fails."""
         perception = decision_input.get("perception", {})
         entities = perception.get("entities", {})
@@ -146,17 +141,34 @@ Output JSON with:
 
         fallback_plans = {
             "setup": [
-                {"id": "0", "description": "Analyze project structure", "tool": "analyze_project_config",
-                 "args": {"project_path": project_path}, "depends_on": []},
+                {
+                    "id": "0",
+                    "description": "Analyze project structure",
+                    "tool": "analyze_project_config",
+                    "args": {"project_path": project_path},
+                    "depends_on": [],
+                },
             ],
             "config": [
-                {"id": "0", "description": "Create Hydra configuration", "tool": "create_hydra_config",
-                 "args": {"project_path": project_path}, "depends_on": []},
+                {
+                    "id": "0",
+                    "description": "Create Hydra configuration",
+                    "tool": "create_hydra_config",
+                    "args": {"project_path": project_path},
+                    "depends_on": [],
+                },
             ],
             "training": [
-                {"id": "0", "description": "Initialize MLflow experiment", "tool": "init_mlflow_experiment",
-                 "args": {"experiment_name": entities.get("experiment_name", "default_experiment")}, "depends_on": []},
-            ]
+                {
+                    "id": "0",
+                    "description": "Initialize MLflow experiment",
+                    "tool": "init_mlflow_experiment",
+                    "args": {
+                        "experiment_name": entities.get("experiment_name", "default_experiment")
+                    },
+                    "depends_on": [],
+                },
+            ],
         }
 
         nodes = fallback_plans.get(stage, fallback_plans["setup"])
@@ -166,15 +178,11 @@ Output JSON with:
             "reasoning": "Fallback plan due to LLM error",
             "plan_graph": {"nodes": nodes},
             "next_step_id": "0",
-            "code_variants": {}
+            "code_variants": {},
         }
 
 
-def build_decision_input(
-    ctx: Any,
-    query: str,
-    perception: Dict[str, Any]
-) -> Dict[str, Any]:
+def build_decision_input(ctx: Any, query: str, perception: dict[str, Any]) -> dict[str, Any]:
     """
     Build input for decision module.
 
@@ -191,17 +199,15 @@ def build_decision_input(
         "run_id": f"{ctx.session_id}-D",
         "original_query": query,
         "perception": perception,
-        "state": {
-            "pipeline_stage": ctx.experiment_state.stage,
-            "project_path": ctx.project_path
-        },
+        "state": {"pipeline_stage": ctx.experiment_state.stage, "project_path": ctx.project_path},
         "completed_steps": ctx.get_completed_steps(),
         "failed_steps": ctx.get_failed_steps(),
         "experiment_state": ctx.experiment_state.to_dict(),
         "globals_schema": {
             k: {
                 "type": type(v).__name__,
-                "preview": str(v)[:500] + ("..." if len(str(v)) > 500 else "")
-            } for k, v in ctx.globals.items()
-        }
+                "preview": str(v)[:500] + ("..." if len(str(v)) > 500 else ""),
+            }
+            for k, v in ctx.globals.items()
+        },
     }

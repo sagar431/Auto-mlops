@@ -60,15 +60,24 @@ dependencies = [
 
     # Structured logging
     "structlog>=24.0.0",
+
+    # Data validation
+    "great-expectations>=0.18.0",
+
+    # WebSocket client for SDK
+    "websockets>=12.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.26.0",
     "black>=24.0.0",
     "ruff>=0.3.0",
-    "locust>=2.0.0",
+    "locust>=2.20.0",
+    "bandit>=1.7.7",
 ]
 
 [project.scripts]
@@ -90,3 +99,39 @@ target-version = ["py310"]
 line-length = 100
 select = ["E", "F", "I", "UP"]
 ignore = ["E501"]
+
+[tool.coverage.run]
+source = [
+    "agent",
+    "action",
+    "decision",
+    "memory",
+    "metrics",
+    "monitoring",
+    "observability",
+    "perception",
+    "resilience",
+    "security",
+    "summarization",
+    "db",
+    "utils",
+    "api_server",
+]
+omit = [
+    "test_*.py",
+    "tests/*",
+    "examples/*",
+    "*/__pycache__/*",
+    "*/migrations/*",
+    "cli.py",
+    "mcp_mlops_tools.py",
+    "data_quality/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
