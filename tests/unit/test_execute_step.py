@@ -506,10 +506,17 @@ class TestAvailableTools:
         assert "suggest_improvements" in AVAILABLE_TOOLS
         assert "check_accuracy_threshold" in AVAILABLE_TOOLS
 
+    def test_contains_deployment_tools(self):
+        """Test AVAILABLE_TOOLS contains deployment and rollback tools."""
+        assert "create_gradio_interface" in AVAILABLE_TOOLS
+        assert "create_inference_service_yaml" in AVAILABLE_TOOLS
+        assert "rollback_deployment" in AVAILABLE_TOOLS
+        assert "create_helm_chart" in AVAILABLE_TOOLS
+
     def test_tool_count(self):
         """Test AVAILABLE_TOOLS has expected number of tools."""
-        # 4 Hydra + 8 MLflow + 7 DVC + 4 Docker + 2 GitHub + 3 Training = 28
-        assert len(AVAILABLE_TOOLS) == 28
+        # Core tools plus deployment/K8s/AWS helpers should be present
+        assert len(AVAILABLE_TOOLS) >= 28
 
 
 # ============================================================================

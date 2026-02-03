@@ -106,6 +106,31 @@ Generate executable steps with proper dependencies and tool calls.
 | `create_inference_service_yaml` | Create InferenceService | project_path, service_name, model_name, storage_uri, namespace, runtime |
 | `generate_kserve_config` | Generate config | project_path, service_name, min_replicas, max_replicas, gpu_enabled |
 
+#### Kubernetes Manifests
+| Tool | Description | Key Args |
+|------|-------------|----------|
+| `create_k8s_deployment_yaml` | Create Deployment | project_path, name, image, replicas, container_port |
+| `create_k8s_service_yaml` | Create Service | project_path, name, selector, port, target_port |
+| `create_k8s_ingress_yaml` | Create Ingress (ALB) | project_path, name, host, service_name, service_port |
+| `create_k8s_hpa_yaml` | Create HPA | project_path, name, deployment_name, min_replicas, max_replicas |
+| `create_k8s_configmap_yaml` | Create ConfigMap | project_path, name, data |
+| `create_k8s_secret_yaml` | Create Secret | project_path, name, data, encode |
+| `generate_rollback_plan` | Rollback instructions | project_path, target, deployment_name |
+| `create_helm_chart` | Helm chart | project_path, chart_name, image |
+| `rollback_k8s_deployment` | Rollback K8s | project_path, deployment_name, namespace |
+| `rollback_lambda_stack` | Rollback Lambda | project_path, stack_name |
+| `rollback_deployment` | Rollback by target | project_path, target, deployment_name |
+
+#### AWS Automation
+| Tool | Description | Key Args |
+|------|-------------|----------|
+| `list_eks_clusters` | List EKS clusters | region |
+| `update_kubeconfig` | Update kubeconfig | cluster_name, region |
+| `create_ecr_repo` | Create ECR repo | repo_name, region |
+| `get_ecr_login` | Get ECR login | region |
+| `generate_iam_policy` | Generate IAM policy | policy_name, services |
+| `estimate_deployment_cost` | Estimate cost | service_type, requests_per_month, avg_duration_ms |
+
 ## Input Context
 - Original Query: {query}
 - Perception Output: {perception}

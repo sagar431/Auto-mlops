@@ -58,6 +58,9 @@ dependencies = [
     # Rate limiting
     "slowapi>=0.1.9",
 
+    # AWS SDK
+    "boto3>=1.34.0",
+
     # Structured logging
     "structlog>=24.0.0",
 

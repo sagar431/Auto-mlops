@@ -13,12 +13,23 @@ Version: 1.0.0
 """
 
 import asyncio
+import base64
 import json
 import os
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
+
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+
+    BOTO3_AVAILABLE = True
+except Exception:
+    boto3 = None
+    ClientError = Exception
+    BOTO3_AVAILABLE = False
 
 import yaml
 from mcp.server import Server
@@ -727,6 +738,185 @@ class GenerateKServeConfigInput(BaseModel):
     target_utilization: int = Field(default=80, description="Target CPU utilization %")
     gpu_enabled: bool = Field(default=False, description="Enable GPU")
     gpu_count: int = Field(default=1, description="Number of GPUs")
+
+
+# Kubernetes Manifests
+class CreateK8sDeploymentInput(BaseModel):
+    """Create Kubernetes Deployment YAML."""
+
+    project_path: str = Field(..., description="Path to the project")
+    name: str = Field(..., description="Deployment name")
+    image: str = Field(..., description="Container image")
+    replicas: int = Field(default=1, description="Number of replicas")
+    container_port: int = Field(default=8000, description="Container port")
+    namespace: str = Field(default="default", description="Kubernetes namespace")
+    labels: dict[str, str] | None = Field(default=None, description="Pod labels")
+    env: dict[str, str] | None = Field(default=None, description="Environment variables")
+    resources: dict[str, Any] | None = Field(default=None, description="Resource requests/limits")
+
+
+class CreateK8sServiceInput(BaseModel):
+    """Create Kubernetes Service YAML."""
+
+    project_path: str = Field(..., description="Path to the project")
+    name: str = Field(..., description="Service name")
+    selector: dict[str, str] | None = Field(default=None, description="Selector labels")
+    port: int = Field(default=80, description="Service port")
+    target_port: int = Field(default=8000, description="Target port")
+    service_type: str = Field(default="ClusterIP", description="Service type")
+    namespace: str = Field(default="default", description="Kubernetes namespace")
+
+
+class CreateK8sIngressInput(BaseModel):
+    """Create Kubernetes Ingress YAML (ALB for EKS)."""
+
+    project_path: str = Field(..., description="Path to the project")
+    name: str = Field(..., description="Ingress name")
+    host: str = Field(..., description="Ingress host")
+    service_name: str = Field(..., description="Service name")
+    service_port: int = Field(default=80, description="Service port")
+    path: str = Field(default="/", description="Ingress path")
+    namespace: str = Field(default="default", description="Kubernetes namespace")
+    ingress_class: str = Field(default="alb", description="Ingress class")
+    alb_scheme: str = Field(default="internet-facing", description="ALB scheme")
+    certificate_arn: str | None = Field(default=None, description="ACM certificate ARN")
+    annotations: dict[str, str] | None = Field(default=None, description="Extra annotations")
+
+
+class CreateK8sHPAInput(BaseModel):
+    """Create Kubernetes HPA YAML."""
+
+    project_path: str = Field(..., description="Path to the project")
+    name: str = Field(..., description="HPA name")
+    deployment_name: str = Field(..., description="Target deployment name")
+    min_replicas: int = Field(default=1, description="Minimum replicas")
+    max_replicas: int = Field(default=3, description="Maximum replicas")
+    target_cpu_utilization: int = Field(default=70, description="Target CPU utilization %")
+    namespace: str = Field(default="default", description="Kubernetes namespace")
+
+
+class CreateK8sConfigMapInput(BaseModel):
+    """Create Kubernetes ConfigMap YAML."""
+
+    project_path: str = Field(..., description="Path to the project")
+    name: str = Field(..., description="ConfigMap name")
+    data: dict[str, str] = Field(..., description="ConfigMap data")
+    namespace: str = Field(default="default", description="Kubernetes namespace")
+
+
+class CreateK8sSecretInput(BaseModel):
+    """Create Kubernetes Secret YAML."""
+
+    project_path: str = Field(..., description="Path to the project")
+    name: str = Field(..., description="Secret name")
+    data: dict[str, str] = Field(..., description="Secret data")
+    namespace: str = Field(default="default", description="Kubernetes namespace")
+    encode: bool = Field(default=True, description="Base64 encode values")
+
+
+class GenerateRollbackPlanInput(BaseModel):
+    """Generate rollback plan for a deployment target."""
+
+    project_path: str = Field(..., description="Path to the project")
+    target: str = Field(..., description="Deployment target (kserve, lambda, docker, etc.)")
+    deployment_name: str | None = Field(default=None, description="Deployment name")
+    namespace: str = Field(default="default", description="Kubernetes namespace")
+    error: str | None = Field(default=None, description="Failure reason")
+
+
+# AWS Tools
+class ListEKSClustersInput(BaseModel):
+    """List EKS clusters."""
+
+    region: str | None = Field(default=None, description="AWS region")
+
+
+class UpdateKubeconfigInput(BaseModel):
+    """Update kubeconfig for an EKS cluster."""
+
+    cluster_name: str = Field(..., description="EKS cluster name")
+    region: str | None = Field(default=None, description="AWS region")
+
+
+class CreateECRRepoInput(BaseModel):
+    """Create an ECR repository."""
+
+    repo_name: str = Field(..., description="ECR repository name")
+    region: str | None = Field(default=None, description="AWS region")
+    scan_on_push: bool = Field(default=True, description="Enable image scan on push")
+    mutable_tags: bool = Field(default=True, description="Allow mutable tags")
+
+
+class GetECRLoginInput(BaseModel):
+    """Get ECR login command."""
+
+    region: str | None = Field(default=None, description="AWS region")
+
+
+class GenerateIAMPolicyInput(BaseModel):
+    """Generate IAM policy for deployment operations."""
+
+    policy_name: str = Field(default="mlops-agent-policy", description="Policy name")
+    services: list[str] | None = Field(
+        default=None, description="AWS services to include (eks, ecr, lambda)"
+    )
+
+
+class EstimateDeploymentCostInput(BaseModel):
+    """Estimate deployment cost based on basic usage inputs."""
+
+    service_type: str = Field(default="lambda", description="Service type (lambda, eks)")
+    requests_per_month: int = Field(default=1000000, description="Monthly request count")
+    avg_duration_ms: int = Field(default=100, description="Average request duration in ms")
+    memory_mb: int = Field(default=1024, description="Lambda memory size in MB")
+    eks_node_hours: int = Field(default=720, description="EKS node hours per month")
+    region: str | None = Field(default=None, description="AWS region")
+
+
+class CreateHelmChartInput(BaseModel):
+    """Create a Helm chart for Kubernetes deployment."""
+
+    project_path: str = Field(..., description="Path to the project")
+    chart_name: str = Field(..., description="Helm chart name")
+    image: str = Field(..., description="Container image")
+    chart_version: str = Field(default="0.1.0", description="Chart version")
+    app_version: str = Field(default="1.0.0", description="Application version")
+    namespace: str = Field(default="default", description="Kubernetes namespace")
+    container_port: int = Field(default=8000, description="Container port")
+    service_port: int = Field(default=80, description="Service port")
+    include_ingress: bool = Field(default=False, description="Include ingress template")
+    include_hpa: bool = Field(default=False, description="Include HPA template")
+    include_configmap: bool = Field(default=False, description="Include ConfigMap template")
+    include_secret: bool = Field(default=False, description="Include Secret template")
+
+
+class RollbackK8sDeploymentInput(BaseModel):
+    """Rollback a Kubernetes deployment."""
+
+    project_path: str = Field(..., description="Path to the project")
+    deployment_name: str = Field(..., description="Deployment name")
+    namespace: str = Field(default="default", description="Kubernetes namespace")
+    dry_run: bool = Field(default=True, description="Return command without executing")
+
+
+class RollbackLambdaStackInput(BaseModel):
+    """Rollback an AWS Lambda CDK stack."""
+
+    project_path: str = Field(..., description="Path to the project")
+    stack_name: str = Field(..., description="CDK stack name")
+    dry_run: bool = Field(default=True, description="Return command without executing")
+
+
+class RollbackDeploymentInput(BaseModel):
+    """Rollback a deployment based on target type."""
+
+    project_path: str = Field(..., description="Path to the project")
+    target: str = Field(..., description="Target type (kserve, lambda, docker)")
+    deployment_name: str | None = Field(default=None, description="Deployment name")
+    namespace: str = Field(default="default", description="Kubernetes namespace")
+    stack_name: str | None = Field(default=None, description="CDK stack name")
+    container_id: str | None = Field(default=None, description="Docker container ID")
+    dry_run: bool = Field(default=True, description="Return command without executing")
 
 
 # ============================================================================
@@ -4831,6 +5021,781 @@ resources:
     }
 
 
+# --- Kubernetes Manifest Tools ---
+
+
+def create_k8s_deployment_yaml(
+    project_path: str,
+    name: str,
+    image: str,
+    replicas: int = 1,
+    container_port: int = 8000,
+    namespace: str = "default",
+    labels: dict[str, str] | None = None,
+    env: dict[str, str] | None = None,
+    resources: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Create Kubernetes Deployment YAML."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    deploy_dir = ensure_directory(path / "deployment" / "k8s")
+    labels = labels or {"app": name}
+    env_list = [{"name": k, "value": str(v)} for k, v in (env or {}).items()]
+
+    deployment = {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {"name": name, "namespace": namespace, "labels": labels},
+        "spec": {
+            "replicas": replicas,
+            "selector": {"matchLabels": labels},
+            "template": {
+                "metadata": {"labels": labels},
+                "spec": {
+                    "containers": [
+                        {
+                            "name": name,
+                            "image": image,
+                            "ports": [{"containerPort": container_port}],
+                            "env": env_list,
+                        }
+                    ]
+                },
+            },
+        },
+    }
+
+    if resources:
+        deployment["spec"]["template"]["spec"]["containers"][0]["resources"] = resources
+
+    yaml_path = deploy_dir / "deployment.yaml"
+    with open(yaml_path, "w") as f:
+        yaml.dump(deployment, f, default_flow_style=False, sort_keys=False)
+
+    return {
+        "success": True,
+        "deployment_path": str(yaml_path),
+        "message": f"Deployment YAML created at {yaml_path}",
+    }
+
+
+def create_k8s_service_yaml(
+    project_path: str,
+    name: str,
+    selector: dict[str, str] | None = None,
+    port: int = 80,
+    target_port: int = 8000,
+    service_type: str = "ClusterIP",
+    namespace: str = "default",
+) -> dict[str, Any]:
+    """Create Kubernetes Service YAML."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    deploy_dir = ensure_directory(path / "deployment" / "k8s")
+    selector = selector or {"app": name}
+    service = {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {"name": name, "namespace": namespace},
+        "spec": {
+            "type": service_type,
+            "selector": selector,
+            "ports": [{"port": port, "targetPort": target_port}],
+        },
+    }
+
+    yaml_path = deploy_dir / "service.yaml"
+    with open(yaml_path, "w") as f:
+        yaml.dump(service, f, default_flow_style=False, sort_keys=False)
+
+    return {
+        "success": True,
+        "service_path": str(yaml_path),
+        "message": f"Service YAML created at {yaml_path}",
+    }
+
+
+def create_k8s_ingress_yaml(
+    project_path: str,
+    name: str,
+    host: str,
+    service_name: str,
+    service_port: int = 80,
+    path: str = "/",
+    namespace: str = "default",
+    ingress_class: str = "alb",
+    alb_scheme: str = "internet-facing",
+    certificate_arn: str | None = None,
+    annotations: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Create Kubernetes Ingress YAML (ALB annotations for EKS)."""
+    base_annotations = {
+        "kubernetes.io/ingress.class": ingress_class,
+        "alb.ingress.kubernetes.io/scheme": alb_scheme,
+        "alb.ingress.kubernetes.io/target-type": "ip",
+    }
+    if certificate_arn:
+        base_annotations["alb.ingress.kubernetes.io/certificate-arn"] = certificate_arn
+        base_annotations["alb.ingress.kubernetes.io/listen-ports"] = '[{"HTTPS":443}]'
+    if annotations:
+        base_annotations.update(annotations)
+
+    ingress = {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "Ingress",
+        "metadata": {"name": name, "namespace": namespace, "annotations": base_annotations},
+        "spec": {
+            "rules": [
+                {
+                    "host": host,
+                    "http": {
+                        "paths": [
+                            {
+                                "path": path,
+                                "pathType": "Prefix",
+                                "backend": {
+                                    "service": {
+                                        "name": service_name,
+                                        "port": {"number": service_port},
+                                    }
+                                },
+                            }
+                        ]
+                    },
+                }
+            ]
+        },
+    }
+
+    deploy_dir = ensure_directory(Path(project_path) / "deployment" / "k8s")
+    yaml_path = deploy_dir / "ingress.yaml"
+    with open(yaml_path, "w") as f:
+        yaml.dump(ingress, f, default_flow_style=False, sort_keys=False)
+
+    return {
+        "success": True,
+        "ingress_path": str(yaml_path),
+        "message": f"Ingress YAML created at {yaml_path}",
+    }
+
+
+def create_k8s_hpa_yaml(
+    project_path: str,
+    name: str,
+    deployment_name: str,
+    min_replicas: int = 1,
+    max_replicas: int = 3,
+    target_cpu_utilization: int = 70,
+    namespace: str = "default",
+) -> dict[str, Any]:
+    """Create Kubernetes HPA YAML."""
+    hpa = {
+        "apiVersion": "autoscaling/v2",
+        "kind": "HorizontalPodAutoscaler",
+        "metadata": {"name": name, "namespace": namespace},
+        "spec": {
+            "scaleTargetRef": {
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "name": deployment_name,
+            },
+            "minReplicas": min_replicas,
+            "maxReplicas": max_replicas,
+            "metrics": [
+                {
+                    "type": "Resource",
+                    "resource": {
+                        "name": "cpu",
+                        "target": {
+                            "type": "Utilization",
+                            "averageUtilization": target_cpu_utilization,
+                        },
+                    },
+                }
+            ],
+        },
+    }
+
+    deploy_dir = ensure_directory(Path(project_path) / "deployment" / "k8s")
+    yaml_path = deploy_dir / "hpa.yaml"
+    with open(yaml_path, "w") as f:
+        yaml.dump(hpa, f, default_flow_style=False, sort_keys=False)
+
+    return {
+        "success": True,
+        "hpa_path": str(yaml_path),
+        "message": f"HPA YAML created at {yaml_path}",
+    }
+
+
+def create_k8s_configmap_yaml(
+    project_path: str,
+    name: str,
+    data: dict[str, str],
+    namespace: str = "default",
+) -> dict[str, Any]:
+    """Create Kubernetes ConfigMap YAML."""
+    configmap = {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {"name": name, "namespace": namespace},
+        "data": {k: str(v) for k, v in data.items()},
+    }
+
+    deploy_dir = ensure_directory(Path(project_path) / "deployment" / "k8s")
+    yaml_path = deploy_dir / "configmap.yaml"
+    with open(yaml_path, "w") as f:
+        yaml.dump(configmap, f, default_flow_style=False, sort_keys=False)
+
+    return {
+        "success": True,
+        "configmap_path": str(yaml_path),
+        "message": f"ConfigMap YAML created at {yaml_path}",
+    }
+
+
+def create_k8s_secret_yaml(
+    project_path: str,
+    name: str,
+    data: dict[str, str],
+    namespace: str = "default",
+    encode: bool = True,
+) -> dict[str, Any]:
+    """Create Kubernetes Secret YAML."""
+    secret = {
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "metadata": {"name": name, "namespace": namespace},
+        "type": "Opaque",
+    }
+
+    if encode:
+        secret["data"] = {
+            k: base64.b64encode(str(v).encode("utf-8")).decode("utf-8")
+            for k, v in data.items()
+        }
+    else:
+        secret["stringData"] = {k: str(v) for k, v in data.items()}
+
+    deploy_dir = ensure_directory(Path(project_path) / "deployment" / "k8s")
+    yaml_path = deploy_dir / "secret.yaml"
+    with open(yaml_path, "w") as f:
+        yaml.dump(secret, f, default_flow_style=False, sort_keys=False)
+
+    return {
+        "success": True,
+        "secret_path": str(yaml_path),
+        "message": f"Secret YAML created at {yaml_path}",
+    }
+
+
+def generate_rollback_plan(
+    project_path: str,
+    target: str,
+    deployment_name: str | None = None,
+    namespace: str = "default",
+    error: str | None = None,
+) -> dict[str, Any]:
+    """Generate a rollback plan with suggested commands."""
+    path = Path(project_path)
+    rollback_dir = ensure_directory(path / "deployment" / "rollback")
+    plan_path = rollback_dir / f"rollback_{target}.md"
+
+    commands = []
+    if target in {"kserve", "k8s", "kubernetes"}:
+        name = deployment_name or "your-deployment"
+        commands.append(f"kubectl rollout undo deployment/{name} -n {namespace}")
+    elif target in {"lambda", "fastapi_lambda"}:
+        commands.append("cd deployment/fastapi_lambda && cdk destroy")
+    elif target in {"docker"}:
+        commands.append("docker ps")
+        commands.append("docker stop <container_id> && docker rm <container_id>")
+    else:
+        commands.append("Review deployment artifacts and undo changes manually.")
+
+    content = [
+        f"# Rollback Plan ({target})",
+        "",
+        f"Error: {error or 'N/A'}",
+        "",
+        "## Suggested Commands",
+        "",
+    ]
+    content.extend([f"- `{cmd}`" for cmd in commands])
+    plan_path.write_text("\n".join(content))
+
+    return {
+        "success": True,
+        "rollback_plan_path": str(plan_path),
+        "commands": commands,
+        "message": f"Rollback plan created at {plan_path}",
+    }
+
+
+# --- AWS Automation Tools ---
+
+
+def _ensure_boto3() -> dict[str, Any] | None:
+    if not BOTO3_AVAILABLE:
+        return {"success": False, "error": "boto3 not installed. Add boto3 to dependencies."}
+    return None
+
+
+def list_eks_clusters(region: str | None = None) -> dict[str, Any]:
+    """List EKS clusters in a region."""
+    missing = _ensure_boto3()
+    if missing:
+        return missing
+    region = region or os.environ.get("AWS_REGION", "us-east-1")
+    try:
+        client = boto3.client("eks", region_name=region)
+        clusters = client.list_clusters().get("clusters", [])
+        return {"success": True, "region": region, "clusters": clusters}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def update_kubeconfig(cluster_name: str, region: str | None = None) -> dict[str, Any]:
+    """Update kubeconfig for an EKS cluster using AWS CLI."""
+    if not check_tool_installed("aws"):
+        return {"success": False, "error": "AWS CLI not installed. Install awscli."}
+    region = region or os.environ.get("AWS_REGION", "us-east-1")
+    cmd = ["aws", "eks", "update-kubeconfig", "--name", cluster_name, "--region", region]
+    result = run_command(cmd)
+    if result["success"]:
+        return {
+            "success": True,
+            "message": f"kubeconfig updated for {cluster_name} in {region}",
+            "output": result.get("stdout", ""),
+        }
+    return result
+
+
+def create_ecr_repo(
+    repo_name: str,
+    region: str | None = None,
+    scan_on_push: bool = True,
+    mutable_tags: bool = True,
+) -> dict[str, Any]:
+    """Create or get an ECR repository."""
+    missing = _ensure_boto3()
+    if missing:
+        return missing
+    region = region or os.environ.get("AWS_REGION", "us-east-1")
+    client = boto3.client("ecr", region_name=region)
+    try:
+        response = client.create_repository(
+            repositoryName=repo_name,
+            imageScanningConfiguration={"scanOnPush": scan_on_push},
+            imageTagMutability="MUTABLE" if mutable_tags else "IMMUTABLE",
+        )
+    except ClientError as e:
+        if getattr(e, "response", {}).get("Error", {}).get("Code") == "RepositoryAlreadyExistsException":
+            response = client.describe_repositories(repositoryNames=[repo_name])
+        else:
+            return {"success": False, "error": str(e)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+    repo = response.get("repository", response.get("repositories", [{}])[0])
+    return {
+        "success": True,
+        "repository": repo,
+        "repository_uri": repo.get("repositoryUri"),
+        "message": f"ECR repository ready: {repo.get('repositoryUri')}",
+    }
+
+
+def get_ecr_login(region: str | None = None) -> dict[str, Any]:
+    """Get ECR login command."""
+    missing = _ensure_boto3()
+    if missing:
+        return missing
+    region = region or os.environ.get("AWS_REGION", "us-east-1")
+    try:
+        client = boto3.client("ecr", region_name=region)
+        token = client.get_authorization_token()
+        auth_data = token.get("authorizationData", [{}])[0]
+        auth_token = auth_data.get("authorizationToken", "")
+        proxy_endpoint = auth_data.get("proxyEndpoint", "")
+        user_pass = base64.b64decode(auth_token).decode("utf-8") if auth_token else ":"
+        username, password = user_pass.split(":", 1)
+        login_cmd = f"docker login -u {username} -p {password} {proxy_endpoint}"
+        return {"success": True, "login_command": login_cmd, "registry": proxy_endpoint}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def generate_iam_policy(
+    policy_name: str = "mlops-agent-policy", services: list[str] | None = None
+) -> dict[str, Any]:
+    """Generate a least-privilege IAM policy document."""
+    services = services or ["eks", "ecr", "lambda"]
+    statements = []
+    if "eks" in services:
+        statements.append(
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "eks:ListClusters",
+                    "eks:DescribeCluster",
+                    "eks:UpdateClusterConfig",
+                ],
+                "Resource": "*",
+            }
+        )
+    if "ecr" in services:
+        statements.append(
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "ecr:CreateRepository",
+                    "ecr:DescribeRepositories",
+                    "ecr:GetAuthorizationToken",
+                    "ecr:BatchGetImage",
+                ],
+                "Resource": "*",
+            }
+        )
+    if "lambda" in services:
+        statements.append(
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "lambda:CreateFunction",
+                    "lambda:UpdateFunctionCode",
+                    "lambda:GetFunction",
+                    "lambda:DeleteFunction",
+                ],
+                "Resource": "*",
+            }
+        )
+
+    policy = {
+        "Version": "2012-10-17",
+        "Statement": statements,
+    }
+    return {
+        "success": True,
+        "policy_name": policy_name,
+        "policy_document": policy,
+    }
+
+
+def estimate_deployment_cost(
+    service_type: str = "lambda",
+    requests_per_month: int = 1000000,
+    avg_duration_ms: int = 100,
+    memory_mb: int = 1024,
+    eks_node_hours: int = 720,
+    region: str | None = None,
+) -> dict[str, Any]:
+    """Estimate monthly cost for basic deployment usage."""
+    region = region or os.environ.get("AWS_REGION", "us-east-1")
+    if service_type == "lambda":
+        gb_seconds = (memory_mb / 1024) * (avg_duration_ms / 1000) * requests_per_month
+        compute_cost = gb_seconds * 0.0000166667  # approx $/GB-s
+        request_cost = (requests_per_month / 1_000_000) * 0.20
+        total = compute_cost + request_cost
+        return {
+            "success": True,
+            "service_type": service_type,
+            "region": region,
+            "estimated_monthly_cost_usd": round(total, 2),
+            "details": {
+                "compute_cost": round(compute_cost, 2),
+                "request_cost": round(request_cost, 2),
+            },
+            "notes": "Estimate uses public Lambda pricing defaults.",
+        }
+
+    hourly_rate = 0.0832  # t3.medium approx in us-east-1
+    total = eks_node_hours * hourly_rate
+    return {
+        "success": True,
+        "service_type": service_type,
+        "region": region,
+        "estimated_monthly_cost_usd": round(total, 2),
+        "details": {"node_hours": eks_node_hours, "hourly_rate": hourly_rate},
+        "notes": "Estimate uses a single t3.medium on-demand node.",
+    }
+
+
+def create_helm_chart(
+    project_path: str,
+    chart_name: str,
+    image: str,
+    chart_version: str = "0.1.0",
+    app_version: str = "1.0.0",
+    namespace: str = "default",
+    container_port: int = 8000,
+    service_port: int = 80,
+    include_ingress: bool = False,
+    include_hpa: bool = False,
+    include_configmap: bool = False,
+    include_secret: bool = False,
+) -> dict[str, Any]:
+    """Create a Helm chart for Kubernetes deployment."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    chart_dir = ensure_directory(path / "deployment" / "helm" / chart_name)
+    templates_dir = ensure_directory(chart_dir / "templates")
+
+    chart_yaml = f"""apiVersion: v2
+name: {chart_name}
+description: Helm chart generated by MLOps Agent
+type: application
+version: {chart_version}
+appVersion: "{app_version}"
+"""
+
+    values_yaml = f"""replicaCount: 1
+
+image:
+  repository: "{image}"
+  pullPolicy: IfNotPresent
+
+namespace: "{namespace}"
+
+service:
+  type: ClusterIP
+  port: {service_port}
+
+containerPort: {container_port}
+
+ingress:
+  enabled: {str(include_ingress).lower()}
+  className: alb
+  host: example.com
+  path: /
+
+hpa:
+  enabled: {str(include_hpa).lower()}
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+
+configmap:
+  enabled: {str(include_configmap).lower()}
+  data: {{}}
+
+secret:
+  enabled: {str(include_secret).lower()}
+  data: {{}}
+
+resources: {{}}
+"""
+
+    deployment_tpl = """apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ .Values.image.repository }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+          {{- if .Values.configmap.enabled }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Chart.Name }}-config
+          {{- end }}
+          {{- if .Values.secret.enabled }}
+          envFrom:
+            - secretRef:
+                name: {{ .Chart.Name }}-secret
+          {{- end }}
+"""
+
+    service_tpl = """apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: {{ .Chart.Name }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.containerPort }}
+"""
+
+    ingress_tpl = """{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.ingress.className }}
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Chart.Name }}
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}
+"""
+
+    hpa_tpl = """{{- if .Values.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Chart.Name }}
+  minReplicas: {{ .Values.hpa.minReplicas }}
+  maxReplicas: {{ .Values.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.hpa.targetCPUUtilizationPercentage }}
+{{- end }}
+"""
+
+    configmap_tpl = """{{- if .Values.configmap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-config
+  namespace: {{ .Values.namespace }}
+data:
+{{- range $key, $val := .Values.configmap.data }}
+  {{ $key }}: {{ $val | quote }}
+{{- end }}
+{{- end }}
+"""
+
+    secret_tpl = """{{- if .Values.secret.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Chart.Name }}-secret
+  namespace: {{ .Values.namespace }}
+type: Opaque
+stringData:
+{{- range $key, $val := .Values.secret.data }}
+  {{ $key }}: {{ $val | quote }}
+{{- end }}
+{{- end }}
+"""
+
+    (chart_dir / "Chart.yaml").write_text(chart_yaml)
+    (chart_dir / "values.yaml").write_text(values_yaml)
+    (templates_dir / "deployment.yaml").write_text(deployment_tpl)
+    (templates_dir / "service.yaml").write_text(service_tpl)
+
+    if include_ingress:
+        (templates_dir / "ingress.yaml").write_text(ingress_tpl)
+    if include_hpa:
+        (templates_dir / "hpa.yaml").write_text(hpa_tpl)
+    if include_configmap:
+        (templates_dir / "configmap.yaml").write_text(configmap_tpl)
+    if include_secret:
+        (templates_dir / "secret.yaml").write_text(secret_tpl)
+
+    return {
+        "success": True,
+        "chart_path": str(chart_dir),
+        "message": f"Helm chart created at {chart_dir}",
+    }
+
+
+def rollback_k8s_deployment(
+    project_path: str,
+    deployment_name: str,
+    namespace: str = "default",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Rollback a Kubernetes deployment using kubectl."""
+    cmd = ["kubectl", "rollout", "undo", f"deployment/{deployment_name}", "-n", namespace]
+    if dry_run:
+        return {"success": True, "dry_run": True, "command": " ".join(cmd)}
+    if not check_tool_installed("kubectl"):
+        return {"success": False, "error": "kubectl not installed"}
+    result = run_command(cmd)
+    return {"success": result.get("success", False), "output": result}
+
+
+def rollback_lambda_stack(
+    project_path: str,
+    stack_name: str,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Rollback an AWS Lambda CDK stack (destroy)."""
+    deploy_dir = Path(project_path) / "deployment" / "fastapi_lambda"
+    cmd = ["cdk", "destroy", stack_name, "--force"]
+    if dry_run:
+        return {"success": True, "dry_run": True, "command": " ".join(cmd), "cwd": str(deploy_dir)}
+    if not check_tool_installed("cdk"):
+        return {"success": False, "error": "cdk not installed"}
+    result = run_command(cmd, cwd=str(deploy_dir))
+    return {"success": result.get("success", False), "output": result}
+
+
+def rollback_deployment(
+    project_path: str,
+    target: str,
+    deployment_name: str | None = None,
+    namespace: str = "default",
+    stack_name: str | None = None,
+    container_id: str | None = None,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Rollback a deployment based on target type."""
+    target = target.lower()
+    if target in {"kserve", "k8s", "kubernetes"}:
+        name = deployment_name or "your-deployment"
+        return rollback_k8s_deployment(project_path, name, namespace, dry_run)
+    if target in {"lambda", "fastapi_lambda"}:
+        name = stack_name or "your-stack"
+        return rollback_lambda_stack(project_path, name, dry_run)
+    if target in {"docker"}:
+        if not container_id:
+            container_id = "<container_id>"
+        cmd = f"docker stop {container_id} && docker rm {container_id}"
+        return {"success": True, "dry_run": True, "command": cmd}
+    return {
+        "success": True,
+        "dry_run": True,
+        "command": "Review deployment artifacts and undo changes manually.",
+    }
+
+
 # ============================================================================
 # MCP Server Setup
 # ============================================================================
@@ -5105,6 +6070,93 @@ async def list_tools() -> list[Tool]:
             name="generate_kserve_config",
             description="Generate KServe scaling and resource configuration",
             inputSchema=GenerateKServeConfigInput.model_json_schema(),
+        ),
+        # Kubernetes Manifests
+        Tool(
+            name="create_k8s_deployment_yaml",
+            description="Create Kubernetes Deployment YAML",
+            inputSchema=CreateK8sDeploymentInput.model_json_schema(),
+        ),
+        Tool(
+            name="create_k8s_service_yaml",
+            description="Create Kubernetes Service YAML",
+            inputSchema=CreateK8sServiceInput.model_json_schema(),
+        ),
+        Tool(
+            name="create_k8s_ingress_yaml",
+            description="Create Kubernetes Ingress YAML (ALB annotations for EKS)",
+            inputSchema=CreateK8sIngressInput.model_json_schema(),
+        ),
+        Tool(
+            name="create_k8s_hpa_yaml",
+            description="Create Kubernetes HPA YAML",
+            inputSchema=CreateK8sHPAInput.model_json_schema(),
+        ),
+        Tool(
+            name="create_k8s_configmap_yaml",
+            description="Create Kubernetes ConfigMap YAML",
+            inputSchema=CreateK8sConfigMapInput.model_json_schema(),
+        ),
+        Tool(
+            name="create_k8s_secret_yaml",
+            description="Create Kubernetes Secret YAML",
+            inputSchema=CreateK8sSecretInput.model_json_schema(),
+        ),
+        Tool(
+            name="generate_rollback_plan",
+            description="Generate rollback plan for a deployment target",
+            inputSchema=GenerateRollbackPlanInput.model_json_schema(),
+        ),
+        # AWS Automation
+        Tool(
+            name="list_eks_clusters",
+            description="List EKS clusters in a region",
+            inputSchema=ListEKSClustersInput.model_json_schema(),
+        ),
+        Tool(
+            name="update_kubeconfig",
+            description="Update kubeconfig for an EKS cluster using AWS CLI",
+            inputSchema=UpdateKubeconfigInput.model_json_schema(),
+        ),
+        Tool(
+            name="create_ecr_repo",
+            description="Create or get an ECR repository",
+            inputSchema=CreateECRRepoInput.model_json_schema(),
+        ),
+        Tool(
+            name="get_ecr_login",
+            description="Get ECR docker login command",
+            inputSchema=GetECRLoginInput.model_json_schema(),
+        ),
+        Tool(
+            name="generate_iam_policy",
+            description="Generate least-privilege IAM policy",
+            inputSchema=GenerateIAMPolicyInput.model_json_schema(),
+        ),
+        Tool(
+            name="estimate_deployment_cost",
+            description="Estimate monthly deployment cost for Lambda/EKS",
+            inputSchema=EstimateDeploymentCostInput.model_json_schema(),
+        ),
+        Tool(
+            name="create_helm_chart",
+            description="Create Helm chart for Kubernetes deployment",
+            inputSchema=CreateHelmChartInput.model_json_schema(),
+        ),
+        Tool(
+            name="rollback_k8s_deployment",
+            description="Rollback a Kubernetes deployment using kubectl",
+            inputSchema=RollbackK8sDeploymentInput.model_json_schema(),
+        ),
+        Tool(
+            name="rollback_lambda_stack",
+            description="Rollback an AWS Lambda CDK stack",
+            inputSchema=RollbackLambdaStackInput.model_json_schema(),
+        ),
+        Tool(
+            name="rollback_deployment",
+            description="Rollback a deployment based on target type",
+            inputSchema=RollbackDeploymentInput.model_json_schema(),
         ),
     ]
 
@@ -5542,6 +6594,173 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 input_data.target_utilization,
                 input_data.gpu_enabled,
                 input_data.gpu_count,
+            )
+
+        # Kubernetes Manifests
+        elif name == "create_k8s_deployment_yaml":
+            input_data = CreateK8sDeploymentInput(**arguments)
+            result = create_k8s_deployment_yaml(
+                input_data.project_path,
+                input_data.name,
+                input_data.image,
+                input_data.replicas,
+                input_data.container_port,
+                input_data.namespace,
+                input_data.labels,
+                input_data.env,
+                input_data.resources,
+            )
+
+        elif name == "create_k8s_service_yaml":
+            input_data = CreateK8sServiceInput(**arguments)
+            result = create_k8s_service_yaml(
+                input_data.project_path,
+                input_data.name,
+                input_data.selector,
+                input_data.port,
+                input_data.target_port,
+                input_data.service_type,
+                input_data.namespace,
+            )
+
+        elif name == "create_k8s_ingress_yaml":
+            input_data = CreateK8sIngressInput(**arguments)
+            result = create_k8s_ingress_yaml(
+                input_data.project_path,
+                input_data.name,
+                input_data.host,
+                input_data.service_name,
+                input_data.service_port,
+                input_data.path,
+                input_data.namespace,
+                input_data.ingress_class,
+                input_data.alb_scheme,
+                input_data.certificate_arn,
+                input_data.annotations,
+            )
+
+        elif name == "create_k8s_hpa_yaml":
+            input_data = CreateK8sHPAInput(**arguments)
+            result = create_k8s_hpa_yaml(
+                input_data.project_path,
+                input_data.name,
+                input_data.deployment_name,
+                input_data.min_replicas,
+                input_data.max_replicas,
+                input_data.target_cpu_utilization,
+                input_data.namespace,
+            )
+
+        elif name == "create_k8s_configmap_yaml":
+            input_data = CreateK8sConfigMapInput(**arguments)
+            result = create_k8s_configmap_yaml(
+                input_data.project_path,
+                input_data.name,
+                input_data.data,
+                input_data.namespace,
+            )
+
+        elif name == "create_k8s_secret_yaml":
+            input_data = CreateK8sSecretInput(**arguments)
+            result = create_k8s_secret_yaml(
+                input_data.project_path,
+                input_data.name,
+                input_data.data,
+                input_data.namespace,
+                input_data.encode,
+            )
+
+        elif name == "generate_rollback_plan":
+            input_data = GenerateRollbackPlanInput(**arguments)
+            result = generate_rollback_plan(
+                input_data.project_path,
+                input_data.target,
+                input_data.deployment_name,
+                input_data.namespace,
+                input_data.error,
+            )
+
+        # AWS Automation
+        elif name == "list_eks_clusters":
+            input_data = ListEKSClustersInput(**arguments)
+            result = list_eks_clusters(input_data.region)
+
+        elif name == "update_kubeconfig":
+            input_data = UpdateKubeconfigInput(**arguments)
+            result = update_kubeconfig(input_data.cluster_name, input_data.region)
+
+        elif name == "create_ecr_repo":
+            input_data = CreateECRRepoInput(**arguments)
+            result = create_ecr_repo(
+                input_data.repo_name,
+                input_data.region,
+                input_data.scan_on_push,
+                input_data.mutable_tags,
+            )
+
+        elif name == "get_ecr_login":
+            input_data = GetECRLoginInput(**arguments)
+            result = get_ecr_login(input_data.region)
+
+        elif name == "generate_iam_policy":
+            input_data = GenerateIAMPolicyInput(**arguments)
+            result = generate_iam_policy(input_data.policy_name, input_data.services)
+
+        elif name == "estimate_deployment_cost":
+            input_data = EstimateDeploymentCostInput(**arguments)
+            result = estimate_deployment_cost(
+                input_data.service_type,
+                input_data.requests_per_month,
+                input_data.avg_duration_ms,
+                input_data.memory_mb,
+                input_data.eks_node_hours,
+                input_data.region,
+            )
+
+        elif name == "create_helm_chart":
+            input_data = CreateHelmChartInput(**arguments)
+            result = create_helm_chart(
+                input_data.project_path,
+                input_data.chart_name,
+                input_data.image,
+                input_data.chart_version,
+                input_data.app_version,
+                input_data.namespace,
+                input_data.container_port,
+                input_data.service_port,
+                input_data.include_ingress,
+                input_data.include_hpa,
+                input_data.include_configmap,
+                input_data.include_secret,
+            )
+
+        elif name == "rollback_k8s_deployment":
+            input_data = RollbackK8sDeploymentInput(**arguments)
+            result = rollback_k8s_deployment(
+                input_data.project_path,
+                input_data.deployment_name,
+                input_data.namespace,
+                input_data.dry_run,
+            )
+
+        elif name == "rollback_lambda_stack":
+            input_data = RollbackLambdaStackInput(**arguments)
+            result = rollback_lambda_stack(
+                input_data.project_path,
+                input_data.stack_name,
+                input_data.dry_run,
+            )
+
+        elif name == "rollback_deployment":
+            input_data = RollbackDeploymentInput(**arguments)
+            result = rollback_deployment(
+                input_data.project_path,
+                input_data.target,
+                input_data.deployment_name,
+                input_data.namespace,
+                input_data.stack_name,
+                input_data.container_id,
+                input_data.dry_run,
             )
 
         else:

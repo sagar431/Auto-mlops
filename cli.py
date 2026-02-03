@@ -22,6 +22,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+# Try loading from current directory and package directory
+load_dotenv()  # Current directory
+load_dotenv(Path(__file__).parent / ".env")  # Package directory
+
 import httpx
 
 # Rich console for beautiful output
@@ -154,6 +160,32 @@ class AgentEventHandler:
             status_icon = ICONS["success"] if threshold_met else ICONS["pending"]
             console.print(f"   {status_icon} New accuracy: [bold]{new_accuracy:.2%}[/bold]")
 
+        elif event_type == "approval_required":
+            scope = data.get("scope", "operation")
+            approval_id = data.get("approval_id", "")
+            console.print(
+                f"\n⏸️ [bold yellow]Approval Required[/bold yellow]: {scope}"
+            )
+            if approval_id:
+                console.print(f"   Approval ID: [cyan]{approval_id}[/cyan]")
+
+        elif event_type == "approval_granted":
+            scope = data.get("scope", "operation")
+            console.print(f"   ✅ Approval granted for {scope}")
+
+        elif event_type == "approval_denied":
+            scope = data.get("scope", "operation")
+            console.print(f"   ❌ Approval denied for {scope}")
+
+        elif event_type == "approval_timeout":
+            scope = data.get("scope", "operation")
+            console.print(f"   ⏳ Approval timed out for {scope}")
+
+        elif event_type == "rollback_result":
+            success = data.get("success", False)
+            status = "✅" if success else "❌"
+            console.print(f"   {status} Rollback plan generated")
+
         elif event_type == "error":
             error = data.get("error", "Unknown error")
             console.print(f"\n{ICONS['failed']} [bold red]Error[/bold red]: {error}")
@@ -220,12 +252,32 @@ def print_help():
 
 
 async def run_agent_with_events(
-    query: str, project_path: str | None = None, accuracy_threshold: float = 0.85
+    query: str,
+    project_path: str | None = None,
+    accuracy_threshold: float = 0.85,
+    auto_approve: bool = False,
 ) -> str:
     """Run agent with event handling."""
     handler = AgentEventHandler()
 
-    agent = AgentLoop(on_event=handler.handle_event)
+    def approval_prompt(payload: dict[str, Any]) -> tuple[bool, str | None]:
+        if auto_approve:
+            return True, "auto-approved"
+        scope = payload.get("scope", "operation")
+        console.print(
+            Panel(
+                f"Approval required for: {scope}\nProceed? (y/n)",
+                title="Approval Needed",
+                border_style="yellow",
+            )
+        )
+        answer = console.input("[bold yellow]Approve?[/bold yellow] ").strip().lower()
+        approved = answer in {"y", "yes"}
+        return approved, None if approved else "user_denied"
+
+    agent = AgentLoop(
+        on_event=handler.handle_event, approval_callback=approval_prompt, auto_approve=auto_approve
+    )
 
     try:
         result = await agent.run(
@@ -242,7 +294,11 @@ async def run_agent_with_events(
         raise
 
 
-async def interactive_mode(project_path: str | None = None, accuracy_threshold: float = 0.85):
+async def interactive_mode(
+    project_path: str | None = None,
+    accuracy_threshold: float = 0.85,
+    auto_approve: bool = False,
+):
     """Run agent in interactive REPL mode."""
     print_banner()
 
@@ -295,7 +351,10 @@ async def interactive_mode(project_path: str | None = None, accuracy_threshold: 
 
             # Run agent with query
             await run_agent_with_events(
-                query=query, project_path=project_path, accuracy_threshold=accuracy_threshold
+                query=query,
+                project_path=project_path,
+                accuracy_threshold=accuracy_threshold,
+                auto_approve=auto_approve,
             )
 
             console.print()  # Add spacing
@@ -307,7 +366,10 @@ async def interactive_mode(project_path: str | None = None, accuracy_threshold: 
 
 
 async def single_command_mode(
-    query: str, project_path: str | None = None, accuracy_threshold: float = 0.85
+    query: str,
+    project_path: str | None = None,
+    accuracy_threshold: float = 0.85,
+    auto_approve: bool = False,
 ):
     """Run agent with a single command."""
     print_banner()
@@ -318,7 +380,10 @@ async def single_command_mode(
     console.print(f"[bold]Accuracy Target:[/bold] {accuracy_threshold:.0%}")
 
     await run_agent_with_events(
-        query=query, project_path=project_path, accuracy_threshold=accuracy_threshold
+        query=query,
+        project_path=project_path,
+        accuracy_threshold=accuracy_threshold,
+        auto_approve=auto_approve,
     )
 
 
@@ -959,21 +1024,66 @@ def setup_admin_parser(subparsers: argparse._SubParsersAction) -> None:
 
 def main():
     """Main entry point."""
+    # Check if first argument is a known subcommand
+    known_commands = {"admin", "init", "deploy", "monitor", "validate", "-h", "--help", "--version"}
+
+    # If first arg looks like a query (not a command), use agent parser
+    if len(sys.argv) > 1 and sys.argv[1] not in known_commands and not sys.argv[1].startswith("-"):
+        # This is a query string - run the agent
+        agent_parser = argparse.ArgumentParser(
+            description="MLOps Agent - AI-powered ML Pipeline Automation",
+        )
+        agent_parser.add_argument("query", help="Natural language query for the agent")
+        agent_parser.add_argument(
+            "-p", "--project", type=str, default=None, help="Path to ML project directory"
+        )
+        agent_parser.add_argument(
+            "-t", "--threshold", type=float, default=0.85, help="Accuracy threshold (default: 0.85)"
+        )
+        agent_parser.add_argument(
+            "--approve",
+            action="store_true",
+            help="Auto-approve any human-in-loop prompts",
+        )
+
+        args = agent_parser.parse_args()
+
+        # Validate project path if provided
+        if args.project:
+            project_path = Path(args.project).resolve()
+            if not project_path.exists():
+                console.print(f"[red]Error: Project path does not exist: {project_path}[/red]")
+                sys.exit(1)
+            args.project = str(project_path)
+
+        try:
+            asyncio.run(
+                single_command_mode(args.query, args.project, args.threshold, args.approve)
+            )
+        except KeyboardInterrupt:
+            console.print("\n[dim]Interrupted. Goodbye![/dim]")
+            sys.exit(0)
+        except Exception as e:
+            console.print(f"[bold red]Fatal Error:[/bold red] {str(e)}")
+            sys.exit(1)
+        return
+
+    # Regular parser with subcommands
     parser = argparse.ArgumentParser(
         description="MLOps Agent - AI-powered ML Pipeline Automation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python cli.py "Set up MLOps pipeline for my cat-dog classifier"
-  python cli.py --project ./my_project --threshold 0.90 "Train until accuracy target"
-  python cli.py --interactive --project ./my_project
+  mlops-agent "Set up MLOps pipeline for my cat-dog classifier"
+  mlops-agent "Train until accuracy target" --project ./my_project --threshold 0.90
+  mlops-agent --interactive --project ./my_project
 
 Admin Commands:
-  python cli.py admin create-user --username admin --email admin@example.com
-  python cli.py admin create-key --name "My API Key"
-  python cli.py admin list-users
-  python cli.py admin list-keys
-  python cli.py admin revoke-key --key-id <key_id>
+  mlops-agent admin create-user --username admin --email admin@example.com
+  mlops-agent admin create-key --name "My API Key"
+  mlops-agent admin list-users
+  mlops-agent admin list-keys
+  mlops-agent admin revoke-key --key-id <key_id>
         """,
     )
 
@@ -1043,8 +1153,6 @@ Admin Commands:
     validate_parser.set_defaults(func=cmd_validate)
 
     # Agent arguments (for non-admin usage)
-    parser.add_argument("query", nargs="?", help="Natural language query for the agent")
-
     parser.add_argument(
         "-p", "--project", type=str, default=None, help="Path to ML project directory"
     )
@@ -1055,6 +1163,11 @@ Admin Commands:
 
     parser.add_argument(
         "-i", "--interactive", action="store_true", help="Run in interactive REPL mode"
+    )
+    parser.add_argument(
+        "--approve",
+        action="store_true",
+        help="Auto-approve any human-in-loop prompts",
     )
 
     parser.add_argument("--version", action="version", version="MLOps Agent v1.0.0")
@@ -1080,14 +1193,12 @@ Admin Commands:
     # Run in appropriate mode
     try:
         if hasattr(args, "interactive") and args.interactive:
-            asyncio.run(interactive_mode(args.project, args.threshold))
-        elif hasattr(args, "query") and args.query:
-            asyncio.run(single_command_mode(args.query, args.project, args.threshold))
+            asyncio.run(interactive_mode(args.project, args.threshold, args.approve))
         else:
             # No query provided, enter interactive mode
             project = getattr(args, "project", None)
             threshold = getattr(args, "threshold", 0.85)
-            asyncio.run(interactive_mode(project, threshold))
+            asyncio.run(interactive_mode(project, threshold, args.approve))
 
     except KeyboardInterrupt:
         console.print("\n[dim]Interrupted. Goodbye![/dim]")

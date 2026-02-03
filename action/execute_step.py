@@ -186,6 +186,38 @@ AVAILABLE_TOOLS = [
     "analyze_training_results",
     "suggest_improvements",
     "check_accuracy_threshold",
+    # Deployment (Phase 4)
+    "create_litserve_api",
+    "configure_litserver",
+    "create_gradio_interface",
+    "deploy_to_huggingface",
+    "create_fastapi_app",
+    "create_lambda_dockerfile",
+    "generate_cdk_stack",
+    "create_torchserve_handler",
+    "create_mar_archive",
+    "generate_torchserve_config",
+    "create_inference_service_yaml",
+    "generate_kserve_config",
+    # Kubernetes manifests
+    "create_k8s_deployment_yaml",
+    "create_k8s_service_yaml",
+    "create_k8s_ingress_yaml",
+    "create_k8s_hpa_yaml",
+    "create_k8s_configmap_yaml",
+    "create_k8s_secret_yaml",
+    "generate_rollback_plan",
+    "create_helm_chart",
+    "rollback_k8s_deployment",
+    "rollback_lambda_stack",
+    "rollback_deployment",
+    # AWS automation
+    "list_eks_clusters",
+    "update_kubeconfig",
+    "create_ecr_repo",
+    "get_ecr_login",
+    "generate_iam_policy",
+    "estimate_deployment_cost",
 ]
 
 

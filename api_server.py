@@ -103,6 +103,9 @@ class RunRequest(BaseModel):
     query: str = Field(..., description="Natural language query", min_length=1)
     project_path: str | None = Field(None, description="Path to ML project")
     accuracy_threshold: float = Field(0.85, ge=0.0, le=1.0, description="Target accuracy")
+    auto_approve: bool = Field(
+        default=False, description="Auto-approve human-in-loop deployment gates"
+    )
 
 
 class RunResponse(BaseModel):
@@ -111,6 +114,15 @@ class RunResponse(BaseModel):
     session_id: str
     status: str
     message: str
+
+
+class ApprovalRequest(BaseModel):
+    """Request model for approval decisions."""
+
+    session_id: str = Field(..., description="Session ID awaiting approval")
+    approval_id: str = Field(..., description="Approval request ID")
+    approved: bool = Field(..., description="Approval decision")
+    reason: str | None = Field(default=None, description="Optional approval reason")
 
 
 class SessionStatus(BaseModel):
@@ -219,6 +231,7 @@ class SessionManager:
     def __init__(self):
         # WebSocket connections are kept in memory (runtime state only)
         self.websockets: dict[str, list[WebSocket]] = {}
+        self.session_configs: dict[str, dict[str, Any]] = {}
 
     def _session_to_dict(self, session: DBAgentSession) -> dict[str, Any]:
         """Convert database session model to API dict format."""
@@ -240,7 +253,12 @@ class SessionManager:
         }
 
     async def create_session(
-        self, db: AsyncSession, query: str, project_path: str | None, threshold: float
+        self,
+        db: AsyncSession,
+        query: str,
+        project_path: str | None,
+        threshold: float,
+        auto_approve: bool = False,
     ) -> str:
         """Create a new session in the database."""
         session_id = str(uuid.uuid4())
@@ -263,6 +281,7 @@ class SessionManager:
         await db.commit()
 
         self.websockets[session_id] = []
+        self.session_configs[session_id] = {"auto_approve": auto_approve}
         return session_id
 
     async def get_session(self, db: AsyncSession, session_id: str) -> dict | None:
@@ -447,6 +466,7 @@ async def run_agent_session(session_id: str):
             return
         # Store a copy of session data for the agent run
         session_data = dict(session)
+    auto_approve = session_manager.session_configs.get(session_id, {}).get("auto_approve", False)
 
     async def event_handler(event_type: str, data: dict):
         """Handle agent events and broadcast to websockets."""
@@ -481,6 +501,25 @@ async def run_agent_session(session_id: str):
                     errors.append(data.get("error", "Unknown error"))
                     await session_manager.update_session(db, session_id, {"errors": errors})
 
+            elif event_type == "approval_required":
+                await session_manager.update_session(
+                    db, session_id, {"status": "paused", "current_phase": "approval"}
+                )
+
+            elif event_type == "approval_granted":
+                await session_manager.update_session(
+                    db, session_id, {"status": "running", "current_phase": "deployment"}
+                )
+
+            elif event_type == "approval_denied":
+                await session_manager.update_session(
+                    db, session_id, {"status": "failed", "current_phase": "approval"}
+                )
+            elif event_type == "approval_timeout":
+                await session_manager.update_session(
+                    db, session_id, {"status": "paused", "current_phase": "approval"}
+                )
+
             elif event_type == "improvement_complete":
                 await session_manager.update_session(
                     db, session_id, {"accuracy": data.get("new_accuracy")}
@@ -494,7 +533,7 @@ async def run_agent_session(session_id: str):
         await session_manager.update_session(db, session_id, {"status": "running"})
 
     try:
-        agent = AgentLoop(on_event=event_handler)
+        agent = AgentLoop(on_event=event_handler, auto_approve=auto_approve)
         result = await agent.run(
             query=session_data["query"],
             project_path=session_data["project_path"],
@@ -617,6 +656,7 @@ async def run_agent(
         query=run_request.query,
         project_path=run_request.project_path,
         threshold=run_request.accuracy_threshold,
+        auto_approve=run_request.auto_approve,
     )
 
     # Run agent in background
@@ -627,6 +667,36 @@ async def run_agent(
         status="started",
         message=f"Agent started. Monitor progress at /status/{session_id} or connect to /ws/{session_id}",
     )
+
+
+@app.post("/approve", tags=["Agent"])
+@limiter.limit(get_rate_limit)
+async def approve_action(
+    request: Request,
+    approval_request: ApprovalRequest,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Record an approval decision for a running session."""
+    session = await session_manager.get_session(db, approval_request.session_id)
+    if not session:
+        raise HTTPException(
+            status_code=404, detail=f"Session not found: {approval_request.session_id}"
+        )
+
+    await session_manager.broadcast_event(
+        db,
+        approval_request.session_id,
+        "approval_decision",
+        {
+            "approval_id": approval_request.approval_id,
+            "approved": approval_request.approved,
+            "reason": approval_request.reason,
+            "user": current_user.user_id if current_user else None,
+        },
+    )
+
+    return {"status": "recorded", "approved": approval_request.approved}
 
 
 @app.get("/status/{session_id}", response_model=SessionStatus, tags=["Agent"])

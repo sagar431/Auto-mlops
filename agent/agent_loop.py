@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from action.execute_step import execute_step
+from agent.approval import wait_for_approval
 from agent.agentSession import AgentSession
 from agent.contextManager import ContextManager
 from agent.model_manager import get_model_manager
@@ -136,6 +137,9 @@ class AgentLoop:
         tools_module: Any | None = None,
         on_event: Callable | None = None,
         profile: str = "default",
+        approval_callback: Callable | None = None,
+        approval_timeout: int = 300,
+        auto_approve: bool = False,
     ):
         # Load prompts
         prompts_dir = Path(prompts_dir) if prompts_dir else Path(__file__).parent.parent / "prompts"
@@ -149,6 +153,10 @@ class AgentLoop:
         self.profile = profile
         self.on_event = on_event
         self.status = "idle"
+        self.approval_callback = approval_callback
+        self.approval_timeout = approval_timeout
+        self.auto_approve = auto_approve
+        self._approval_cache: dict[str, bool] = {}
 
         # Model manager for LLM calls
         self.model_manager = get_model_manager()
@@ -203,6 +211,10 @@ class AgentLoop:
         # Phase 3: Check for deployment if requested
         if self._needs_deployment():
             await self._run_deployment_loop()
+            if self.status == "paused":
+                return self.final_output
+            if self.status == "failed":
+                return self.final_output
 
         # Phase 4: Check for improvement if training occurred
         if self._needs_improvement():
@@ -302,6 +314,78 @@ class AgentLoop:
         self.status = "success"
         self.final_output = summary.get("summary_markdown", str(summary))
         return self.final_output
+
+    async def _ensure_approval(self, scope: str, details: dict[str, Any]) -> tuple[bool, str]:
+        """Ensure human approval for a given scope (deployment/build)."""
+        if self.auto_approve:
+            self._approval_cache[scope] = True
+            return True, "approved"
+
+        if self._approval_cache.get(scope):
+            return True, "approved"
+
+        approval_id = f"{self.session_id}:{scope}:{uuid.uuid4().hex[:8]}"
+        payload = {"scope": scope, "approval_id": approval_id, "details": details}
+        await self._emit("approval_required", payload)
+
+        # Record in session history
+        if self.session:
+            self.session.add_message(
+                role="assistant",
+                content=f"Approval required for {scope}",
+                metadata={"approval_id": approval_id, "scope": scope, "details": details},
+            )
+
+        # If callback is provided (CLI), use it
+        if self.approval_callback:
+            decision = self.approval_callback(payload)
+            if hasattr(decision, "__await__"):
+                decision = await decision
+            approved, reason = (decision, None)
+            if isinstance(decision, tuple):
+                approved, reason = decision
+            if approved:
+                self._approval_cache[scope] = True
+                await self._emit(
+                    "approval_granted",
+                    {"scope": scope, "approval_id": approval_id, "reason": reason},
+                )
+                return True, "approved"
+
+            await self._emit(
+                "approval_denied",
+                {"scope": scope, "approval_id": approval_id, "reason": reason},
+            )
+            return False, "denied"
+
+        # Otherwise, wait for approval decision in DB (API use-case)
+        decision = await wait_for_approval(
+            self.session_id, approval_id, timeout_seconds=self.approval_timeout
+        )
+        if decision and decision.approved:
+            self._approval_cache[scope] = True
+            await self._emit(
+                "approval_granted",
+                {"scope": scope, "approval_id": approval_id, "reason": decision.reason},
+            )
+            return True, "approved"
+
+        if decision is None:
+            await self._emit(
+                "approval_timeout",
+                {"scope": scope, "approval_id": approval_id, "reason": "timeout"},
+            )
+            return False, "timeout"
+        else:
+            await self._emit(
+                "approval_denied",
+                {
+                    "scope": scope,
+                    "approval_id": approval_id,
+                    "reason": decision.reason,
+                },
+            )
+        return False, "denied"
 
     async def _run_decision_loop(self):
         """Run decision and execute steps in a loop."""
@@ -630,7 +714,33 @@ class AgentLoop:
                 from_node=StepType.ROOT,
             )
 
+        # Require approval before executing deployment steps
+        approved, approval_status = await self._ensure_approval(
+            "deployment",
+            {
+                "target": deployment_target,
+                "project_path": self.ctx.project_path,
+                "steps": [n.get("description", "") for n in plan_nodes],
+            },
+        )
+        if not approved:
+            self.status = "paused" if approval_status == "timeout" else "failed"
+            if approval_status == "denied":
+                self.final_output = "Deployment approval denied. No changes applied."
+            else:
+                self.final_output = (
+                    "Approval required for deployment. Submit approval and rerun to continue."
+                )
+            if self.status == "paused":
+                await self._emit(
+                    "status",
+                    {"status": "paused", "message": "Deployment paused awaiting approval"},
+                )
+            return
+
         # Execute deployment steps
+        deployment_failed = False
+        failure_error = ""
         for node in plan_nodes:
             step_id = f"deploy_{node['id']}"
 
@@ -663,6 +773,19 @@ class AgentLoop:
                 await self._emit(
                     "step_failed", {"step_id": step_id, "error": str(result.get("error", ""))[:200]}
                 )
+                deployment_failed = True
+                failure_error = str(result.get("error", "Unknown error"))
+                break
+
+        if deployment_failed:
+            await self._emit(
+                "deployment_failed",
+                {"target": deployment_target, "error": failure_error[:200]},
+            )
+            await self._run_deployment_rollback(deployment_target, failure_error)
+            self.status = "failed"
+            self.final_output = await self._summarize()
+            return
 
         await self._emit("deployment_complete", {"target": deployment_target, "status": "success"})
 
@@ -670,6 +793,44 @@ class AgentLoop:
         self.status = "success"
         await self._emit("phase", {"phase": "summary", "message": "Deployment complete!"})
         self.final_output = await self._summarize()
+
+    async def _run_deployment_rollback(self, target: str, error: str):
+        """Attempt to generate rollback instructions for a failed deployment."""
+        tool_name = "rollback_deployment"
+        args = {
+            "project_path": self.ctx.project_path or ".",
+            "target": target,
+            "error": error,
+            "dry_run": True,
+        }
+        success, result = await execute_step(
+            step_id="rollback",
+            tool=tool_name,
+            args=args,
+            ctx=self.ctx,
+            tools_module=self.tools_module,
+        )
+        if not success:
+            # Fallback to static rollback plan
+            success, result = await execute_step(
+                step_id="rollback_plan",
+                tool="generate_rollback_plan",
+                args={
+                    "project_path": self.ctx.project_path or ".",
+                    "target": target,
+                    "error": error,
+                },
+                ctx=self.ctx,
+                tools_module=self.tools_module,
+            )
+        await self._emit(
+            "rollback_result",
+            {
+                "target": target,
+                "success": success,
+                "result": result.get("result") if success else result.get("error"),
+            },
+        )
 
     async def _get_improvement_suggestion(self) -> dict[str, Any]:
         """Get improvement suggestions from LLM."""
@@ -716,6 +877,7 @@ async def run_mlops_agent(
     project_path: str | None = None,
     accuracy_threshold: float = 0.85,
     on_event: Callable | None = None,
+    auto_approve: bool = False,
 ) -> str:
     """
     Run the MLOps agent with a query.
@@ -729,7 +891,7 @@ async def run_mlops_agent(
     Returns:
         Final summary markdown
     """
-    agent = AgentLoop(on_event=on_event)
+    agent = AgentLoop(on_event=on_event, auto_approve=auto_approve)
     return await agent.run(
         query=query, project_path=project_path, accuracy_threshold=accuracy_threshold
     )
