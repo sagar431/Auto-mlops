@@ -1,0 +1,20 @@
+# MLOps Agent Generated .dockerignore
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.gitignore
+.dvc/
+*.dvc
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+mlruns/
+outputs/
+*.log
