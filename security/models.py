@@ -32,20 +32,26 @@ class User(SQLModel, table=True):
     # Relationship to API keys
     api_keys: list["APIKey"] = Relationship(back_populates="user")
 
-    @staticmethod
-    def hash_password(password: str) -> str:
-        """
-        Hash a password using SHA-256.
+    password_salt: str | None = Field(default=None, max_length=64)
 
-        For production use, consider using bcrypt or argon2.
+    @staticmethod
+    def hash_password(password: str, salt: bytes | None = None) -> tuple[str, str]:
+        """
+        Hash a password using PBKDF2-SHA256 with a random salt.
 
         Args:
             password: Plain text password
+            salt: Optional salt bytes (generated if not provided)
 
         Returns:
-            Hashed password string
+            Tuple of (hashed_password_hex, salt_hex)
         """
-        return hashlib.sha256(password.encode()).hexdigest()
+        import os
+
+        if salt is None:
+            salt = os.urandom(32)
+        hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, iterations=100_000)
+        return hashed.hex(), salt.hex()
 
     def verify_password(self, password: str) -> bool:
         """
@@ -57,7 +63,12 @@ class User(SQLModel, table=True):
         Returns:
             True if password matches, False otherwise
         """
-        return self.hashed_password == self.hash_password(password)
+        if self.password_salt:
+            salt = bytes.fromhex(self.password_salt)
+            hashed, _ = self.hash_password(password, salt)
+            return self.hashed_password == hashed
+        # Fallback for legacy unsalted hashes
+        return self.hashed_password == hashlib.sha256(password.encode()).hexdigest()
 
 
 class APIKey(SQLModel, table=True):

@@ -15,8 +15,6 @@ Endpoints:
 """
 
 import asyncio
-import hashlib
-import hmac
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -48,6 +46,7 @@ from db import (
 from db import (
     close_async_db,
     get_async_db,
+    get_session,
     init_async_db,
 )
 from db.repositories import AsyncSessionRepository
@@ -362,16 +361,25 @@ session_manager = SessionManager()
 
 
 # ============================================================================
-# User Store (In-Memory)
+# User Store (Database-backed)
 # ============================================================================
 
 
 class UserStore:
-    """Simple in-memory user store for admin operations."""
+    """Database-backed user store for admin operations."""
 
-    def __init__(self):
-        self._users: dict[str, dict] = {}
-        self._next_id: int = 1
+    @staticmethod
+    def _user_to_dict(user) -> dict:
+        """Convert a User model to a dict for API responses."""
+        return {
+            "id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+            "is_active": user.is_active,
+            "is_admin": user.is_admin,
+            "created_at": user.created_at.isoformat() if user.created_at else "",
+            "updated_at": user.updated_at.isoformat() if user.updated_at else "",
+        }
 
     def create_user(
         self,
@@ -380,48 +388,67 @@ class UserStore:
         password: str,
         is_admin: bool = False,
     ) -> dict:
-        """Create a new user."""
-        # Check for duplicate username or email
-        for user in self._users.values():
-            if user["username"] == username:
+        """Create a new user in the database."""
+        from security.models import User as UserModel
+
+        with get_session() as session:
+            # Check for duplicate username
+            from sqlalchemy import select
+
+            existing = session.execute(
+                select(UserModel).where(UserModel.username == username)
+            ).scalar_one_or_none()
+            if existing:
                 raise ValueError(f"Username already exists: {username}")
-            if user["email"] == email:
+
+            existing = session.execute(
+                select(UserModel).where(UserModel.email == email)
+            ).scalar_one_or_none()
+            if existing:
                 raise ValueError(f"Email already exists: {email}")
 
-        user_id = str(self._next_id)
-        self._next_id += 1
-
-        # Use salted hash for password security
-        salt = os.urandom(32)
-        hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, iterations=100_000)
-        user = {
-            "id": user_id,
-            "username": username,
-            "email": email,
-            "password_salt": salt.hex(),
-            "hashed_password": hashed.hex(),
-            "is_active": True,
-            "is_admin": is_admin,
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
-        }
-        self._users[user_id] = user
-        return user
+            hashed_password, salt_hex = UserModel.hash_password(password)
+            user = UserModel(
+                username=username,
+                email=email,
+                hashed_password=hashed_password,
+                password_salt=salt_hex,
+                is_active=True,
+                is_admin=is_admin,
+            )
+            session.add(user)
+            session.flush()
+            return self._user_to_dict(user)
 
     def get_user(self, user_id: str) -> dict | None:
-        """Get user by ID."""
-        return self._users.get(user_id)
+        """Get user by ID from database."""
+        from security.models import User as UserModel
+
+        with get_session() as session:
+            user = session.get(UserModel, int(user_id))
+            return self._user_to_dict(user) if user else None
 
     def get_user_by_username(self, username: str) -> dict | None:
-        """Get user by username."""
-        for user in self._users.values():
-            if user["username"] == username:
-                return user
-        return None
+        """Get user by username from database."""
+        from security.models import User as UserModel
+
+        with get_session() as session:
+            from sqlalchemy import select
+
+            user = session.execute(
+                select(UserModel).where(UserModel.username == username)
+            ).scalar_one_or_none()
+            return self._user_to_dict(user) if user else None
 
     def list_users(self) -> list[dict]:
-        """List all users."""
-        return list(self._users.values())
+        """List all users from database."""
+        from security.models import User as UserModel
+
+        with get_session() as session:
+            from sqlalchemy import select
+
+            users = session.execute(select(UserModel)).scalars().all()
+            return [self._user_to_dict(u) for u in users]
 
 
 # Global user store
@@ -588,6 +615,10 @@ async def run_agent_session(session_id: str):
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown."""
     print("🚀 MLOps Agent API Server starting...")
+    # Initialize sync database (for UserStore)
+    from db import init_db
+
+    init_db()
     # Initialize async database
     await init_async_db()
     print("📦 Database initialized")

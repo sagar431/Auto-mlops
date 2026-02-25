@@ -70,6 +70,32 @@ def ensure_directory(path: str) -> Path:
     return p
 
 
+def safe_resolve_path(project_path: str, relative_path: str) -> Path:
+    """
+    Safely resolve a relative path within a project directory.
+
+    Prevents path traversal attacks by ensuring the resolved path
+    stays within the project directory.
+
+    Args:
+        project_path: Base project directory
+        relative_path: Relative path to resolve (e.g. "configs/config.yaml")
+
+    Returns:
+        Resolved absolute Path
+
+    Raises:
+        ValueError: If the resolved path escapes the project directory
+    """
+    base = Path(project_path).resolve()
+    full = (base / relative_path).resolve()
+    if not str(full).startswith(str(base)):
+        raise ValueError(
+            f"Path traversal detected: '{relative_path}' resolves outside project directory"
+        )
+    return full
+
+
 # ============================================================================
 # Pydantic Input Models
 # ============================================================================
@@ -1061,7 +1087,10 @@ def update_hydra_config(
     project_path: str, config_path: str = "configs/config.yaml", updates: dict[str, Any] = None
 ) -> dict[str, Any]:
     """Update existing Hydra configuration."""
-    full_path = Path(project_path) / config_path
+    try:
+        full_path = safe_resolve_path(project_path, config_path)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
 
     if not full_path.exists():
         return {"success": False, "error": f"Config file {full_path} does not exist"}
@@ -1097,7 +1126,10 @@ def validate_hydra_config(
     project_path: str, config_path: str = "configs/config.yaml"
 ) -> dict[str, Any]:
     """Validate Hydra configuration."""
-    full_path = Path(project_path) / config_path
+    try:
+        full_path = safe_resolve_path(project_path, config_path)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
 
     if not full_path.exists():
         return {"success": False, "error": f"Config file {full_path} does not exist"}
@@ -1434,7 +1466,10 @@ def add_data_to_dvc(project_path: str, data_path: str) -> dict[str, Any]:
     if not check_tool_installed("dvc"):
         return {"success": False, "error": "DVC not installed"}
 
-    full_path = Path(project_path) / data_path
+    try:
+        full_path = safe_resolve_path(project_path, data_path)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
     if not full_path.exists():
         return {"success": False, "error": f"Data path {full_path} does not exist"}
 
@@ -1912,7 +1947,10 @@ def add_workflow_step(
     step: dict[str, Any] = None,
 ) -> dict[str, Any]:
     """Add step to existing GitHub workflow."""
-    workflow_path = Path(project_path) / workflow_file
+    try:
+        workflow_path = safe_resolve_path(project_path, workflow_file)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
 
     if not workflow_path.exists():
         return {"success": False, "error": f"Workflow file {workflow_path} does not exist"}

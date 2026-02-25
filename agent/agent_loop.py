@@ -646,8 +646,9 @@ class AgentLoop:
                     self.ctx.set_experiment_config(updates)
 
             # Record improvement attempt
-            # In a real scenario, training would run here
-            # For now, we simulate the accuracy improvement
+            # NOTE: actual retraining is not implemented yet.
+            # The accuracy below is an *estimate* based on the LLM suggestion.
+            # TODO: integrate with training runner to get real metrics.
             base_accuracy = exp.current_accuracy if exp.current_accuracy is not None else 0.0
             accuracy_gain = improvement.get("expected_improvement", {}).get(
                 "accuracy_gain", 0.02
@@ -655,12 +656,19 @@ class AgentLoop:
             new_accuracy = min(1.0, base_accuracy + accuracy_gain)
             exp.record_improvement_attempt(config_changes, new_accuracy)
 
+            logger.warning(
+                "Improvement accuracy is simulated (training runner not yet integrated)",
+                attempt=attempt,
+                simulated_accuracy=new_accuracy,
+            )
+
             await self._emit(
                 "improvement_complete",
                 {
                     "attempt": attempt,
                     "new_accuracy": new_accuracy,
                     "threshold_met": exp.threshold_met(),
+                    "simulated": True,
                 },
             )
 
