@@ -1,0 +1,5 @@
+dataset: fashion_mnist
+data_dir: data
+image_size: 28
+num_channels: 1
+num_workers: 2

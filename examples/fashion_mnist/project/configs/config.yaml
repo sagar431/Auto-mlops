@@ -1,0 +1,8 @@
+defaults:
+  - model: fashion_cnn
+  - training: default
+  - data: fashion_mnist
+  - paths: default
+  - _self_
+
+seed: 42

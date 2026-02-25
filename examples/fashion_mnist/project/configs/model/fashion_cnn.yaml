@@ -1,0 +1,3 @@
+name: fashion_cnn
+num_classes: 10
+dropout: 0.3
