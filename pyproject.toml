@@ -11,8 +11,7 @@ authors = [
 keywords = ["mlops", "agent", "ai", "ml", "hydra", "mlflow", "dvc", "automation", "mcp"]
 
 dependencies = [
-    # Core async and utilities
-    "asyncio>=3.4.3",
+    # Core utilities
     "python-dotenv>=1.0.0",
     "httpx>=0.28.1",
     "pyyaml>=6.0.2",

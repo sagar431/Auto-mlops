@@ -182,6 +182,9 @@ class ContextManager:
 
     def update_step_result(self, step_id: str, result: dict):
         """Update a step with execution result and mark as completed."""
+        if step_id not in self.graph.nodes:
+            logger.warning("Cannot update result: step not found in graph", step_id=step_id)
+            return
         node: MLOpsStepNode = self.graph.nodes[step_id]["data"]
         node.result = result
         node.status = "completed"
@@ -198,6 +201,10 @@ class ContextManager:
 
     def mark_step_failed(self, step_id: str, error_msg: str):
         """Mark a step as failed and record error."""
+        if step_id not in self.graph.nodes:
+            logger.warning("Cannot mark failed: step not found in graph", step_id=step_id)
+            self.failed_nodes.append(step_id)
+            return
         node: MLOpsStepNode = self.graph.nodes[step_id]["data"]
         node.status = "failed"
         node.error = error_msg
@@ -230,6 +237,9 @@ class ContextManager:
 
     def conclude(self, step_id: str, conclusion: str):
         """Mark a step as concluded with final answer."""
+        if step_id not in self.graph.nodes:
+            logger.warning("Cannot conclude: step not found in graph", step_id=step_id)
+            return
         node: MLOpsStepNode = self.graph.nodes[step_id]["data"]
         node.status = "completed"
         node.conclusion = conclusion
@@ -355,7 +365,8 @@ class ContextManager:
         return [
             node_id
             for node_id in self.graph.nodes
-            if self.graph.nodes[node_id]["data"].status == "pending"
+            if self.graph.nodes[node_id].get("data") is not None
+            and self.graph.nodes[node_id]["data"].status == "pending"
         ]
 
     def get_completed_steps(self) -> list[dict]:
@@ -363,13 +374,16 @@ class ContextManager:
         return [
             self.graph.nodes[n]["data"].__dict__
             for n in self.graph.nodes
-            if self.graph.nodes[n]["data"].status == "completed"
+            if self.graph.nodes[n].get("data") is not None
+            and self.graph.nodes[n]["data"].status == "completed"
         ]
 
     def get_failed_steps(self) -> list[dict]:
         """Get all failed step data."""
         return [
-            self.graph.nodes[n]["data"].__dict__ for n in self.failed_nodes if n in self.graph.nodes
+            self.graph.nodes[n]["data"].__dict__
+            for n in self.failed_nodes
+            if n in self.graph.nodes and self.graph.nodes[n].get("data") is not None
         ]
 
     def attach_summary(self, summary: dict):

@@ -171,12 +171,26 @@ class AgentSession:
         prefer using `await save()` directly.
         """
         try:
-            asyncio.get_running_loop()
-            # We're in an async context, schedule the coroutine
-            asyncio.create_task(self.save())
+            loop = asyncio.get_running_loop()
+            # We're in an async context, schedule the coroutine with error handling
+            task = loop.create_task(self.save())
+            task.add_done_callback(AgentSession._handle_save_result)
         except RuntimeError:
             # No running loop, run synchronously
             asyncio.run(self.save())
+
+    @staticmethod
+    def _handle_save_result(task: asyncio.Task):
+        """Log errors from background save tasks instead of silently dropping them."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            import logging
+
+            logging.getLogger("agent.agentSession").warning(
+                "Background session save failed: %s", exc
+            )
 
     @classmethod
     async def load(cls, session_id: str) -> Optional["AgentSession"]:

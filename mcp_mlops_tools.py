@@ -1355,9 +1355,13 @@ def end_mlflow_run(run_id: str | None = None, status: str = "FINISHED") -> dict[
     try:
         import mlflow
 
-        mlflow.end_run(status=status)
+        if run_id:
+            client = mlflow.tracking.MlflowClient()
+            client.set_terminated(run_id, status=status)
+        else:
+            mlflow.end_run(status=status)
 
-        return {"success": True, "status": status, "message": f"Run ended with status {status}"}
+        return {"success": True, "status": status, "run_id": run_id, "message": f"Run ended with status {status}"}
     except ImportError:
         return {"success": False, "error": "MLflow not installed"}
     except Exception as e:

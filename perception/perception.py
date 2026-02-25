@@ -112,7 +112,7 @@ class Perception:
                 output[key] = default
 
         # Validate route
-        valid_routes = ["decision", "summarize", "improve"]
+        valid_routes = ["decision", "summarize", "improve", "deploy"]
         if output["route"] not in valid_routes:
             output["route"] = "decision"
 
@@ -162,37 +162,54 @@ def build_perception_input(
     Returns:
         Dictionary with all perception inputs
     """
-    # Get available tools
-    tools = [
-        "analyze_project_config",
-        "create_hydra_config",
-        "update_hydra_config",
-        "validate_hydra_config",
-        "init_mlflow_experiment",
-        "start_mlflow_run",
-        "log_mlflow_params",
-        "log_mlflow_metrics",
-        "log_mlflow_artifact",
-        "register_mlflow_model",
-        "get_best_mlflow_run",
-        "end_mlflow_run",
-        "init_dvc_repo",
-        "configure_dvc_remote",
-        "add_data_to_dvc",
-        "create_dvc_pipeline",
-        "dvc_push",
-        "dvc_pull",
-        "dvc_reproduce",
-        "create_ml_dockerfile",
-        "build_ml_docker_image",
-        "run_training_container",
-        "push_docker_image",
-        "create_github_workflow",
-        "add_workflow_step",
-        "analyze_training_results",
-        "suggest_improvements",
-        "check_accuracy_threshold",
-    ]
+    # Get available tools (core + deployment)
+    try:
+        from action.execute_step import AVAILABLE_TOOLS
+
+        tools = AVAILABLE_TOOLS
+    except ImportError:
+        tools = [
+            "analyze_project_config",
+            "create_hydra_config",
+            "update_hydra_config",
+            "validate_hydra_config",
+            "init_mlflow_experiment",
+            "start_mlflow_run",
+            "log_mlflow_params",
+            "log_mlflow_metrics",
+            "log_mlflow_artifact",
+            "register_mlflow_model",
+            "get_best_mlflow_run",
+            "end_mlflow_run",
+            "init_dvc_repo",
+            "configure_dvc_remote",
+            "add_data_to_dvc",
+            "create_dvc_pipeline",
+            "dvc_push",
+            "dvc_pull",
+            "dvc_reproduce",
+            "create_ml_dockerfile",
+            "build_ml_docker_image",
+            "run_training_container",
+            "push_docker_image",
+            "create_github_workflow",
+            "add_workflow_step",
+            "analyze_training_results",
+            "suggest_improvements",
+            "check_accuracy_threshold",
+            "create_litserve_api",
+            "configure_litserver",
+            "create_gradio_interface",
+            "deploy_to_huggingface",
+            "create_fastapi_app",
+            "create_lambda_dockerfile",
+            "generate_cdk_stack",
+            "create_torchserve_handler",
+            "create_mar_archive",
+            "generate_torchserve_config",
+            "create_inference_service_yaml",
+            "generate_kserve_config",
+        ]
 
     return {
         "query": query,

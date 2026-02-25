@@ -246,7 +246,14 @@ class AgentLoop:
         )
 
         # Load memory from past experiments
-        self.memory = MemorySearch().search_memory(query)
+        try:
+            from db import get_session
+
+            with get_session() as db:
+                self.memory = MemorySearch(db).search_memory(query)
+        except Exception as e:
+            logger.warning("Could not load memory from database", error=str(e))
+            self.memory = []
         self.ctx.globals["memory"] = self.memory
 
         # Placeholders
@@ -261,11 +268,7 @@ class AgentLoop:
 
         self.p_out = await self.perception.run(p_input, session=self.session)
 
-        # Add ROOT node
-        self.ctx.add_step(
-            step_id=StepType.ROOT, description="Initial query analysis", step_type=StepType.ROOT
-        )
-        self.ctx.mark_step_completed(StepType.ROOT)
+        # ROOT node already created by ContextManager.__init__, just attach perception
         self.ctx.attach_perception(StepType.ROOT, self.p_out)
 
         await self._emit(
@@ -645,9 +648,11 @@ class AgentLoop:
             # Record improvement attempt
             # In a real scenario, training would run here
             # For now, we simulate the accuracy improvement
-            new_accuracy = exp.current_accuracy + improvement.get("expected_improvement", {}).get(
+            base_accuracy = exp.current_accuracy if exp.current_accuracy is not None else 0.0
+            accuracy_gain = improvement.get("expected_improvement", {}).get(
                 "accuracy_gain", 0.02
             )
+            new_accuracy = min(1.0, base_accuracy + accuracy_gain)
             exp.record_improvement_attempt(config_changes, new_accuracy)
 
             await self._emit(

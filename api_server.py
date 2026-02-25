@@ -16,6 +16,7 @@ Endpoints:
 
 import asyncio
 import hashlib
+import hmac
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -390,11 +391,15 @@ class UserStore:
         user_id = str(self._next_id)
         self._next_id += 1
 
+        # Use salted hash for password security
+        salt = os.urandom(32)
+        hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, iterations=100_000)
         user = {
             "id": user_id,
             "username": username,
             "email": email,
-            "hashed_password": hashlib.sha256(password.encode()).hexdigest(),
+            "password_salt": salt.hex(),
+            "hashed_password": hashed.hex(),
             "is_active": True,
             "is_admin": is_admin,
             "created_at": datetime.utcnow().isoformat(),
@@ -604,10 +609,13 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware - origins configurable via CORS_ORIGINS env var
+# Note: allow_credentials=True is invalid with allow_origins=["*"] per CORS spec.
+# Only enable credentials when specific origins are configured.
+_cors_origins = get_cors_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_cors_origins(),
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

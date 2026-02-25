@@ -259,7 +259,7 @@ class ModelManager:
         }
 
         # Run in executor since Gemini SDK is synchronous
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(
             None, lambda: model.generate_content(prompt, generation_config=generation_config)
         )
@@ -283,7 +283,7 @@ class ModelManager:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(
             None,
             lambda: client.chat.completions.create(
@@ -305,7 +305,7 @@ class ModelManager:
         """Generate using Anthropic Claude."""
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(
             None,
             lambda: client.messages.create(
