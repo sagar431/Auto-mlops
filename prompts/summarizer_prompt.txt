@@ -32,6 +32,9 @@ What was accomplished? Was the goal achieved?
 | DVC Pipeline | ✅/❌ | dvc.yaml |
 | Dockerfile | ✅/❌ | Dockerfile |
 | GitHub Actions | ✅/❌ | .github/workflows/ |
+| Deployment Artifact | ✅/❌ | LitServe/Gradio/TorchServe/KServe/Lambda files |
+| Verification Report | ✅/❌ | health/predict/metrics result |
+| Rollback Plan | ✅/❌ | rollback instructions or manifest |
 
 ### 3. Training Results
 
@@ -78,6 +81,18 @@ Based on the results, recommend:
 - Potential improvements
 - Production considerations
 
+### 7. Deployment Verification (if applicable)
+
+Report:
+- Target: LitServe, Gradio, FastAPI+Lambda, TorchServe, or KServe
+- Runtime: local, Lambda Labs GPU VM, AWS Lambda, EKS/Kubernetes, or Hugging Face
+- Health/readiness check result
+- Prediction smoke test result
+- Logs/metrics location
+- Rollback command or rollback file
+
+If live deployment was requested but not executed, state exactly what was generated and what still must be run on the target machine.
+
 ## Output JSON Format
 
 ```json
@@ -96,7 +111,10 @@ Based on the results, recommend:
     "mlflow": true,
     "dvc": true,
     "docker": true,
-    "github_actions": true
+    "github_actions": true,
+    "deployment_artifact": true,
+    "verification_report": true,
+    "rollback_plan": true
   },
   "artifacts": [
     "configs/config.yaml",

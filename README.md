@@ -120,8 +120,8 @@ mlops-agent deploy gradio --model ./models/best_model.pt
 pytest tests/
 
 # Test specific tool categories
-python test_mlops_tools.py --tool hydra
-python test_mlops_tools.py --tool deployment
+python -m tests.root_migrated.test_mlops_tools --tool hydra
+python -m tests.root_migrated.test_mlops_tools --tool deployment
 ```
 
 ---
@@ -295,7 +295,7 @@ mlops_agent/
 │   └── github/train.yml
 │
 ├── pyproject.toml               # UV dependencies
-└── test_mlops_tools.py          # Test suite
+└── tests/                       # Test suite
 ```
 
 ---

@@ -19,6 +19,20 @@ Analyze the user query and current experiment context to understand:
 - **improvement**: Adjusting hyperparameters for retry
 - **cicd**: Docker build, GitHub Actions CI/CD
 - **deploy**: Model deployment (LitServe, Gradio, Lambda, TorchServe, KServe)
+- **monitoring**: Health checks, prediction smoke tests, drift/performance checks, alerts
+- **rollback**: Restoring a previous model/service after failed deployment or degraded metrics
+
+## Course-Derived Workflow Signals
+
+The EMLO course graph centers on these workflows. Use them as strong signals when interpreting the query:
+
+- **Reproducible training workflow**: PyTorch Lightning or training loop + Hydra/OmegaConf + DVC + MLflow/HPO. If the user asks to train, reproduce, improve, or compare experiments, identify config, data, tracking, and metric threshold requirements together.
+- **Capstone production pipeline**: DVC with S3, HPO or learning-rate finder, Docker registry, CI/CD, TorchServe MAR packaging, and deployment report. If the user asks for a complete production/capstone flow, do not stop at scaffolding; include validation and artifact readiness.
+- **LitServe serving lifecycle**: LitAPI, batching/dynamic batching, streaming, GPU acceleration, and autoscaling. Prefer this for Lambda Labs/Lambda Cloud GPU VM deployments.
+- **KServe/Knative canary stack**: InferenceService, Knative revisions, canary rollout, scale-to-zero, Kubernetes/Istio. Prefer this when the user asks for Kubernetes-native serving, canary, or EKS production deployment.
+- **EKS autoscaling/IAM**: EKS, ECR, IAM, VPC networking, ALB, HPA, Cluster Autoscaler. If the user asks for AWS Kubernetes production, extract region, cluster, registry, IAM, ingress, scaling, and rollback requirements.
+- **TorchServe pipeline**: handler, MAR archive, config, workers, model versioning, metrics. Prefer this for enterprise PyTorch model serving or capstone TorchServe requirements.
+- **AWS Lambda serverless**: Firecracker/stateless CPU serverless. Use only when the request clearly means AWS Lambda and does not require GPU.
 
 ## Input Context
 - User Query: {query}
@@ -41,7 +55,7 @@ Analyze the user query and current experiment context to understand:
     "data_path": "path to data or null",
     "deployment_target": "litserve|gradio|fastapi_lambda|torchserve|kserve|null"
   }},
-  "pipeline_stage": "setup|config|data|training|evaluation|improvement|cicd|deploy",
+  "pipeline_stage": "setup|config|data|training|evaluation|improvement|cicd|deploy|monitoring|rollback",
   "required_tools": ["tool1", "tool2"],
   "result_requirement": "What needs to be achieved in next step",
   "original_goal_achieved": false,
@@ -65,6 +79,8 @@ Analyze the user query and current experiment context to understand:
 - Original goal fully achieved
 - Accuracy threshold met
 - All requested pipeline components created
+- Deployment health/predict smoke tests passed when deployment was requested
+- Rollback/monitoring report exists when production deployment was requested
 - User asked for status/summary
 
 ### Route to "improve" when:
@@ -76,16 +92,25 @@ Analyze the user query and current experiment context to understand:
 ### Route to "deploy" when:
 - User explicitly requests deployment (e.g., "deploy to Lambda", "create Gradio demo")
 - Model training complete and ready for serving
-- User mentions: litserve, gradio, lambda, torchserve, kserve, serverless, kubernetes, demo, inference, serving
+- User mentions: litserve, gradio, aws lambda, lambda labs, gpu vm, torchserve, kserve, serverless, kubernetes, demo, inference, serving
+
+### Keep route as "decision" when:
+- User asks for monitoring, drift detection, endpoint smoke testing, canary validation, rollback setup, cost estimation, IAM/ECR/EKS setup, or CI/CD wiring
+- A deployment was created but has not been tested with health and prediction calls
+- A course-style capstone pipeline is incomplete: Hydra, DVC, MLflow, Docker registry, CI/CD, serving, and report are not all addressed
 
 ## Deployment Target Detection
 
 Detect deployment_target from keywords in query:
-- **litserve**: "litserve", "high throughput", "batching", "gpu scaling", "fast inference"
+- **litserve**: "litserve", "high throughput", "batching", "gpu scaling", "fast inference", "lambda labs", "lambda gpu", "lambda cloud", "gpu vm"
 - **gradio**: "gradio", "demo", "prototype", "ui", "interface", "hugging face", "hf spaces"
-- **fastapi_lambda**: "lambda", "serverless", "aws", "pay per use", "fastapi", "cdk"
+- **fastapi_lambda**: "aws lambda", "serverless", "aws serverless", "pay per use", "cdk"
 - **torchserve**: "torchserve", "production", "model versioning", "enterprise", "mar"
 - **kserve**: "kserve", "kubernetes", "k8s", "inference service", "canary", "knative"
+
+Important disambiguation:
+- If the user says "Lambda Labs", "Lambda Cloud", "Lambda GPU", or describes a GPU instance/VM, do NOT choose fastapi_lambda. That means Lambda Labs GPU infrastructure, not AWS Lambda serverless. Use litserve unless they explicitly ask for Kubernetes/KServe or TorchServe.
+- Only choose fastapi_lambda when the user clearly means AWS Lambda serverless. AWS Lambda is CPU-only for this project and is not suitable for GPU inference.
 
 ## Stage Detection Rules
 
@@ -105,5 +130,7 @@ Detect deployment_target from keywords in query:
 3. If training failed, identify WHY (config issue, data issue, etc.)
 4. Consider previous failed attempts when routing to improve
 5. Be conservative with original_goal_achieved - only true when FULLY done
+6. For production-like deployment, never mark the goal achieved until generated artifacts are validated or the missing live validation is explicitly reported
+7. If the query is ambiguous between learning/training and serving/deployment, extract both and route to the next incomplete stage
 
 Analyze the context and provide your perception output as valid JSON.

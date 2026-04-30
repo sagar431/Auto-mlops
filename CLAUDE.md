@@ -17,8 +17,8 @@ cp .env.example .env       # Set up environment variables
 
 ### Testing
 ```bash
-python test_mlops_tools.py                  # Run all MCP tool tests
-python test_mlops_tools.py --tool hydra     # Test specific category: hydra, mlflow, dvc, docker, github, training, deployment
+python -m tests.root_migrated.test_mlops_tools                  # Run all MCP tool tests
+python -m tests.root_migrated.test_mlops_tools --tool hydra     # Test specific category: hydra, mlflow, dvc, docker, github, training, deployment
 pytest                                       # Run pytest suite
 ```
 

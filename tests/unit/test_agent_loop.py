@@ -711,12 +711,7 @@ class TestAgentLoopHandleFailure:
 
     @pytest.mark.asyncio
     async def test_handle_failure_sets_status_failed(self, agent, mock_llm):
-        """Test _handle_failure marks session as failed even if status changes during summarize.
-
-        Note: _handle_failure sets status to 'failed', calls session.mark_completed(success=False),
-        then calls _summarize which sets status to 'success'. The session.status remains 'failed'
-        because mark_completed is called before _summarize.
-        """
+        """Test _handle_failure preserves failed status while generating a summary."""
         mock_llm.json_response = {"summary_markdown": "Failure summary"}
 
         agent._initialize_session("Test", "/test", 0.85)
@@ -725,7 +720,7 @@ class TestAgentLoopHandleFailure:
         with patch.object(agent.summarizer, "summarize", new_callable=AsyncMock) as mock_sum:
             mock_sum.return_value = {"summary_markdown": "Failure summary"}
             await agent._handle_failure()
-            # Session should be marked as failed even if agent.status changes during _summarize
+            assert agent.status == "failed"
             assert agent.session.status == "failed"
 
     @pytest.mark.asyncio

@@ -5,7 +5,7 @@
 - Platform features are split into domain packages such as `memory/`, `metrics/`, `monitoring/`, `observability/`, `resilience/`, `security/`, and `data_quality/`.
 - API entry points are `cli.py`, `api_server.py`, and `mcp_mlops_tools.py`; database setup is in `db/` with `alembic.ini` migrations.
 - Prompts and deployment assets live in `prompts/` and `templates/`, while `frontend/` holds UI work.
-- Tests live in `tests/` and root-level `test_*.py` files (for example `test_api_server_auth.py`).
+- Tests live in `tests/`; legacy root-level tests were moved to `tests/root_migrated/`.
 
 ## Build, Test, and Development Commands
 - `uv sync` installs dependencies with uv; `pip install -e .` is the editable pip alternative.
@@ -13,7 +13,7 @@
 - `python cli.py --interactive` or `mlops-agent --interactive` starts the REPL; `python api_server.py` runs the API server locally.
 - `uvicorn api_server:app --reload --port 8000` runs the server with hot reload.
 - `python mcp_mlops_tools.py` starts the MCP tools server.
-- `pytest` or `pytest tests/` runs the test suite; `python test_mlops_tools.py --tool hydra` runs tool-category checks.
+- `pytest` or `pytest tests/` runs the test suite; `python -m tests.root_migrated.test_mlops_tools --tool hydra` runs tool-category checks.
 - `alembic upgrade head` applies database migrations when using Postgres.
 
 ## Coding Style & Naming Conventions
@@ -35,3 +35,13 @@
 
 ## Agent-Specific Instructions
 - See `CLAUDE.md` for agent workflow and tool usage details.
+
+## graphify
+
+This project has a graphify knowledge graph at graphify-out/.
+
+Rules:
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)

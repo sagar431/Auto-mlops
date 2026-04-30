@@ -305,13 +305,14 @@ class AgentLoop:
             or self.p_out.get("entities", {}).get("deployment_target") is not None
         )
 
-    async def _summarize(self) -> str:
-        """Generate final summary."""
+    async def _summarize(self, status: str | None = "success") -> str:
+        """Generate final summary and optionally update the agent status."""
         summary = await self.summarizer.summarize(
             query=self.query, ctx=self.ctx, perception=self.p_out, session=self.session
         )
         self.ctx.attach_summary(summary)
-        self.status = "success"
+        if status is not None:
+            self.status = status
         self.final_output = summary.get("summary_markdown", str(summary))
         return self.final_output
 
@@ -661,12 +662,10 @@ class AgentLoop:
 
         # After improvement loop, summarize
         if exp.threshold_met():
-            self.status = "success"
             await self._emit("phase", {"phase": "summary", "message": "Target achieved!"})
-            self.final_output = await self._summarize()
+            self.final_output = await self._summarize(status="success")
         else:
-            self.status = "partial"
-            self.final_output = await self._summarize()
+            self.final_output = await self._summarize(status="partial")
 
     async def _run_deployment_loop(self):
         """Run the deployment workflow."""
@@ -783,16 +782,14 @@ class AgentLoop:
                 {"target": deployment_target, "error": failure_error[:200]},
             )
             await self._run_deployment_rollback(deployment_target, failure_error)
-            self.status = "failed"
-            self.final_output = await self._summarize()
+            self.final_output = await self._summarize(status="failed")
             return
 
         await self._emit("deployment_complete", {"target": deployment_target, "status": "success"})
 
         # Summarize deployment
-        self.status = "success"
         await self._emit("phase", {"phase": "summary", "message": "Deployment complete!"})
-        self.final_output = await self._summarize()
+        self.final_output = await self._summarize(status="success")
 
     async def _run_deployment_rollback(self, target: str, error: str):
         """Attempt to generate rollback instructions for a failed deployment."""
@@ -867,7 +864,7 @@ class AgentLoop:
         await self._emit("status", {"status": "failed", "message": "Agent stopped due to errors"})
 
         # Still generate a summary
-        self.final_output = await self._summarize()
+        self.final_output = await self._summarize(status="failed")
         return self.final_output
 
 

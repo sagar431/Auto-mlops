@@ -59,6 +59,7 @@ from metrics.models import (
     PipelineMetrics,
     SystemMetrics,
 )
+from security import session_ownership
 from security.api_keys import api_key_manager
 from security.middleware import AuthorizationError, CurrentUser, get_current_user
 
@@ -360,6 +361,26 @@ class SessionManager:
 session_manager = SessionManager()
 
 
+def _has_session_access(current_user: CurrentUser, session_id: str) -> bool:
+    """Return whether the current user can access a session."""
+    if not current_user.is_authenticated:
+        return True
+
+    if "admin" in current_user.roles:
+        return True
+
+    if session_id in current_user.session_ids:
+        return True
+
+    return session_ownership.check_access(session_id, current_user.user_id)
+
+
+def require_session_access(current_user: CurrentUser, session_id: str) -> None:
+    """Raise if the current user cannot access a session."""
+    if not _has_session_access(current_user, session_id):
+        raise AuthorizationError("Access denied: you do not own this session")
+
+
 # ============================================================================
 # User Store (In-Memory)
 # ============================================================================
@@ -658,6 +679,8 @@ async def run_agent(
         threshold=run_request.accuracy_threshold,
         auto_approve=run_request.auto_approve,
     )
+    if current_user.is_authenticated:
+        session_ownership.register_session(session_id, current_user.user_id)
 
     # Run agent in background
     background_tasks.add_task(run_agent_session, session_id)
@@ -683,6 +706,7 @@ async def approve_action(
         raise HTTPException(
             status_code=404, detail=f"Session not found: {approval_request.session_id}"
         )
+    require_session_access(current_user, approval_request.session_id)
 
     await session_manager.broadcast_event(
         db,
@@ -711,6 +735,7 @@ async def get_session_status(
     session = await session_manager.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+    require_session_access(current_user, session_id)
 
     return SessionStatus(
         session_id=session["session_id"],
@@ -768,12 +793,14 @@ async def get_session_details(
     # Check active sessions first (from database)
     session = await session_manager.get_session(db, session_id)
     if session:
+        require_session_access(current_user, session_id)
         return session
 
     # Search in memory (legacy file-based storage)
     ms = MemorySearch()
     for entry in ms.index_data:
         if entry["session_id"] == session_id:
+            require_session_access(current_user, session_id)
             return entry
 
     raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")

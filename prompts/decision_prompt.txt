@@ -177,6 +177,20 @@ Generate executable steps with proper dependencies and tool calls.
 
 ## Planning Guidelines
 
+### Course-Derived Planning Rules
+
+The EMLO course graph identifies the core product workflows this agent should preserve:
+
+1. **Reproducible Training Workflow**: Hydra/OmegaConf configuration, DVC data versioning, MLflow experiment tracking, HPO or learning-rate finder when improving, and a repeatable command such as `dvc repro`.
+2. **Cloud ML Deployment Foundations**: Docker or Docker Compose first, then registry push, then cloud deployment. Avoid deployment plans that skip image build/push when the target needs an image.
+3. **LitServe Serving Lifecycle**: create LitServe API, configure batching/workers/GPU, then test `/health` and prediction behavior if a live runtime is available. Use this for Lambda Labs / Lambda Cloud GPU VM unless the user explicitly asks for KServe or TorchServe.
+4. **TorchServe Capstone Pipeline**: create handler, generate config, create MAR archive, package/push image when needed, and include model versioning/metrics readiness.
+5. **KServe/Knative Canary Stack**: create InferenceService, configure min/max replicas, add canary/rollback plan, and include Kubernetes readiness checks. Use for Kubernetes/EKS production serving.
+6. **EKS Autoscaling/IAM**: list/update cluster config, create/login ECR, generate IAM policy, create ALB ingress/HPA when needed, and estimate cost before approval.
+7. **Production Governance**: every build/deploy/rollback plan must include a human approval gate if the runtime supports it, a rollback plan, and an explicit verification step or missing-verification note.
+
+If a user asks for a course/capstone-style full pipeline, plan across training, packaging, deployment, monitoring, and report generation. Do not return only scaffold/config steps.
+
 ### Dependency Order (CRITICAL)
 1. **Hydra** → Always first (project needs configs)
 2. **DVC init** → Before any DVC operations
@@ -184,8 +198,13 @@ Generate executable steps with proper dependencies and tool calls.
 4. **Data Validation** → After data is available, before training
 5. **MLflow init** → Before logging anything
 6. **MLflow start_run** → Before log_params/metrics
-7. **Docker build** → After configs exist
-8. **GitHub workflow** → Usually last
+7. **Best-run selection/model registration** → Before deployment packaging
+8. **Docker build** → After configs/model artifacts exist
+9. **Registry push** → Before EKS/KServe/TorchServe cloud rollout
+10. **Deployment artifact generation** → Before live deployment instructions
+11. **Health/prediction smoke test** → Before final summary for deployed services
+12. **Rollback plan** → Required for production deployment
+13. **GitHub workflow** → Usually last, after the desired pipeline is known
 
 ### Common Patterns
 
@@ -200,6 +219,25 @@ Generate executable steps with proper dependencies and tool calls.
 6: init_mlflow_experiment (depends: 1)
 7: create_ml_dockerfile (depends: 1)
 8: create_github_workflow (depends: 6, 7)
+```
+
+**Course Capstone Pipeline:**
+```
+0: analyze_project_config
+1: create_hydra_config (depends: 0)
+2: init_dvc_repo (depends: 0)
+3: configure_dvc_remote (depends: 2, remote_url: "s3://...")
+4: add_data_to_dvc (depends: 3)
+5: create_dvc_pipeline (depends: 1, 4)
+6: validate_dataset (depends: 4)
+7: init_mlflow_experiment (depends: 1)
+8: dvc_reproduce (depends: 5, 6)
+9: get_best_mlflow_run (depends: 8)
+10: register_mlflow_model (depends: 9)
+11: create_ml_dockerfile (depends: 10)
+12: build_ml_docker_image (depends: 11)
+13: push_docker_image (depends: 12)
+14: create_github_workflow (depends: 5, 7, 11)
 ```
 
 **Training + Threshold Check:**
@@ -220,6 +258,7 @@ Generate executable steps with proper dependencies and tool calls.
 2: update_hydra_config (depends: 1)
 3: start_mlflow_run (depends: 2) [new attempt]
 ```
+Prefer HPO or learning-rate finder style changes when the user asks for course/capstone improvement. Keep each retry traceable in MLflow and Hydra overrides.
 
 **Data Validation Patterns:**
 
@@ -262,7 +301,10 @@ Generate executable steps with proper dependencies and tool calls.
 ```
 0: create_litserve_api (model_type: "image_classifier")
 1: configure_litserver (depends: 0, accelerator: "gpu", max_batch_size: 64)
+2: generate_rollback_plan (depends: 1, target: "litserve")
 ```
+Use this path for Lambda Labs / Lambda Cloud GPU instances. Do not use AWS Lambda tools for a GPU VM.
+If the user asks to test a real deployment, include a verification description in the step/code variant that starts the service and calls health + prediction endpoints. If no tool exists for live HTTP calls, state the exact manual command in code_variants.
 
 *Gradio (Demo):*
 ```
@@ -275,20 +317,31 @@ Generate executable steps with proper dependencies and tool calls.
 0: create_fastapi_app (endpoint_type: "image")
 1: create_lambda_dockerfile (depends: 0)
 2: generate_cdk_stack (depends: 1)
+3: estimate_deployment_cost (depends: 2, service_type: "lambda")
+4: generate_rollback_plan (depends: 2, target: "lambda")
 ```
+Use this path only for AWS Lambda serverless CPU inference. Do not choose it for Lambda Labs, Lambda Cloud, or any GPU deployment request.
 
 *TorchServe (Enterprise):*
 ```
 0: create_torchserve_handler (handler_type: "image_classifier")
 1: generate_torchserve_config (depends: 0)
 2: create_mar_archive (depends: 0)
+3: generate_rollback_plan (depends: 2, target: "torchserve")
 ```
 
 *KServe (Kubernetes):*
 ```
-0: create_inference_service_yaml (runtime: "pytorch")
-1: generate_kserve_config (depends: 0)
+0: list_eks_clusters
+1: update_kubeconfig (depends: 0)
+2: create_ecr_repo
+3: create_inference_service_yaml (depends: 1, runtime: "pytorch")
+4: generate_kserve_config (depends: 3, min_replicas: 1, max_replicas: 3)
+5: create_k8s_hpa_yaml (depends: 4)
+6: create_k8s_ingress_yaml (depends: 4)
+7: generate_rollback_plan (depends: 4, target: "kserve")
 ```
+Use this path for Kubernetes/EKS, Knative, canary, scale-to-zero, or InferenceService requests.
 
 ### Code Variants
 - **CODE_XA**: Primary implementation (preferred approach)
@@ -309,5 +362,8 @@ Generate executable steps with proper dependencies and tool calls.
 5. **Include threshold checks** - After training, always check_accuracy_threshold
 6. **Validate data before training** - Run validate_dataset or check_data_quality before training to ensure data quality
 7. **Generate valid JSON** - Output must be parseable JSON
+8. **Do not confuse Lambda Labs with AWS Lambda** - Lambda Labs GPU VM means LitServe unless Kubernetes/TorchServe is explicitly requested
+9. **Deployment is not complete until verified** - include a smoke test instruction for health and prediction endpoints when real deployment is requested
+10. **Production plans require rollback** - include generate_rollback_plan or a target-specific rollback tool for production deployment paths
 
 Generate the execution plan based on the current context.

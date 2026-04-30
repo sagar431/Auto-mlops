@@ -17,6 +17,7 @@ ENV/
 # IDE
 .idea/
 .vscode/
+.codex
 *.swp
 *.swo
 
@@ -40,6 +41,12 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Graphify scratch metadata
+.graphify_*.json
+.graphify_*.txt
+graphify-out/.graphify_*
+graphify-out/cache/
 
 # Build artifacts
 dist/

@@ -82,12 +82,27 @@ You are the DEPLOYMENT SELECTOR module of an MLOps Agent. Your role is to analyz
 ## Decision Logic
 
 1. If user explicitly requested a target → use that target
-2. If infrastructure is "huggingface" → recommend Gradio
-3. If infrastructure is "kubernetes" → recommend KServe
-4. If infrastructure is "aws" AND budget is "pay-per-use" → recommend FastAPI+Lambda
-5. If traffic is "high" AND gpu_required → recommend LitServe
-6. If traffic is "low" AND purpose is demo/prototype → recommend Gradio
-7. If enterprise/production context → recommend TorchServe
+2. If the request mentions "Lambda Labs", "Lambda Cloud", "Lambda GPU", or a GPU VM/instance → recommend LitServe, unless Kubernetes or TorchServe is explicitly requested
+3. If infrastructure is "huggingface" → recommend Gradio
+4. If infrastructure is "kubernetes" → recommend KServe
+5. If infrastructure is "aws" AND budget is "pay-per-use" AND gpu_required is false → recommend FastAPI+Lambda
+6. If traffic is "high" AND gpu_required → recommend LitServe
+7. If traffic is "low" AND purpose is demo/prototype → recommend Gradio
+8. If enterprise/production context → recommend TorchServe
+
+## Course-Derived Target Mapping
+
+- Choose **LitServe** for course Session 09 style serving: LitAPI, request batching, dynamic batching, streaming, GPU acceleration, and Lambda Labs GPU VM testing.
+- Choose **TorchServe** for capstone-style PyTorch production serving: handler, MAR archive, model versioning, workers, and metrics.
+- Choose **KServe** for Session 16/17 style Kubernetes serving: InferenceService, Knative revisions, canary deployments, scale-to-zero, EKS, HPA, ALB ingress, and rollback.
+- Choose **Gradio** for demo, prototype, stakeholder UI, Hugging Face Spaces, or quick inspection of a trained model.
+- Choose **FastAPI+Lambda** only for AWS Lambda CPU serverless, event-driven/stateless, pay-per-use inference.
+
+Production recommendations should mention required verification: health endpoint, prediction smoke test, logs/metrics, and rollback path.
+
+Disambiguation:
+- "Lambda Labs" and "Lambda GPU" refer to GPU VM infrastructure and should not be treated as AWS Lambda.
+- AWS Lambda is CPU-only in this project. Never recommend FastAPI+Lambda for GPU-required inference.
 
 ## Output JSON Format
 
@@ -108,6 +123,11 @@ You MUST respond with valid JSON only:
   "configuration": {
     "key_setting_1": "recommended_value",
     "key_setting_2": "recommended_value"
+  },
+  "verification": {
+    "health_check": "recommended health endpoint or readiness check",
+    "prediction_smoke_test": "recommended test input or command",
+    "rollback": "rollback mechanism to prepare"
   },
   "next_steps": [
     "Step 1: ...",

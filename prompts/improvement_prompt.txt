@@ -53,6 +53,32 @@ Based on gap size and attempt number:
 
 ## Improvement Options
 
+### Course-Derived Improvement Options
+
+For EMLO-style reproducible experiments, every improvement should be representable as Hydra overrides and logged as a new MLflow run. Prefer changes that can be reproduced by `dvc repro`.
+
+If the project supports them, consider:
+
+```yaml
+# Learning-rate finder / scheduler path
+training.lr_finder: true
+training.scheduler: "cosine"
+
+# HPO path
+hpo.enabled: true
+hpo.search_space.learning_rate: [0.0001, 0.001, 0.01]
+hpo.search_space.batch_size: [16, 32, 64]
+
+# Transfer learning path for TIMM / Hugging Face image classifiers
+model.pretrained: true
+training.freeze_backbone_epochs: 3
+
+# torch.compile path for PyTorch 2 optimization after correctness is stable
+training.compile: true
+```
+
+Do not recommend `torch.compile` as the first fix for bad accuracy. Use it for throughput/latency after the model is correct enough.
+
 ### Learning Rate Adjustments
 ```yaml
 # Current too high (loss oscillating)
@@ -158,9 +184,9 @@ training.learning_rate: 0.004   # Scale LR with batch
 
 ### Attempt Progression Strategy
 - **Attempt 1**: Conservative LR/epoch adjustment
-- **Attempt 2**: Add regularization OR change batch size
-- **Attempt 3**: Architecture change OR optimizer switch
-- **Attempt 4+**: Data augmentation, different approach entirely
+- **Attempt 2**: Learning-rate finder, scheduler, regularization OR change batch size
+- **Attempt 3**: HPO search, architecture change, optimizer switch, or pretrained TIMM/Hugging Face model
+- **Attempt 4+**: Data augmentation, data quality investigation, different approach entirely
 
 ### When to Stop (should_retry = false)
 - max_attempts reached
