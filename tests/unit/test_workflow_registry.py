@@ -8,7 +8,12 @@ from workflow.registry import (
     ApprovalStatus,
     ArtifactManifest,
     ArtifactManifestEntry,
+    DeploymentCheckResult,
+    DeploymentReport,
+    GpuEvidence,
+    LatencySummary,
     RiskCategory,
+    RollbackPlan,
     VerificationResult,
     WorkflowRegistry,
     WorkflowStatus,
@@ -544,6 +549,158 @@ def test_litserve_deployment_contract_requires_selected_model_and_generated_serv
     )
 
     assert passed_validation.status is WorkflowStatus.SUCCEEDED
+
+
+def test_litserve_deployment_success_blocks_missing_rollback_readiness():
+    registry = get_workflow_registry()
+    template = registry.get("deploy_litserve_gpu")
+    verification_results = tuple(
+        VerificationResult(
+            check_name=check.name,
+            evidence_type="observed" if check.evidence_type == "observed" else "declared",
+            source_step=check.source_step,
+            passed=True,
+            evidence=f"{check.name} evidence",
+        )
+        for check in template.success_contract.checks
+        if check.name not in {"litserve_files_generated", "rollback_plan_exists"}
+    )
+    manifest = ArtifactManifest(
+        entries=(
+            ArtifactManifestEntry(
+                uri="models:/classifier/Production",
+                artifact_type="model_artifact",
+                producing_step="select_best_model_artifact",
+                state="selected",
+            ),
+            ArtifactManifestEntry(
+                path="serving/litserve_api.py",
+                artifact_type="serving_application",
+                producing_step="generate_litserve_api",
+                state="generated",
+            ),
+        )
+    )
+
+    validation = registry.validate_success_contract(
+        "deploy_litserve_gpu",
+        verification_results=verification_results,
+        artifact_manifest=manifest,
+    )
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert [failure.check_name for failure in validation.missing_evidence] == [
+        "rollback_plan_exists"
+    ]
+    assert validation.missing_evidence[0].source_step == "write_monitoring_and_rollback_report"
+
+
+def test_declared_rollback_plan_satisfies_litserve_rollback_readiness():
+    registry = get_workflow_registry()
+    template = registry.get("deploy_litserve_gpu")
+    verification_results = tuple(
+        VerificationResult(
+            check_name=check.name,
+            evidence_type="observed" if check.evidence_type == "observed" else "declared",
+            source_step=check.source_step,
+            passed=True,
+            evidence=f"{check.name} evidence",
+        )
+        for check in template.success_contract.checks
+        if check.name not in {"litserve_files_generated", "rollback_plan_exists"}
+    )
+    manifest = ArtifactManifest(
+        entries=(
+            ArtifactManifestEntry(
+                uri="models:/classifier/Production",
+                artifact_type="model_artifact",
+                producing_step="select_best_model_artifact",
+                state="selected",
+            ),
+            ArtifactManifestEntry(
+                path="serving/litserve_api.py",
+                artifact_type="serving_application",
+                producing_step="generate_litserve_api",
+                state="generated",
+            ),
+        )
+    )
+
+    validation = registry.validate_success_contract(
+        "deploy_litserve_gpu",
+        verification_results=verification_results,
+        artifact_manifest=manifest,
+        rollback_plan=RollbackPlan(documented_target="models:/classifier/Previous"),
+    )
+
+    assert validation.status is WorkflowStatus.SUCCEEDED
+    assert validation.missing_evidence == ()
+    assert validation.failed_checks == ()
+
+
+def test_deployment_templates_require_rollback_readiness_contract():
+    registry = get_workflow_registry()
+
+    expected_sources = {
+        "deploy_litserve_gpu": ("rollback_plan_exists", "write_monitoring_and_rollback_report"),
+        "deploy_gpu_inference": ("rollback_plan_exists", "generate_rollback_plan"),
+        "deploy_gradio_demo": ("rollback_plan_exists", "document_rollback_target"),
+        "deploy_kserve_production": ("canary_rollback_plan_exists", "prepare_rollback"),
+    }
+
+    for workflow_id, (check_name, source_step) in expected_sources.items():
+        template = registry.get(workflow_id)
+        rollback_check = next(
+            check for check in template.success_contract.checks if check.name == check_name
+        )
+
+        assert rollback_check.evidence_type == "declared_or_observed"
+        assert rollback_check.source_step == source_step
+
+
+def test_deployment_report_is_structured_evidence_with_rollback_plan():
+    registry = get_workflow_registry()
+    contract_status = registry.validate_success_contract(
+        "deploy_gpu_inference",
+        verification_results=tuple(
+            VerificationResult(
+                check_name=check.name,
+                evidence_type="observed" if check.evidence_type == "observed" else "declared",
+                source_step=check.source_step,
+                passed=True,
+                evidence=f"{check.name} evidence",
+            )
+            for check in registry.get("deploy_gpu_inference").success_contract.checks
+        ),
+    )
+
+    report = DeploymentReport(
+        workflow_id="deploy_gpu_inference",
+        target="lambda-gpu-vm",
+        selected_backend="vllm",
+        endpoint_url="http://127.0.0.1:8000",
+        server_start_command="python -m vllm.entrypoints.openai.api_server",
+        health_result=DeploymentCheckResult(passed=True, evidence={"status_code": 200}),
+        prediction_result=DeploymentCheckResult(
+            passed=True,
+            evidence={"sample_output_shape": [1, 3]},
+        ),
+        latency_summary=LatencySummary(p50_ms=12.5, p95_ms=31.0, sample_count=20),
+        gpu_evidence=GpuEvidence(
+            available=True,
+            device_name="NVIDIA A10",
+            cuda_version="12.1",
+            utilization_percent=42.0,
+        ),
+        artifacts=ArtifactManifest(entries=()),
+        approvals=(),
+        rollback_plan=RollbackPlan(command="systemctl restart previous-vllm.service"),
+        contract_status=contract_status,
+    )
+
+    assert report.rollback_plan.command == "systemctl restart previous-vllm.service"
+    assert report.health_result.evidence["status_code"] == 200
+    assert report.contract_status.status is WorkflowStatus.SUCCEEDED
 
 
 def test_deployment_templates_are_non_fake_ordered_templates():

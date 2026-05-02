@@ -54,6 +54,88 @@ class ApprovalStatus(str, Enum):
 
 
 @dataclass(frozen=True)
+class RollbackPlan:
+    """Structured rollback readiness evidence; execution is intentionally out of scope."""
+
+    command: str | None = None
+    script_path: str | None = None
+    documented_target: str | None = None
+
+    def __post_init__(self) -> None:
+        if not any((self.command, self.script_path, self.documented_target)):
+            raise ValueError(
+                "Rollback plan requires a command, script path, or documented target"
+            )
+
+
+@dataclass(frozen=True)
+class DeploymentCheckResult:
+    """Structured observed evidence for a deployment probe."""
+
+    passed: bool
+    evidence: dict[str, Any]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.evidence, dict):
+            raise ValueError("Deployment check evidence must be structured data")
+
+
+@dataclass(frozen=True)
+class LatencySummary:
+    """Structured latency evidence captured during deployment verification."""
+
+    p50_ms: float
+    p95_ms: float
+    sample_count: int
+
+    def __post_init__(self) -> None:
+        if self.p50_ms < 0 or self.p95_ms < 0 or self.sample_count < 1:
+            raise ValueError("Latency summary requires non-negative latency and samples")
+
+
+@dataclass(frozen=True)
+class GpuEvidence:
+    """Structured GPU evidence captured for deployment reports."""
+
+    available: bool
+    device_name: str | None = None
+    cuda_version: str | None = None
+    utilization_percent: float | None = None
+
+
+@dataclass(frozen=True)
+class DeploymentReport:
+    """Structured deployment outcome report backed by contract validation."""
+
+    workflow_id: str
+    target: str
+    selected_backend: str
+    endpoint_url: str
+    server_start_command: str
+    health_result: DeploymentCheckResult
+    prediction_result: DeploymentCheckResult
+    latency_summary: LatencySummary
+    gpu_evidence: GpuEvidence
+    artifacts: ArtifactManifest
+    approvals: tuple[ApprovalRecord, ...]
+    rollback_plan: RollbackPlan | None
+    contract_status: ContractValidation
+
+    def __post_init__(self) -> None:
+        required_text_fields = (
+            self.workflow_id,
+            self.target,
+            self.selected_backend,
+            self.endpoint_url,
+            self.server_start_command,
+        )
+        if any(not value for value in required_text_fields):
+            raise ValueError("Deployment report requires target, backend, endpoint, and command")
+        if self.contract_status.status is WorkflowStatus.SUCCEEDED and self.rollback_plan is None:
+            raise ValueError("Successful deployment report requires rollback readiness")
+
+
+@dataclass(frozen=True)
 class WorkflowSelection:
     """A structured routing decision for a workflow template."""
 
@@ -114,7 +196,7 @@ class ContractFailure:
     check_name: str
     expected_evidence_type: EvidenceType
     source_step: str
-    actual_evidence: tuple[VerificationResult | ArtifactManifestEntry, ...]
+    actual_evidence: tuple[VerificationResult | ArtifactManifestEntry | RollbackPlan, ...]
     next_action: str
 
 
@@ -355,6 +437,7 @@ class WorkflowRegistry:
         workflow_id: str,
         verification_results: tuple[VerificationResult, ...],
         artifact_manifest: ArtifactManifest | None = None,
+        rollback_plan: RollbackPlan | None = None,
     ) -> ContractValidation:
         """Derive workflow status from required success contract verification results."""
 
@@ -364,6 +447,8 @@ class WorkflowRegistry:
         missing_evidence: list[ContractFailure] = []
         failed_checks: list[ContractFailure] = []
         for check in template.success_contract.checks:
+            if rollback_plan is not None and _is_rollback_readiness_check(check):
+                continue
             actual_evidence = tuple(
                 result for result in verification_results if result.check_name == check.name
             )
@@ -592,6 +677,10 @@ def _artifact_requirements_for_check(
     )
 
 
+def _is_rollback_readiness_check(check: SuccessContractCheck) -> bool:
+    return "rollback_plan" in check.name
+
+
 def _artifact_requirement_satisfied(
     artifact_manifest: ArtifactManifest | None,
     requirement: ArtifactRequirement,
@@ -805,6 +894,22 @@ def _template(
     )
 
 
+def _success_contract_with_source_overrides(
+    template: WorkflowTemplate,
+    source_steps: dict[str, str],
+) -> SuccessContract:
+    return SuccessContract(
+        checks=tuple(
+            SuccessContractCheck(
+                name=check.name,
+                evidence_type=check.evidence_type,
+                source_step=source_steps.get(check.name, check.source_step),
+            )
+            for check in template.success_contract.checks
+        )
+    )
+
+
 def _deploy_litserve_gpu_template() -> WorkflowTemplate:
     template = _template(
         workflow_id="deploy_litserve_gpu",
@@ -840,6 +945,10 @@ def _deploy_litserve_gpu_template() -> WorkflowTemplate:
         "health_result_recorded": "test_health_endpoint",
         "prediction_result_recorded": "test_prediction_endpoint",
     }
+    check_source_steps = {
+        **observed_check_source_steps,
+        "rollback_plan_exists": "write_monitoring_and_rollback_report",
+    }
     return WorkflowTemplate(
         workflow_id=template.workflow_id,
         name=template.name,
@@ -855,7 +964,7 @@ def _deploy_litserve_gpu_template() -> WorkflowTemplate:
                         if check.name in observed_check_source_steps
                         else check.evidence_type
                     ),
-                    source_step=observed_check_source_steps.get(check.name, check.source_step),
+                    source_step=check_source_steps.get(check.name, check.source_step),
                 )
                 for check in template.success_contract.checks
             )
@@ -941,7 +1050,10 @@ def _deploy_gpu_inference_template() -> WorkflowTemplate:
         description=template.description,
         required_inputs=template.required_inputs,
         steps=template.steps,
-        success_contract=template.success_contract,
+        success_contract=_success_contract_with_source_overrides(
+            template,
+            {"rollback_plan_exists": "generate_rollback_plan"},
+        ),
         artifact_requirements=template.artifact_requirements,
         branches=(
             WorkflowBranch(
@@ -999,12 +1111,14 @@ def _deploy_gradio_demo_template() -> WorkflowTemplate:
             "generate_gradio_app",
             "validate_launch_command",
             "test_sample_prediction_path",
+            "document_rollback_target",
             "prepare_hugging_face_spaces_package",
         ),
         contract_check_names=(
             "app_file_exists",
             "launch_command_exists",
             "sample_prediction_path_documented",
+            "rollback_plan_exists",
         ),
     )
     return WorkflowTemplate(
@@ -1013,7 +1127,10 @@ def _deploy_gradio_demo_template() -> WorkflowTemplate:
         description=template.description,
         required_inputs=template.required_inputs,
         steps=template.steps,
-        success_contract=template.success_contract,
+        success_contract=_success_contract_with_source_overrides(
+            template,
+            {"rollback_plan_exists": "document_rollback_target"},
+        ),
         artifact_requirements=template.artifact_requirements,
         branches=template.branches,
         routing_aliases=("Create a Gradio demo", "Gradio UI", "demo app"),
@@ -1057,7 +1174,10 @@ def _deploy_kserve_production_template() -> WorkflowTemplate:
         description=template.description,
         required_inputs=template.required_inputs,
         steps=template.steps,
-        success_contract=template.success_contract,
+        success_contract=_success_contract_with_source_overrides(
+            template,
+            {"canary_rollback_plan_exists": "prepare_rollback"},
+        ),
         artifact_requirements=template.artifact_requirements,
         branches=template.branches,
         routing_aliases=("KServe canary rollout", "deploy to Kubernetes", "deploy to EKS"),
