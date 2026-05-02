@@ -408,6 +408,7 @@ class TestTrainDeployFlowGradio:
             prompts_dir=mock_prompts_dir,
             tools_module=mock_tools_module,
             on_event=event_handler,
+            auto_approve=True,
         )
 
         # Track call sequence for dynamic responses
@@ -752,6 +753,7 @@ class TestDeployToMultipleTargets:
             prompts_dir=mock_prompts_dir,
             tools_module=mock_tools_module,
             on_event=event_handler,
+            auto_approve=True,
         )
 
         async def mock_perception_run(perception_input, session=None):
@@ -816,6 +818,7 @@ class TestDeployToMultipleTargets:
             prompts_dir=mock_prompts_dir,
             tools_module=mock_tools_module,
             on_event=event_handler,
+            auto_approve=True,
         )
 
         async def mock_perception_run(perception_input, session=None):
@@ -890,6 +893,7 @@ class TestDeployToMultipleTargets:
             prompts_dir=mock_prompts_dir,
             tools_module=mock_tools_module,
             on_event=event_handler,
+            auto_approve=True,
         )
 
         async def mock_perception_run(perception_input, session=None):
@@ -963,6 +967,7 @@ class TestDeployToMultipleTargets:
             prompts_dir=mock_prompts_dir,
             tools_module=mock_tools_module,
             on_event=event_handler,
+            auto_approve=True,
         )
 
         async def mock_perception_run(perception_input, session=None):
