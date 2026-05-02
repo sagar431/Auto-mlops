@@ -64,6 +64,22 @@ class ArtifactRequirement:
 
 
 @dataclass(frozen=True)
+class WorkflowBranch:
+    """A registry-owned alternative path within a workflow template."""
+
+    name: str
+    selection_rule: str
+
+
+@dataclass(frozen=True)
+class ApprovalGate:
+    """Human approval metadata required before a risky workflow step may run."""
+
+    step_id: str
+    risk_categories: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class WorkflowTemplate:
     """An ordered skeleton for one supported workflow."""
 
@@ -74,6 +90,10 @@ class WorkflowTemplate:
     steps: tuple[WorkflowStep, ...]
     success_contract: SuccessContract
     artifact_requirements: tuple[ArtifactRequirement, ...] = ()
+    branches: tuple[WorkflowBranch, ...] = ()
+    routing_aliases: tuple[str, ...] = ()
+    negative_routing_rules: tuple[str, ...] = ()
+    approval_gates: tuple[ApprovalGate, ...] = ()
 
     def step_by_id(self, step_id: str) -> WorkflowStep:
         for step in self.steps:
@@ -88,6 +108,10 @@ class WorkflowRegistry:
     def __init__(self, templates: list[WorkflowTemplate] | tuple[WorkflowTemplate, ...]):
         self._templates = {template.workflow_id: template for template in templates}
         self._validate_templates()
+
+    @property
+    def workflow_ids(self) -> tuple[str, ...]:
+        return tuple(self._templates)
 
     def get(self, workflow_id: str) -> WorkflowTemplate:
         try:
@@ -108,7 +132,15 @@ class WorkflowRegistry:
 def get_workflow_registry() -> WorkflowRegistry:
     """Return the Phase 0 workflow registry."""
 
-    return WorkflowRegistry((_setup_pipeline_template(),))
+    return WorkflowRegistry(
+        (
+            _setup_pipeline_template(),
+            _deploy_litserve_gpu_template(),
+            _deploy_gpu_inference_template(),
+            _deploy_gradio_demo_template(),
+            _deploy_kserve_production_template(),
+        )
+    )
 
 
 def _setup_pipeline_template() -> WorkflowTemplate:
@@ -241,6 +273,296 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 name="ci_workflow",
                 artifact_type="automation_workflow",
                 source_step="create_ci_workflow",
+            ),
+        ),
+    )
+
+
+def _template(
+    workflow_id: str,
+    name: str,
+    description: str,
+    step_ids: tuple[str, ...],
+    contract_check_names: tuple[str, ...],
+) -> WorkflowTemplate:
+    return WorkflowTemplate(
+        workflow_id=workflow_id,
+        name=name,
+        description=description,
+        required_inputs=(
+            WorkflowInput(
+                name="project_path",
+                description="Path to the ML project or model project to deploy.",
+            ),
+        ),
+        steps=tuple(
+            WorkflowStep(
+                step_id=step_id,
+                name=step_id.replace("_", " ").title(),
+                description=step_id.replace("_", " "),
+                order=index,
+            )
+            for index, step_id in enumerate(step_ids, start=1)
+        ),
+        success_contract=SuccessContract(
+            checks=tuple(
+                SuccessContractCheck(
+                    name=check_name,
+                    evidence_type="declared_or_observed",
+                    source_step=step_ids[min(index, len(step_ids) - 1)],
+                )
+                for index, check_name in enumerate(contract_check_names)
+            )
+        ),
+    )
+
+
+def _deploy_litserve_gpu_template() -> WorkflowTemplate:
+    template = _template(
+        workflow_id="deploy_litserve_gpu",
+        name="Deploy LitServe GPU",
+        description="Deploy a model to a Lambda Labs or local GPU VM using LitServe.",
+        step_ids=(
+            "detect_runtime_environment",
+            "detect_gpu_cuda",
+            "select_best_model_artifact",
+            "generate_litserve_api",
+            "configure_litserve_gpu_runtime",
+            "create_dockerfile",
+            "build_image_if_available",
+            "start_litserve_server",
+            "test_health_endpoint",
+            "test_prediction_endpoint",
+            "capture_logs_and_endpoint",
+            "write_monitoring_and_rollback_report",
+        ),
+        contract_check_names=(
+            "gpu_detection_recorded",
+            "litserve_files_generated",
+            "server_start_command_recorded",
+            "health_result_recorded",
+            "prediction_result_recorded",
+            "endpoint_url_recorded",
+            "rollback_plan_exists",
+        ),
+    )
+    observed_checks = {
+        "gpu_detection_recorded",
+        "server_start_command_recorded",
+        "health_result_recorded",
+        "prediction_result_recorded",
+    }
+    return WorkflowTemplate(
+        workflow_id=template.workflow_id,
+        name=template.name,
+        description=template.description,
+        required_inputs=template.required_inputs,
+        steps=template.steps,
+        success_contract=SuccessContract(
+            checks=tuple(
+                SuccessContractCheck(
+                    name=check.name,
+                    evidence_type="observed" if check.name in observed_checks else check.evidence_type,
+                    source_step=check.source_step,
+                )
+                for check in template.success_contract.checks
+            )
+        ),
+        artifact_requirements=template.artifact_requirements,
+        branches=template.branches,
+        routing_aliases=(
+            "Lambda Labs GPU",
+            "Lambda GPU",
+            "local GPU VM",
+            "LitServe GPU deployment",
+        ),
+        negative_routing_rules=("AWS Lambda serverless", "CPU Lambda function"),
+        approval_gates=(
+            ApprovalGate(
+                step_id="generate_litserve_api",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="build_image_if_available",
+                risk_categories=("builds_image",),
+            ),
+            ApprovalGate(
+                step_id="start_litserve_server",
+                risk_categories=("starts_server", "exposes_port"),
+            ),
+        ),
+    )
+
+
+def _deploy_gpu_inference_template() -> WorkflowTemplate:
+    template = _template(
+        workflow_id="deploy_gpu_inference",
+        name="Deploy GPU Inference",
+        description="Select a declared backend and verify a GPU inference deployment.",
+        step_ids=(
+            "detect_runtime_environment",
+            "detect_gpu",
+            "detect_cuda_driver_compatibility",
+            "inspect_model_artifact_and_framework",
+            "select_serving_backend",
+            "generate_serving_app",
+            "configure_gpu_runtime",
+            "start_server",
+            "test_health_endpoint",
+            "test_prediction_endpoint",
+            "collect_latency_metrics",
+            "check_gpu_utilization",
+            "generate_deployment_report",
+            "generate_rollback_plan",
+        ),
+        contract_check_names=(
+            "deployment_target_selected",
+            "gpu_cuda_status_recorded",
+            "serving_files_listed",
+            "server_start_command_recorded",
+            "health_check_passes",
+            "prediction_test_passes",
+            "gpu_utilization_evidence_captured",
+            "latency_metrics_recorded",
+            "endpoint_url_reported",
+            "rollback_plan_exists",
+        ),
+    )
+    return WorkflowTemplate(
+        workflow_id=template.workflow_id,
+        name=template.name,
+        description=template.description,
+        required_inputs=template.required_inputs,
+        steps=template.steps,
+        success_contract=template.success_contract,
+        artifact_requirements=template.artifact_requirements,
+        branches=(
+            WorkflowBranch(
+                name="litserve",
+                selection_rule="Image or classic PyTorch model GPU serving request.",
+            ),
+            WorkflowBranch(
+                name="gradio",
+                selection_rule="Demo or UI request for an interactive model experience.",
+            ),
+            WorkflowBranch(
+                name="vllm",
+                selection_rule="LLM serving request where vLLM is the first backend choice.",
+            ),
+            WorkflowBranch(
+                name="kserve",
+                selection_rule="Kubernetes, EKS, or canary production serving request.",
+            ),
+            WorkflowBranch(
+                name="torchserve",
+                selection_rule="Enterprise PyTorch registry, MAR, worker, or model versioning request.",
+            ),
+            WorkflowBranch(
+                name="fastapi_lambda_cpu",
+                selection_rule="AWS Lambda CPU serverless request when GPU is not required.",
+            ),
+        ),
+        routing_aliases=(
+            "deploy this classifier on GPU",
+            "serve this LLM with vLLM",
+            "run this model and tell me if GPU is being used",
+            "optimize inference latency",
+        ),
+        negative_routing_rules=("Lambda Labs GPU direct LitServe request",),
+        approval_gates=(
+            ApprovalGate(
+                step_id="generate_serving_app",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="start_server",
+                risk_categories=("starts_server", "exposes_port"),
+            ),
+        ),
+    )
+
+
+def _deploy_gradio_demo_template() -> WorkflowTemplate:
+    template = _template(
+        workflow_id="deploy_gradio_demo",
+        name="Deploy Gradio Demo",
+        description="Create or validate a quick Gradio demo for a trained model.",
+        step_ids=(
+            "select_model_artifact",
+            "generate_gradio_app",
+            "validate_launch_command",
+            "test_sample_prediction_path",
+            "prepare_hugging_face_spaces_package",
+        ),
+        contract_check_names=(
+            "app_file_exists",
+            "launch_command_exists",
+            "sample_prediction_path_documented",
+        ),
+    )
+    return WorkflowTemplate(
+        workflow_id=template.workflow_id,
+        name=template.name,
+        description=template.description,
+        required_inputs=template.required_inputs,
+        steps=template.steps,
+        success_contract=template.success_contract,
+        artifact_requirements=template.artifact_requirements,
+        branches=template.branches,
+        routing_aliases=("Create a Gradio demo", "Gradio UI", "demo app"),
+        negative_routing_rules=("production Kubernetes deployment",),
+        approval_gates=(
+            ApprovalGate(
+                step_id="generate_gradio_app",
+                risk_categories=("writes_project_files",),
+            ),
+        ),
+    )
+
+
+def _deploy_kserve_production_template() -> WorkflowTemplate:
+    template = _template(
+        workflow_id="deploy_kserve_production",
+        name="Deploy KServe Production",
+        description="Prepare Kubernetes or EKS deployment data for KServe production serving.",
+        step_ids=(
+            "detect_kubernetes_context",
+            "detect_eks_cluster",
+            "create_or_identify_ecr_repo",
+            "build_and_push_image",
+            "generate_inference_service",
+            "generate_kubernetes_support_manifests",
+            "run_kubectl_server_dry_run",
+            "prepare_canary_rollout",
+            "prepare_rollback",
+            "record_monitoring_endpoints",
+        ),
+        contract_check_names=(
+            "kubernetes_manifests_validate",
+            "registry_image_reference_exists",
+            "canary_rollback_plan_exists",
+            "dry_run_result_recorded",
+        ),
+    )
+    return WorkflowTemplate(
+        workflow_id=template.workflow_id,
+        name=template.name,
+        description=template.description,
+        required_inputs=template.required_inputs,
+        steps=template.steps,
+        success_contract=template.success_contract,
+        artifact_requirements=template.artifact_requirements,
+        branches=template.branches,
+        routing_aliases=("KServe canary rollout", "deploy to Kubernetes", "deploy to EKS"),
+        negative_routing_rules=("quick Gradio demo", "AWS Lambda serverless"),
+        approval_gates=(
+            ApprovalGate(
+                step_id="build_and_push_image",
+                risk_categories=("builds_image", "pushes_registry"),
+            ),
+            ApprovalGate(
+                step_id="run_kubectl_server_dry_run",
+                risk_categories=("uses_cloud_credentials",),
             ),
         ),
     )

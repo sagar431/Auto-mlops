@@ -1,9 +1,11 @@
 """Workflow registry public interface."""
 
 from workflow.registry import (
+    ApprovalGate,
     ArtifactRequirement,
     SuccessContract,
     SuccessContractCheck,
+    WorkflowBranch,
     WorkflowInput,
     WorkflowRegistry,
     WorkflowStatus,
@@ -14,8 +16,10 @@ from workflow.registry import (
 
 __all__ = [
     "ArtifactRequirement",
+    "ApprovalGate",
     "SuccessContract",
     "SuccessContractCheck",
+    "WorkflowBranch",
     "WorkflowInput",
     "WorkflowRegistry",
     "WorkflowStatus",
