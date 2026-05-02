@@ -17,6 +17,14 @@ class WorkflowStatus(str, Enum):
     SUCCEEDED = "succeeded"
 
 
+class EvidenceType(str, Enum):
+    """Supported provenance for success contract evidence."""
+
+    DECLARED = "declared"
+    OBSERVED = "observed"
+    DECLARED_OR_OBSERVED = "declared_or_observed"
+
+
 @dataclass(frozen=True)
 class WorkflowSelection:
     """A structured routing decision for a workflow template."""
@@ -57,8 +65,11 @@ class SuccessContractCheck:
     """A named check that must be satisfied before workflow success."""
 
     name: str
-    evidence_type: str
+    evidence_type: EvidenceType
     source_step: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "evidence_type", EvidenceType(self.evidence_type))
 
 
 @dataclass(frozen=True)
@@ -66,6 +77,44 @@ class SuccessContract:
     """The structured completion contract for a workflow template."""
 
     checks: tuple[SuccessContractCheck, ...]
+
+
+@dataclass(frozen=True)
+class ContractFailure:
+    """Structured reason a success contract check did not pass."""
+
+    check_name: str
+    expected_evidence_type: EvidenceType
+    source_step: str
+    actual_evidence: tuple[VerificationResult, ...]
+    next_action: str
+
+
+@dataclass(frozen=True)
+class ContractValidation:
+    """Runtime-owned validation result for a workflow success contract."""
+
+    workflow_id: str
+    status: WorkflowStatus
+    missing_evidence: tuple[ContractFailure, ...]
+    failed_checks: tuple[ContractFailure, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "status", WorkflowStatus(self.status))
+
+
+@dataclass(frozen=True)
+class VerificationResult:
+    """Evidence produced by runtime verification for a success contract check."""
+
+    check_name: str
+    evidence_type: EvidenceType
+    source_step: str
+    passed: bool
+    evidence: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "evidence_type", EvidenceType(self.evidence_type))
 
 
 @dataclass(frozen=True)
@@ -198,6 +247,63 @@ class WorkflowRegistry:
             ),
         )
 
+    def validate_success_contract(
+        self,
+        workflow_id: str,
+        verification_results: tuple[VerificationResult, ...],
+    ) -> ContractValidation:
+        """Derive workflow status from required success contract verification results."""
+
+        template = self.get(workflow_id)
+        missing_evidence: list[ContractFailure] = []
+        failed_checks: list[ContractFailure] = []
+        for check in template.success_contract.checks:
+            actual_evidence = tuple(
+                result for result in verification_results if result.check_name == check.name
+            )
+            satisfying_evidence = tuple(
+                result for result in actual_evidence if _evidence_satisfies_check(result, check)
+            )
+            if any(result.passed for result in satisfying_evidence):
+                continue
+            if satisfying_evidence:
+                failed_checks.append(
+                    ContractFailure(
+                        check_name=check.name,
+                        expected_evidence_type=check.evidence_type,
+                        source_step=check.source_step,
+                        actual_evidence=satisfying_evidence,
+                        next_action=(
+                            f"Resolve failed verification for check '{check.name}' "
+                            f"from step '{check.source_step}'."
+                        ),
+                    )
+                )
+                continue
+            missing_evidence.append(
+                ContractFailure(
+                    check_name=check.name,
+                    expected_evidence_type=check.evidence_type,
+                    source_step=check.source_step,
+                    actual_evidence=actual_evidence,
+                    next_action=(
+                        f"Record {check.evidence_type.value} evidence from step '{check.source_step}' "
+                        f"for check '{check.name}'."
+                    ),
+                )
+            )
+        status = WorkflowStatus.SUCCEEDED
+        if missing_evidence:
+            status = WorkflowStatus.BLOCKED
+        elif failed_checks:
+            status = WorkflowStatus.FAILED
+        return ContractValidation(
+            workflow_id=workflow_id,
+            status=status,
+            missing_evidence=tuple(missing_evidence),
+            failed_checks=tuple(failed_checks),
+        )
+
     def _validate_templates(self) -> None:
         for template in self._templates.values():
             if not template.steps:
@@ -222,6 +328,15 @@ def _matched_branches(normalized_request: str, template: WorkflowTemplate) -> tu
         for branch in template.branches
         if _routing_phrase_matches(normalized_request, branch.name)
     )
+
+
+def _evidence_satisfies_check(
+    verification_result: VerificationResult,
+    check: SuccessContractCheck,
+) -> bool:
+    if check.evidence_type == "declared_or_observed":
+        return verification_result.evidence_type in {"declared", "observed"}
+    return verification_result.evidence_type == check.evidence_type
 
 
 def get_workflow_registry() -> WorkflowRegistry:
@@ -441,11 +556,11 @@ def _deploy_litserve_gpu_template() -> WorkflowTemplate:
             "rollback_plan_exists",
         ),
     )
-    observed_checks = {
-        "gpu_detection_recorded",
-        "server_start_command_recorded",
-        "health_result_recorded",
-        "prediction_result_recorded",
+    observed_check_source_steps = {
+        "gpu_detection_recorded": "detect_gpu_cuda",
+        "server_start_command_recorded": "start_litserve_server",
+        "health_result_recorded": "test_health_endpoint",
+        "prediction_result_recorded": "test_prediction_endpoint",
     }
     return WorkflowTemplate(
         workflow_id=template.workflow_id,
@@ -457,8 +572,12 @@ def _deploy_litserve_gpu_template() -> WorkflowTemplate:
             checks=tuple(
                 SuccessContractCheck(
                     name=check.name,
-                    evidence_type="observed" if check.name in observed_checks else check.evidence_type,
-                    source_step=check.source_step,
+                    evidence_type=(
+                        "observed"
+                        if check.name in observed_check_source_steps
+                        else check.evidence_type
+                    ),
+                    source_step=observed_check_source_steps.get(check.name, check.source_step),
                 )
                 for check in template.success_contract.checks
             )

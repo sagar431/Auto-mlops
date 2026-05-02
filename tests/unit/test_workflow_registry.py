@@ -1,6 +1,11 @@
 import pytest
 
-from workflow.registry import WorkflowRegistry, WorkflowStatus, get_workflow_registry
+from workflow.registry import (
+    VerificationResult,
+    WorkflowRegistry,
+    WorkflowStatus,
+    get_workflow_registry,
+)
 
 
 def test_registry_returns_setup_pipeline_by_id():
@@ -185,6 +190,74 @@ def test_select_workflow_blocks_conflicting_alias_matches():
     assert selection.rejected_workflows == ("deploy_gradio_demo", "deploy_kserve_production")
     assert selection.missing_inputs == ("workflow_intent",)
     assert "Multiple registry routing aliases matched" in selection.selection_reason
+
+
+def test_success_contract_blocks_missing_required_evidence():
+    registry = get_workflow_registry()
+
+    validation = registry.validate_success_contract("deploy_litserve_gpu", verification_results=())
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert validation.missing_evidence
+    assert validation.failed_checks == ()
+    assert validation.missing_evidence[0].check_name == "gpu_detection_recorded"
+    assert validation.missing_evidence[0].expected_evidence_type == "observed"
+    assert validation.missing_evidence[0].source_step == "detect_gpu_cuda"
+    assert validation.missing_evidence[0].next_action
+
+
+def test_declared_evidence_does_not_satisfy_observed_contract_check():
+    registry = get_workflow_registry()
+    declared_health_result = VerificationResult(
+        check_name="health_result_recorded",
+        evidence_type="declared",
+        source_step="test_health_endpoint",
+        passed=True,
+        evidence="summary says /health passed",
+    )
+
+    validation = registry.validate_success_contract(
+        "deploy_litserve_gpu",
+        verification_results=(declared_health_result,),
+    )
+
+    health_failure = next(
+        failure
+        for failure in validation.missing_evidence
+        if failure.check_name == "health_result_recorded"
+    )
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert health_failure.expected_evidence_type == "observed"
+    assert health_failure.source_step == "test_health_endpoint"
+    assert health_failure.actual_evidence == (declared_health_result,)
+    assert "/health" in health_failure.actual_evidence[0].evidence
+
+
+def test_failed_required_check_derives_failed_workflow_status():
+    registry = get_workflow_registry()
+    template = registry.get("deploy_litserve_gpu")
+    verification_results = tuple(
+        VerificationResult(
+            check_name=check.name,
+            evidence_type="observed" if check.evidence_type == "observed" else "declared",
+            source_step=check.source_step,
+            passed=check.name != "prediction_result_recorded",
+            evidence=f"{check.name} evidence",
+        )
+        for check in template.success_contract.checks
+    )
+
+    validation = registry.validate_success_contract(
+        "deploy_litserve_gpu",
+        verification_results=verification_results,
+    )
+
+    assert validation.status is WorkflowStatus.FAILED
+    assert validation.missing_evidence == ()
+    assert [failure.check_name for failure in validation.failed_checks] == [
+        "prediction_result_recorded"
+    ]
+    assert validation.failed_checks[0].next_action
 
 
 def test_deployment_templates_are_non_fake_ordered_templates():
