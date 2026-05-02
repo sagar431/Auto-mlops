@@ -5,6 +5,7 @@ Executes MCP tool calls for ML pipeline operations.
 
 import asyncio
 import traceback
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
@@ -104,9 +105,6 @@ async def execute_step(
             "tool": tool,
             "timestamp": start_time.isoformat(),
         }
-
-
-from collections.abc import Callable
 
 
 def _get_tool_function(tool_name: str, tools_module: Any) -> Callable | None:
