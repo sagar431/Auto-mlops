@@ -334,6 +334,158 @@ def test_select_workflow_blocks_conflicting_alias_matches():
     assert "Multiple registry routing aliases matched" in selection.selection_reason
 
 
+@pytest.mark.parametrize(
+    (
+        "prompt",
+        "workflow_id",
+        "matched_alias",
+        "rejected_workflows",
+        "required_contract_checks",
+    ),
+    (
+        (
+            "Deploy this model on Lambda Labs GPU",
+            "deploy_litserve_gpu",
+            "Lambda Labs GPU",
+            ("deploy_gpu_inference",),
+            (
+                "gpu_detection_recorded",
+                "server_start_command_recorded",
+                "health_result_recorded",
+                "prediction_result_recorded",
+                "rollback_plan_exists",
+            ),
+        ),
+        (
+            "Create a Gradio demo",
+            "deploy_gradio_demo",
+            "Create a Gradio demo",
+            (),
+            (
+                "app_file_exists",
+                "launch_command_exists",
+                "sample_prediction_path_documented",
+                "rollback_plan_exists",
+            ),
+        ),
+        (
+            "Deploy to KServe with canary rollout",
+            "deploy_kserve_production",
+            "Deploy to KServe with canary rollout",
+            (),
+            (
+                "kubernetes_manifests_validate",
+                "registry_image_reference_exists",
+                "canary_rollback_plan_exists",
+                "dry_run_result_recorded",
+            ),
+        ),
+        (
+            "Run this model and tell me if GPU is being used",
+            "deploy_gpu_inference",
+            "run this model and tell me if GPU is being used",
+            (),
+            (
+                "gpu_cuda_status_recorded",
+                "gpu_utilization_evidence_captured",
+                "rollback_plan_exists",
+            ),
+        ),
+        (
+            "Set up MLOps for this project",
+            "setup_pipeline",
+            "Set up MLOps",
+            (),
+            (
+                "hydra_config_validates",
+                "dvc_repo_exists",
+                "generated_files_reported",
+            ),
+        ),
+    ),
+)
+def test_phase_0_prompt_contract_matrix_selects_expected_workflow(
+    prompt,
+    workflow_id,
+    matched_alias,
+    rejected_workflows,
+    required_contract_checks,
+):
+    registry = get_workflow_registry()
+
+    selection = registry.select_workflow(prompt)
+    template = registry.get(workflow_id)
+
+    assert selection.status is WorkflowStatus.PENDING
+    assert selection.workflow_id == workflow_id
+    assert selection.matched_aliases == (matched_alias,)
+    assert selection.rejected_workflows == rejected_workflows
+    assert selection.missing_inputs == ()
+    assert [workflow_input.name for workflow_input in template.required_inputs] == [
+        "project_path"
+    ]
+    declared_checks = {check.name for check in template.success_contract.checks}
+    assert set(required_contract_checks).issubset(declared_checks)
+
+
+def test_phase_0_prompt_contract_matrix_keeps_lambda_labs_gpu_distinct_from_aws_lambda():
+    registry = get_workflow_registry()
+
+    lambda_labs_selection = registry.select_workflow("Deploy this model on Lambda Labs GPU")
+    aws_lambda_selection = registry.select_workflow("Deploy this model to AWS Lambda serverless")
+
+    assert lambda_labs_selection.workflow_id == "deploy_litserve_gpu"
+    assert "deploy_gpu_inference" in lambda_labs_selection.rejected_workflows
+    assert aws_lambda_selection.status is WorkflowStatus.BLOCKED
+    assert aws_lambda_selection.workflow_id is None
+    assert "deploy_litserve_gpu" in aws_lambda_selection.rejected_workflows
+    assert "deploy_kserve_production" in aws_lambda_selection.rejected_workflows
+    assert aws_lambda_selection.missing_inputs == ("workflow_intent",)
+
+
+@pytest.mark.parametrize(
+    ("workflow_id", "observed_check_names"),
+    (
+        (
+            "deploy_litserve_gpu",
+            (
+                "gpu_detection_recorded",
+                "server_start_command_recorded",
+                "health_result_recorded",
+                "prediction_result_recorded",
+            ),
+        ),
+        (
+            "deploy_gpu_inference",
+            (
+                "gpu_cuda_status_recorded",
+                "server_start_command_recorded",
+                "health_check_passes",
+                "prediction_test_passes",
+                "gpu_utilization_evidence_captured",
+                "latency_metrics_recorded",
+            ),
+        ),
+        (
+            "deploy_kserve_production",
+            (
+                "kubernetes_manifests_validate",
+                "dry_run_result_recorded",
+            ),
+        ),
+    ),
+)
+def test_phase_0_deployment_contract_matrix_requires_observed_runtime_checks(
+    workflow_id,
+    observed_check_names,
+):
+    template = get_workflow_registry().get(workflow_id)
+    checks_by_name = {check.name: check for check in template.success_contract.checks}
+
+    for check_name in observed_check_names:
+        assert checks_by_name[check_name].evidence_type == "observed"
+
+
 def test_success_contract_blocks_missing_required_evidence():
     registry = get_workflow_registry()
 
