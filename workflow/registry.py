@@ -25,6 +25,15 @@ class EvidenceType(str, Enum):
     DECLARED_OR_OBSERVED = "declared_or_observed"
 
 
+class ArtifactState(str, Enum):
+    """Controlled lifecycle states for structured artifact manifest entries."""
+
+    GENERATED = "generated"
+    VALIDATED = "validated"
+    SELECTED = "selected"
+    EXTERNAL = "external"
+
+
 @dataclass(frozen=True)
 class WorkflowSelection:
     """A structured routing decision for a workflow template."""
@@ -86,7 +95,7 @@ class ContractFailure:
     check_name: str
     expected_evidence_type: EvidenceType
     source_step: str
-    actual_evidence: tuple[VerificationResult, ...]
+    actual_evidence: tuple[VerificationResult | ArtifactManifestEntry, ...]
     next_action: str
 
 
@@ -118,12 +127,44 @@ class VerificationResult:
 
 
 @dataclass(frozen=True)
+class ArtifactManifestEntry:
+    """A structured record for one artifact produced or selected by a workflow."""
+
+    artifact_type: str
+    producing_step: str
+    state: ArtifactState
+    path: str | None = None
+    uri: str | None = None
+    checksum: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.path and not self.uri:
+            raise ValueError("Artifact manifest entry requires a path or uri")
+        try:
+            object.__setattr__(self, "state", ArtifactState(self.state))
+        except ValueError as exc:
+            raise ValueError(f"Unknown artifact state: {self.state}") from exc
+
+
+@dataclass(frozen=True)
+class ArtifactManifest:
+    """Structured artifact records reported by workflow execution."""
+
+    entries: tuple[ArtifactManifestEntry, ...]
+
+
+@dataclass(frozen=True)
 class ArtifactRequirement:
     """An artifact a workflow is expected to produce, validate, or report."""
 
     name: str
     artifact_type: str
     source_step: str
+    state: ArtifactState = ArtifactState.GENERATED
+    contract_check_name: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "state", ArtifactState(self.state))
 
 
 @dataclass(frozen=True)
@@ -251,10 +292,13 @@ class WorkflowRegistry:
         self,
         workflow_id: str,
         verification_results: tuple[VerificationResult, ...],
+        artifact_manifest: ArtifactManifest | None = None,
     ) -> ContractValidation:
         """Derive workflow status from required success contract verification results."""
 
         template = self.get(workflow_id)
+        if artifact_manifest is not None:
+            self.validate_artifact_manifest(workflow_id, artifact_manifest)
         missing_evidence: list[ContractFailure] = []
         failed_checks: list[ContractFailure] = []
         for check in template.success_contract.checks:
@@ -265,6 +309,33 @@ class WorkflowRegistry:
                 result for result in actual_evidence if _evidence_satisfies_check(result, check)
             )
             if any(result.passed for result in satisfying_evidence):
+                continue
+            artifact_requirements = _artifact_requirements_for_check(template, check.name)
+            if artifact_requirements:
+                if all(
+                    _artifact_requirement_satisfied(artifact_manifest, requirement)
+                    for requirement in artifact_requirements
+                ):
+                    continue
+                missing_artifacts = tuple(
+                    requirement.name
+                    for requirement in artifact_requirements
+                    if not _artifact_requirement_satisfied(artifact_manifest, requirement)
+                )
+                missing_evidence.append(
+                    ContractFailure(
+                        check_name=check.name,
+                        expected_evidence_type=check.evidence_type,
+                        source_step=check.source_step,
+                        actual_evidence=(
+                            artifact_manifest.entries if artifact_manifest is not None else ()
+                        ),
+                        next_action=(
+                            f"Record required artifact manifest entries for check '{check.name}': "
+                            f"{', '.join(missing_artifacts)}."
+                        ),
+                    )
+                )
                 continue
             if satisfying_evidence:
                 failed_checks.append(
@@ -304,6 +375,22 @@ class WorkflowRegistry:
             failed_checks=tuple(failed_checks),
         )
 
+    def validate_artifact_manifest(
+        self,
+        workflow_id: str,
+        artifact_manifest: ArtifactManifest,
+    ) -> None:
+        """Validate artifact manifest entries against registry-owned workflow steps."""
+
+        template = self.get(workflow_id)
+        step_ids = {step.step_id for step in template.steps}
+        for entry in artifact_manifest.entries:
+            if entry.producing_step not in step_ids:
+                raise ValueError(
+                    f"Unknown artifact producing step '{entry.producing_step}' "
+                    f"for workflow '{workflow_id}'"
+                )
+
     def _validate_templates(self) -> None:
         for template in self._templates.values():
             if not template.steps:
@@ -337,6 +424,38 @@ def _evidence_satisfies_check(
     if check.evidence_type == "declared_or_observed":
         return verification_result.evidence_type in {"declared", "observed"}
     return verification_result.evidence_type == check.evidence_type
+
+
+def _artifact_requirements_for_check(
+    template: WorkflowTemplate,
+    check_name: str,
+) -> tuple[ArtifactRequirement, ...]:
+    return tuple(
+        requirement
+        for requirement in template.artifact_requirements
+        if requirement.contract_check_name == check_name
+    )
+
+
+def _artifact_requirement_satisfied(
+    artifact_manifest: ArtifactManifest | None,
+    requirement: ArtifactRequirement,
+) -> bool:
+    return any(
+        _artifact_matches_requirement(entry, requirement)
+        for entry in (() if artifact_manifest is None else artifact_manifest.entries)
+    )
+
+
+def _artifact_matches_requirement(
+    entry: ArtifactManifestEntry,
+    requirement: ArtifactRequirement,
+) -> bool:
+    return (
+        entry.artifact_type == requirement.artifact_type
+        and entry.producing_step == requirement.source_step
+        and entry.state == requirement.state
+    )
 
 
 def get_workflow_registry() -> WorkflowRegistry:
@@ -468,21 +587,25 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 name="hydra_config",
                 artifact_type="configuration",
                 source_step="create_or_validate_hydra_config",
+                contract_check_name="generated_files_reported",
             ),
             ArtifactRequirement(
                 name="dvc_yaml",
                 artifact_type="pipeline_definition",
                 source_step="create_dvc_yaml",
+                contract_check_name="generated_files_reported",
             ),
             ArtifactRequirement(
                 name="dockerfile",
                 artifact_type="container_definition",
                 source_step="create_dockerfile",
+                contract_check_name="generated_files_reported",
             ),
             ArtifactRequirement(
                 name="ci_workflow",
                 artifact_type="automation_workflow",
                 source_step="create_ci_workflow",
+                contract_check_name="generated_files_reported",
             ),
         ),
     )
@@ -582,7 +705,22 @@ def _deploy_litserve_gpu_template() -> WorkflowTemplate:
                 for check in template.success_contract.checks
             )
         ),
-        artifact_requirements=template.artifact_requirements,
+        artifact_requirements=(
+            ArtifactRequirement(
+                name="selected_model",
+                artifact_type="model_artifact",
+                source_step="select_best_model_artifact",
+                state="selected",
+                contract_check_name="litserve_files_generated",
+            ),
+            ArtifactRequirement(
+                name="litserve_api",
+                artifact_type="serving_application",
+                source_step="generate_litserve_api",
+                state="generated",
+                contract_check_name="litserve_files_generated",
+            ),
+        ),
         branches=template.branches,
         routing_aliases=(
             "Lambda Labs GPU",
