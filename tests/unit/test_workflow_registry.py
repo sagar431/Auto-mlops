@@ -12,6 +12,26 @@ def test_registry_returns_setup_pipeline_by_id():
     assert template.name == "Setup Pipeline"
 
 
+def test_registry_contains_exactly_phase_0_templates():
+    registry = get_workflow_registry()
+
+    assert registry.workflow_ids == (
+        "setup_pipeline",
+        "deploy_litserve_gpu",
+        "deploy_gpu_inference",
+        "deploy_gradio_demo",
+        "deploy_kserve_production",
+    )
+    for excluded_workflow_id in (
+        "rollback",
+        "monitor_and_alert",
+        "train_and_track",
+        "train_until_better",
+    ):
+        with pytest.raises(KeyError):
+            registry.get(excluded_workflow_id)
+
+
 def test_setup_pipeline_declares_ordered_workflow_steps():
     template = get_workflow_registry().get("setup_pipeline")
 
@@ -58,6 +78,81 @@ def test_setup_pipeline_declares_artifact_requirements_as_data():
         "dockerfile",
         "ci_workflow",
     ]
+
+
+def test_deploy_litserve_gpu_requires_observed_runtime_evidence():
+    template = get_workflow_registry().get("deploy_litserve_gpu")
+
+    observed_checks = {
+        check.name
+        for check in template.success_contract.checks
+        if check.evidence_type == "observed"
+    }
+
+    assert {
+        "gpu_detection_recorded",
+        "server_start_command_recorded",
+        "health_result_recorded",
+        "prediction_result_recorded",
+    }.issubset(observed_checks)
+
+
+def test_deploy_gpu_inference_declares_backend_branches():
+    template = get_workflow_registry().get("deploy_gpu_inference")
+
+    assert [branch.name for branch in template.branches] == [
+        "litserve",
+        "gradio",
+        "vllm",
+        "kserve",
+        "torchserve",
+        "fastapi_lambda_cpu",
+    ]
+    assert all(branch.selection_rule for branch in template.branches)
+
+
+def test_deployment_templates_declare_routing_and_approval_metadata():
+    registry = get_workflow_registry()
+    litserve = registry.get("deploy_litserve_gpu")
+    gpu_inference = registry.get("deploy_gpu_inference")
+    kserve = registry.get("deploy_kserve_production")
+
+    assert "Lambda Labs GPU" in litserve.routing_aliases
+    assert "AWS Lambda serverless" in litserve.negative_routing_rules
+    assert "serve this LLM with vLLM" in gpu_inference.routing_aliases
+    assert "KServe canary rollout" in kserve.routing_aliases
+
+    litserve_risk_categories = {
+        risk
+        for gate in litserve.approval_gates
+        for risk in gate.risk_categories
+    }
+    assert {
+        "writes_project_files",
+        "builds_image",
+        "starts_server",
+        "exposes_port",
+    }.issubset(litserve_risk_categories)
+
+
+def test_deployment_templates_are_non_fake_ordered_templates():
+    registry = get_workflow_registry()
+
+    for workflow_id in (
+        "deploy_litserve_gpu",
+        "deploy_gpu_inference",
+        "deploy_gradio_demo",
+        "deploy_kserve_production",
+    ):
+        template = registry.get(workflow_id)
+
+        assert [workflow_input.name for workflow_input in template.required_inputs] == [
+            "project_path"
+        ]
+        assert [step.order for step in template.steps] == list(range(1, len(template.steps) + 1))
+        assert template.success_contract.checks
+        assert template.routing_aliases
+        assert template.approval_gates
 
 
 def test_workflow_step_is_separate_from_tool_function():
