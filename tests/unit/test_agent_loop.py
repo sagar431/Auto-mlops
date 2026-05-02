@@ -17,6 +17,7 @@ from agent.agent_loop import (
     StepType,
     run_mlops_agent,
 )
+from workflow.registry import WorkflowStatus
 
 # ============================================================================
 # Route Constants Tests
@@ -613,6 +614,28 @@ class TestAgentLoopRun:
             result = await mock_agent.run("Test query", "/test/path")
             assert result == "Final summary"
             assert mock_agent.status == "success"
+
+    @pytest.mark.asyncio
+    async def test_run_selects_setup_workflow_before_perception_or_decision(self, mock_agent):
+        """Test registry workflow selection runs before prompt-authored planning."""
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("perception should not run before selection"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+        ):
+            result = await mock_agent.run("Set up MLOps for this project", "/test/path")
+
+        assert mock_agent.workflow_selection.workflow_id == "setup_pipeline"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.PENDING
+        assert "setup_pipeline" in result
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+        mock_execute_step.assert_not_awaited()
 
 
 # ============================================================================

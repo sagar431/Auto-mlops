@@ -6,12 +6,13 @@ Orchestrates: Perception -> Decision -> Action -> (Improve if needed) -> Summari
 
 import uuid
 from collections.abc import Callable
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
 from action.execute_step import execute_step
-from agent.approval import wait_for_approval
 from agent.agentSession import AgentSession
+from agent.approval import wait_for_approval
 from agent.contextManager import ContextManager
 from agent.model_manager import get_model_manager
 from decision.decision import Decision, build_decision_input
@@ -20,6 +21,7 @@ from observability import get_logger
 from perception.perception import Perception, build_perception_input
 from resilience import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError
 from summarization.summarizer import Summarizer
+from workflow.registry import WorkflowSelection, WorkflowStatus, get_workflow_registry
 
 logger = get_logger("agent.agent_loop")
 
@@ -157,6 +159,8 @@ class AgentLoop:
         self.approval_timeout = approval_timeout
         self.auto_approve = auto_approve
         self._approval_cache: dict[str, bool] = {}
+        self.workflow_registry = get_workflow_registry()
+        self.workflow_selection: WorkflowSelection | None = None
 
         # Model manager for LLM calls
         self.model_manager = get_model_manager()
@@ -195,6 +199,9 @@ class AgentLoop:
 
         # Initialize session
         self._initialize_session(query, project_path, accuracy_threshold)
+
+        if await self._select_registry_workflow():
+            return self.final_output
 
         # Phase 1: Initial Perception
         await self._emit("phase", {"phase": "perception", "message": "Analyzing request..."})
@@ -254,6 +261,90 @@ class AgentLoop:
         self.code_variants: dict = {}
         self.next_step_id: str = "0"
         self.final_output: str = ""
+        self.workflow_selection = None
+
+    async def _select_registry_workflow(self) -> bool:
+        """Select a registry workflow before prompt-authored planning."""
+        selection = self.workflow_registry.select_workflow(self.query)
+        selection = self._add_runtime_input_requirements(selection)
+        self.workflow_selection = selection
+        self.ctx.globals["workflow_selection"] = selection
+        self.ctx.globals["workflow_inputs"] = {"project_path": self.ctx.project_path}
+
+        await self._emit(
+            "workflow_selection",
+            {
+                **asdict(selection),
+                "status": selection.status.value,
+                "runtime_inputs": {"project_path": self.ctx.project_path},
+            },
+        )
+
+        if selection.status is WorkflowStatus.PENDING:
+            self.status = "paused"
+            self.final_output = (
+                f"Selected workflow '{selection.workflow_id}' from registry. "
+                "Workflow execution is not enabled yet; no tools were run."
+            )
+            return True
+
+        if self._should_block_for_workflow_selection(selection):
+            self.status = "paused"
+            missing_inputs = ", ".join(selection.missing_inputs) or "workflow_intent"
+            self.final_output = (
+                "Workflow selection blocked: "
+                f"{selection.selection_reason} Next action: provide {missing_inputs}."
+            )
+            return True
+
+        return False
+
+    def _add_runtime_input_requirements(
+        self, selection: WorkflowSelection
+    ) -> WorkflowSelection:
+        """Block selected workflows when required runtime inputs are missing."""
+        if selection.workflow_id is None:
+            return selection
+
+        template = self.workflow_registry.get(selection.workflow_id)
+        missing_inputs = list(selection.missing_inputs)
+        for workflow_input in template.required_inputs:
+            if workflow_input.required and workflow_input.name == "project_path":
+                if not self.ctx.project_path and "project_path" not in missing_inputs:
+                    missing_inputs.append("project_path")
+
+        if not missing_inputs:
+            return selection
+
+        return replace(
+            selection,
+            status=WorkflowStatus.BLOCKED,
+            missing_inputs=tuple(missing_inputs),
+            selection_reason=(
+                f"{selection.selection_reason} Missing required runtime inputs: "
+                f"{', '.join(missing_inputs)}."
+            ),
+        )
+
+    def _should_block_for_workflow_selection(self, selection: WorkflowSelection) -> bool:
+        """Block registry-like requests that did not yield an executable selection."""
+        if selection.matched_aliases or selection.rejected_workflows:
+            return True
+
+        workflow_terms = (
+            "deploy",
+            "setup",
+            "set up",
+            "mlops",
+            "pipeline",
+            "serve",
+            "gradio",
+            "kserve",
+            "gpu",
+            "lambda",
+        )
+        normalized_query = self.query.casefold()
+        return any(term in normalized_query for term in workflow_terms)
 
     async def _run_initial_perception(self):
         """Run initial perception on user query."""
