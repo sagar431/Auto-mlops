@@ -1,6 +1,6 @@
 import pytest
 
-from workflow.registry import WorkflowRegistry, get_workflow_registry
+from workflow.registry import WorkflowRegistry, WorkflowStatus, get_workflow_registry
 
 
 def test_registry_returns_setup_pipeline_by_id():
@@ -133,6 +133,58 @@ def test_deployment_templates_declare_routing_and_approval_metadata():
         "starts_server",
         "exposes_port",
     }.issubset(litserve_risk_categories)
+
+
+def test_select_workflow_returns_structured_litserve_gpu_decision():
+    registry = get_workflow_registry()
+
+    selection = registry.select_workflow("Deploy this model on Lambda Labs GPU")
+
+    assert selection.workflow_id == "deploy_litserve_gpu"
+    assert selection.confidence >= 0.8
+    assert selection.matched_aliases == ("Lambda Labs GPU",)
+    assert "deploy_gpu_inference" in selection.rejected_workflows
+    assert selection.missing_inputs == ()
+    assert "Lambda Labs GPU" in selection.selection_reason
+
+
+def test_select_workflow_records_gpu_inference_branch_evidence():
+    registry = get_workflow_registry()
+
+    selection = registry.select_workflow("Serve this LLM with vLLM")
+
+    assert selection.workflow_id == "deploy_gpu_inference"
+    assert selection.status is WorkflowStatus.PENDING
+    assert selection.matched_aliases == ("serve this LLM with vLLM",)
+    assert selection.matched_branches == ("vllm",)
+    assert "vllm" in selection.selection_reason
+
+
+def test_select_workflow_blocks_ambiguous_request_instead_of_setup_fallback():
+    registry = get_workflow_registry()
+
+    selection = registry.select_workflow("Deploy my model")
+
+    assert selection.status is WorkflowStatus.BLOCKED
+    assert selection.workflow_id is None
+    assert selection.confidence < 0.5
+    assert selection.missing_inputs == ("workflow_intent",)
+    assert "setup_pipeline" not in selection.rejected_workflows
+    assert "No registry routing alias matched" in selection.selection_reason
+
+
+def test_select_workflow_blocks_conflicting_alias_matches():
+    registry = get_workflow_registry()
+
+    selection = registry.select_workflow("Create a Gradio demo and deploy to Kubernetes")
+
+    assert selection.status is WorkflowStatus.BLOCKED
+    assert selection.workflow_id is None
+    assert selection.confidence < 0.5
+    assert selection.matched_aliases == ("Create a Gradio demo", "deploy to Kubernetes")
+    assert selection.rejected_workflows == ("deploy_gradio_demo", "deploy_kserve_production")
+    assert selection.missing_inputs == ("workflow_intent",)
+    assert "Multiple registry routing aliases matched" in selection.selection_reason
 
 
 def test_deployment_templates_are_non_fake_ordered_templates():

@@ -18,6 +18,20 @@ class WorkflowStatus(str, Enum):
 
 
 @dataclass(frozen=True)
+class WorkflowSelection:
+    """A structured routing decision for a workflow template."""
+
+    workflow_id: str | None
+    status: WorkflowStatus
+    confidence: float
+    matched_aliases: tuple[str, ...]
+    matched_branches: tuple[str, ...]
+    rejected_workflows: tuple[str, ...]
+    missing_inputs: tuple[str, ...]
+    selection_reason: str
+
+
+@dataclass(frozen=True)
 class WorkflowInput:
     """A value declared by a workflow before step arguments are expanded."""
 
@@ -119,6 +133,71 @@ class WorkflowRegistry:
         except KeyError as exc:
             raise KeyError(f"Unknown workflow template: {workflow_id}") from exc
 
+    def select_workflow(self, request: str) -> WorkflowSelection:
+        """Select a workflow from registry-owned routing aliases."""
+
+        normalized_request = _normalize_for_routing(request)
+        matches: list[tuple[str, str]] = []
+        rejected_workflows: list[str] = []
+
+        for template in self._templates.values():
+            if any(
+                _routing_phrase_matches(normalized_request, negative_rule)
+                for negative_rule in template.negative_routing_rules
+            ):
+                rejected_workflows.append(template.workflow_id)
+                continue
+
+            for alias in template.routing_aliases:
+                if _routing_phrase_matches(normalized_request, alias):
+                    matches.append((template.workflow_id, alias))
+
+        if not matches:
+            return WorkflowSelection(
+                workflow_id=None,
+                status=WorkflowStatus.BLOCKED,
+                confidence=0.0,
+                matched_aliases=(),
+                matched_branches=(),
+                rejected_workflows=tuple(rejected_workflows),
+                missing_inputs=("workflow_intent",),
+                selection_reason="No registry routing alias matched the request.",
+            )
+
+        matched_workflow_ids = tuple(dict.fromkeys(workflow_id for workflow_id, _ in matches))
+        if len(matched_workflow_ids) > 1:
+            return WorkflowSelection(
+                workflow_id=None,
+                status=WorkflowStatus.BLOCKED,
+                confidence=0.4,
+                matched_aliases=tuple(alias for _, alias in matches),
+                matched_branches=(),
+                rejected_workflows=matched_workflow_ids,
+                missing_inputs=("workflow_intent",),
+                selection_reason="Multiple registry routing aliases matched; clarify workflow intent.",
+            )
+
+        workflow_id, matched_alias = matches[0]
+        matched_branches = _matched_branches(normalized_request, self.get(workflow_id))
+        branch_reason = (
+            f" Matched branch evidence: {', '.join(matched_branches)}."
+            if matched_branches
+            else ""
+        )
+        return WorkflowSelection(
+            workflow_id=workflow_id,
+            status=WorkflowStatus.PENDING,
+            confidence=0.9,
+            matched_aliases=(matched_alias,),
+            matched_branches=matched_branches,
+            rejected_workflows=tuple(rejected_workflows),
+            missing_inputs=(),
+            selection_reason=(
+                f"Matched routing alias '{matched_alias}' for workflow '{workflow_id}'."
+                f"{branch_reason}"
+            ),
+        )
+
     def _validate_templates(self) -> None:
         for template in self._templates.values():
             if not template.steps:
@@ -127,6 +206,22 @@ class WorkflowRegistry:
                 raise ValueError(
                     f"Fake Template '{template.workflow_id}' has no success contract checks"
                 )
+
+
+def _normalize_for_routing(value: str) -> str:
+    return " ".join(value.casefold().split())
+
+
+def _routing_phrase_matches(normalized_request: str, phrase: str) -> bool:
+    return _normalize_for_routing(phrase) in normalized_request
+
+
+def _matched_branches(normalized_request: str, template: WorkflowTemplate) -> tuple[str, ...]:
+    return tuple(
+        branch.name
+        for branch in template.branches
+        if _routing_phrase_matches(normalized_request, branch.name)
+    )
 
 
 def get_workflow_registry() -> WorkflowRegistry:
@@ -468,7 +563,7 @@ def _deploy_gpu_inference_template() -> WorkflowTemplate:
             "run this model and tell me if GPU is being used",
             "optimize inference latency",
         ),
-        negative_routing_rules=("Lambda Labs GPU direct LitServe request",),
+        negative_routing_rules=("Lambda Labs GPU", "Lambda Labs GPU direct LitServe request"),
         approval_gates=(
             ApprovalGate(
                 step_id="generate_serving_app",
