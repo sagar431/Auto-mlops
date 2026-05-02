@@ -852,6 +852,7 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 contract_check_name="generated_files_reported",
             ),
         ),
+        routing_aliases=("Set up MLOps", "setup MLOps pipeline", "create MLOps foundation"),
     )
 
 
@@ -897,12 +898,14 @@ def _template(
 def _success_contract_with_source_overrides(
     template: WorkflowTemplate,
     source_steps: dict[str, str],
+    evidence_types: dict[str, EvidenceType | str] | None = None,
 ) -> SuccessContract:
+    evidence_types = evidence_types or {}
     return SuccessContract(
         checks=tuple(
             SuccessContractCheck(
                 name=check.name,
-                evidence_type=check.evidence_type,
+                evidence_type=evidence_types.get(check.name, check.evidence_type),
                 source_step=source_steps.get(check.name, check.source_step),
             )
             for check in template.success_contract.checks
@@ -1053,6 +1056,14 @@ def _deploy_gpu_inference_template() -> WorkflowTemplate:
         success_contract=_success_contract_with_source_overrides(
             template,
             {"rollback_plan_exists": "generate_rollback_plan"},
+            {
+                "gpu_cuda_status_recorded": "observed",
+                "server_start_command_recorded": "observed",
+                "health_check_passes": "observed",
+                "prediction_test_passes": "observed",
+                "gpu_utilization_evidence_captured": "observed",
+                "latency_metrics_recorded": "observed",
+            },
         ),
         artifact_requirements=template.artifact_requirements,
         branches=(
@@ -1177,10 +1188,19 @@ def _deploy_kserve_production_template() -> WorkflowTemplate:
         success_contract=_success_contract_with_source_overrides(
             template,
             {"canary_rollback_plan_exists": "prepare_rollback"},
+            {
+                "kubernetes_manifests_validate": "observed",
+                "dry_run_result_recorded": "observed",
+            },
         ),
         artifact_requirements=template.artifact_requirements,
         branches=template.branches,
-        routing_aliases=("KServe canary rollout", "deploy to Kubernetes", "deploy to EKS"),
+        routing_aliases=(
+            "KServe canary rollout",
+            "Deploy to KServe with canary rollout",
+            "deploy to Kubernetes",
+            "deploy to EKS",
+        ),
         negative_routing_rules=("quick Gradio demo", "AWS Lambda serverless"),
         approval_gates=(
             ApprovalGate(
