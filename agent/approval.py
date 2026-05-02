@@ -9,10 +9,8 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Any
 
 from db import AsyncSessionRepository, get_async_session
-
 
 APPROVAL_DECISION_EVENT = "approval_decision"
 
