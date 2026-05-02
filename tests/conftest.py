@@ -509,11 +509,16 @@ def mock_llm(monkeypatch):
 
     mock = MockLLM()
 
-    # Patch the get_model_manager function to return our mock
+    # Patch every module that imports get_model_manager directly. Patching only
+    # agent.model_manager misses already-bound references in these modules.
     def get_mock_manager():
         return mock
 
     monkeypatch.setattr("agent.model_manager.get_model_manager", get_mock_manager)
+    monkeypatch.setattr("agent.agent_loop.get_model_manager", get_mock_manager)
+    monkeypatch.setattr("perception.perception.get_model_manager", get_mock_manager)
+    monkeypatch.setattr("decision.decision.get_model_manager", get_mock_manager)
+    monkeypatch.setattr("summarization.summarizer.get_model_manager", get_mock_manager)
 
     return mock
 
