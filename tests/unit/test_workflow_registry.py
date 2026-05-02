@@ -1,6 +1,8 @@
 import pytest
 
 from workflow.registry import (
+    ArtifactManifest,
+    ArtifactManifestEntry,
     VerificationResult,
     WorkflowRegistry,
     WorkflowStatus,
@@ -83,6 +85,51 @@ def test_setup_pipeline_declares_artifact_requirements_as_data():
         "dockerfile",
         "ci_workflow",
     ]
+
+
+def test_artifact_manifest_entry_requires_path_or_uri_and_known_state():
+    entry = ArtifactManifestEntry(
+        path="conf/config.yaml",
+        artifact_type="configuration",
+        producing_step="create_or_validate_hydra_config",
+        state="generated",
+    )
+
+    assert entry.path == "conf/config.yaml"
+    assert entry.uri is None
+    assert entry.state == "generated"
+
+    with pytest.raises(ValueError, match="path or uri"):
+        ArtifactManifestEntry(
+            artifact_type="configuration",
+            producing_step="create_or_validate_hydra_config",
+            state="generated",
+        )
+
+    with pytest.raises(ValueError, match="Unknown artifact state"):
+        ArtifactManifestEntry(
+            path="conf/config.yaml",
+            artifact_type="configuration",
+            producing_step="create_or_validate_hydra_config",
+            state="reported",
+        )
+
+
+def test_artifact_manifest_rejects_unknown_producing_step_for_workflow():
+    registry = get_workflow_registry()
+    manifest = ArtifactManifest(
+        entries=(
+            ArtifactManifestEntry(
+                path="conf/config.yaml",
+                artifact_type="configuration",
+                producing_step="not_a_workflow_step",
+                state="generated",
+            ),
+        )
+    )
+
+    with pytest.raises(ValueError, match="Unknown artifact producing step"):
+        registry.validate_artifact_manifest("setup_pipeline", manifest)
 
 
 def test_deploy_litserve_gpu_requires_observed_runtime_evidence():
@@ -258,6 +305,155 @@ def test_failed_required_check_derives_failed_workflow_status():
         "prediction_result_recorded"
     ]
     assert validation.failed_checks[0].next_action
+
+
+def test_setup_pipeline_generated_files_contract_uses_artifact_manifest():
+    registry = get_workflow_registry()
+    template = registry.get("setup_pipeline")
+    verification_results = tuple(
+        VerificationResult(
+            check_name=check.name,
+            evidence_type="declared",
+            source_step=check.source_step,
+            passed=True,
+            evidence=f"{check.name} evidence",
+        )
+        for check in template.success_contract.checks
+        if check.name != "generated_files_reported"
+    )
+    manifest = ArtifactManifest(
+        entries=(
+            ArtifactManifestEntry(
+                path="conf/config.yaml",
+                artifact_type="configuration",
+                producing_step="create_or_validate_hydra_config",
+                state="generated",
+            ),
+            ArtifactManifestEntry(
+                path="dvc.yaml",
+                artifact_type="pipeline_definition",
+                producing_step="create_dvc_yaml",
+                state="generated",
+            ),
+            ArtifactManifestEntry(
+                path="Dockerfile",
+                artifact_type="container_definition",
+                producing_step="create_dockerfile",
+                state="generated",
+            ),
+            ArtifactManifestEntry(
+                path=".github/workflows/mlops.yml",
+                artifact_type="automation_workflow",
+                producing_step="create_ci_workflow",
+                state="generated",
+            ),
+        )
+    )
+
+    validation = registry.validate_success_contract(
+        "setup_pipeline",
+        verification_results=verification_results,
+        artifact_manifest=manifest,
+    )
+
+    assert validation.status is WorkflowStatus.SUCCEEDED
+    assert validation.missing_evidence == ()
+    assert validation.failed_checks == ()
+
+
+def test_setup_pipeline_generated_files_contract_blocks_missing_manifest_entries():
+    registry = get_workflow_registry()
+    template = registry.get("setup_pipeline")
+    verification_results = tuple(
+        VerificationResult(
+            check_name=check.name,
+            evidence_type="declared",
+            source_step=check.source_step,
+            passed=True,
+            evidence=f"{check.name} evidence",
+        )
+        for check in template.success_contract.checks
+        if check.name != "generated_files_reported"
+    )
+    manifest = ArtifactManifest(
+        entries=(
+            ArtifactManifestEntry(
+                path="conf/config.yaml",
+                artifact_type="configuration",
+                producing_step="create_or_validate_hydra_config",
+                state="generated",
+            ),
+        )
+    )
+
+    validation = registry.validate_success_contract(
+        "setup_pipeline",
+        verification_results=verification_results,
+        artifact_manifest=manifest,
+    )
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert [failure.check_name for failure in validation.missing_evidence] == [
+        "generated_files_reported"
+    ]
+    assert validation.missing_evidence[0].actual_evidence == manifest.entries
+    assert "dvc_yaml" in validation.missing_evidence[0].next_action
+
+
+def test_litserve_deployment_contract_requires_selected_model_and_generated_serving_artifact():
+    registry = get_workflow_registry()
+    template = registry.get("deploy_litserve_gpu")
+    verification_results = tuple(
+        VerificationResult(
+            check_name=check.name,
+            evidence_type="observed" if check.evidence_type == "observed" else "declared",
+            source_step=check.source_step,
+            passed=True,
+            evidence=f"{check.name} evidence",
+        )
+        for check in template.success_contract.checks
+        if check.name != "litserve_files_generated"
+    )
+    manifest = ArtifactManifest(
+        entries=(
+            ArtifactManifestEntry(
+                uri="models:/classifier/Production",
+                artifact_type="model_artifact",
+                producing_step="select_best_model_artifact",
+                state="selected",
+            ),
+        )
+    )
+
+    blocked_validation = registry.validate_success_contract(
+        "deploy_litserve_gpu",
+        verification_results=verification_results,
+        artifact_manifest=manifest,
+    )
+
+    assert blocked_validation.status is WorkflowStatus.BLOCKED
+    assert blocked_validation.missing_evidence[0].check_name == "litserve_files_generated"
+    assert "litserve_api" in blocked_validation.missing_evidence[0].next_action
+
+    complete_manifest = ArtifactManifest(
+        entries=(
+            *manifest.entries,
+            ArtifactManifestEntry(
+                path="serving/litserve_api.py",
+                artifact_type="serving_application",
+                producing_step="generate_litserve_api",
+                state="generated",
+            ),
+        )
+    )
+
+    passed_validation = registry.validate_success_contract(
+        "deploy_litserve_gpu",
+        verification_results=verification_results,
+        artifact_manifest=complete_manifest,
+    )
+
+    assert passed_validation.status is WorkflowStatus.SUCCEEDED
 
 
 def test_deployment_templates_are_non_fake_ordered_templates():
