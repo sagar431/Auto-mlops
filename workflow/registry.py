@@ -34,6 +34,25 @@ class ArtifactState(str, Enum):
     EXTERNAL = "external"
 
 
+class RiskCategory(str, Enum):
+    """Controlled risk categories for approval-gated workflow steps."""
+
+    WRITES_PROJECT_FILES = "writes_project_files"
+    INSTALLS_PACKAGES = "installs_packages"
+    STARTS_SERVER = "starts_server"
+    BUILDS_IMAGE = "builds_image"
+    PUSHES_REGISTRY = "pushes_registry"
+    USES_CLOUD_CREDENTIALS = "uses_cloud_credentials"
+    EXPOSES_PORT = "exposes_port"
+
+
+class ApprovalStatus(str, Enum):
+    """Controlled states for human approval records."""
+
+    APPROVED = "approved"
+    DENIED = "denied"
+
+
 @dataclass(frozen=True)
 class WorkflowSelection:
     """A structured routing decision for a workflow template."""
@@ -176,11 +195,54 @@ class WorkflowBranch:
 
 
 @dataclass(frozen=True)
+class ApprovalRecord:
+    """Auditable approval decision for one workflow run step."""
+
+    workflow_run_id: str
+    step_id: str
+    risk_categories: tuple[RiskCategory, ...]
+    status: ApprovalStatus
+    approver: str | None
+    timestamp: Any
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "risk_categories",
+            _normalize_risk_categories(self.risk_categories),
+        )
+        object.__setattr__(self, "status", ApprovalStatus(self.status))
+
+
+@dataclass(frozen=True)
 class ApprovalGate:
     """Human approval metadata required before a risky workflow step may run."""
 
     step_id: str
-    risk_categories: tuple[str, ...]
+    risk_categories: tuple[RiskCategory, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "risk_categories",
+            _normalize_risk_categories(self.risk_categories),
+        )
+
+
+@dataclass(frozen=True)
+class StepApprovalValidation:
+    """Registry-owned approval validation for one workflow step."""
+
+    workflow_id: str
+    workflow_run_id: str
+    step_id: str
+    status: WorkflowStatus
+    risk_categories: tuple[RiskCategory, ...]
+    approval_record: ApprovalRecord | None
+    next_action: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "status", WorkflowStatus(self.status))
 
 
 @dataclass(frozen=True)
@@ -391,6 +453,74 @@ class WorkflowRegistry:
                     f"for workflow '{workflow_id}'"
                 )
 
+    def validate_step_approval(
+        self,
+        workflow_id: str,
+        workflow_run_id: str,
+        step_id: str,
+        approval_records: tuple[ApprovalRecord, ...],
+    ) -> StepApprovalValidation:
+        """Derive whether a workflow step is blocked by registry approval gates."""
+
+        template = self.get(workflow_id)
+        template.step_by_id(step_id)
+        approval_gate = _approval_gate_for_step(template, step_id)
+        if approval_gate is None:
+            return StepApprovalValidation(
+                workflow_id=workflow_id,
+                workflow_run_id=workflow_run_id,
+                step_id=step_id,
+                status=WorkflowStatus.PENDING,
+                risk_categories=(),
+                approval_record=None,
+                next_action="No approval required for this workflow step.",
+            )
+
+        approval_record = next(
+            (
+                record
+                for record in approval_records
+                if _approval_record_matches_gate(record, workflow_run_id, approval_gate)
+            ),
+            None,
+        )
+        if approval_record is not None and approval_record.status is ApprovalStatus.APPROVED:
+            return StepApprovalValidation(
+                workflow_id=workflow_id,
+                workflow_run_id=workflow_run_id,
+                step_id=step_id,
+                status=WorkflowStatus.PENDING,
+                risk_categories=approval_gate.risk_categories,
+                approval_record=approval_record,
+                next_action="Approval satisfied; step may run.",
+            )
+        if approval_record is not None and approval_record.status is ApprovalStatus.DENIED:
+            approver = approval_record.approver or "unknown approver"
+            return StepApprovalValidation(
+                workflow_id=workflow_id,
+                workflow_run_id=workflow_run_id,
+                step_id=step_id,
+                status=WorkflowStatus.FAILED,
+                risk_categories=approval_gate.risk_categories,
+                approval_record=approval_record,
+                next_action=(
+                    f"Approval denied by {approver}; step '{step_id}' must not run."
+                ),
+            )
+
+        return StepApprovalValidation(
+            workflow_id=workflow_id,
+            workflow_run_id=workflow_run_id,
+            step_id=step_id,
+            status=WorkflowStatus.BLOCKED,
+            risk_categories=approval_gate.risk_categories,
+            approval_record=None,
+            next_action=(
+                f"Record approval for workflow run '{workflow_run_id}' "
+                f"before step '{step_id}' may run."
+            ),
+        )
+
     def _validate_templates(self) -> None:
         for template in self._templates.values():
             if not template.steps:
@@ -414,6 +544,31 @@ def _matched_branches(normalized_request: str, template: WorkflowTemplate) -> tu
         branch.name
         for branch in template.branches
         if _routing_phrase_matches(normalized_request, branch.name)
+    )
+
+
+def _approval_gate_for_step(template: WorkflowTemplate, step_id: str) -> ApprovalGate | None:
+    return next((gate for gate in template.approval_gates if gate.step_id == step_id), None)
+
+
+def _normalize_risk_categories(
+    risk_categories: tuple[RiskCategory | str, ...],
+) -> tuple[RiskCategory, ...]:
+    try:
+        return tuple(RiskCategory(risk_category) for risk_category in risk_categories)
+    except ValueError as exc:
+        raise ValueError("Unknown risk category") from exc
+
+
+def _approval_record_matches_gate(
+    record: ApprovalRecord,
+    workflow_run_id: str,
+    approval_gate: ApprovalGate,
+) -> bool:
+    return (
+        record.workflow_run_id == workflow_run_id
+        and record.step_id == approval_gate.step_id
+        and record.risk_categories == approval_gate.risk_categories
     )
 
 

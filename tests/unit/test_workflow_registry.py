@@ -1,8 +1,14 @@
+from datetime import UTC, datetime
+
 import pytest
 
 from workflow.registry import (
+    ApprovalGate,
+    ApprovalRecord,
+    ApprovalStatus,
     ArtifactManifest,
     ArtifactManifestEntry,
+    RiskCategory,
     VerificationResult,
     WorkflowRegistry,
     WorkflowStatus,
@@ -185,6 +191,90 @@ def test_deployment_templates_declare_routing_and_approval_metadata():
         "starts_server",
         "exposes_port",
     }.issubset(litserve_risk_categories)
+
+
+def test_gated_step_without_matching_approval_record_is_blocked():
+    registry = get_workflow_registry()
+
+    validation = registry.validate_step_approval(
+        workflow_id="deploy_litserve_gpu",
+        workflow_run_id="run-123",
+        step_id="start_litserve_server",
+        approval_records=(),
+    )
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert validation.step_id == "start_litserve_server"
+    assert validation.risk_categories == ("starts_server", "exposes_port")
+    assert validation.approval_record is None
+    assert "approval" in validation.next_action
+
+
+def test_gated_step_with_matching_approved_record_is_pending():
+    registry = get_workflow_registry()
+    timestamp = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+    approval_record = ApprovalRecord(
+        workflow_run_id="run-123",
+        step_id="start_litserve_server",
+        risk_categories=("starts_server", "exposes_port"),
+        status="approved",
+        approver="ops@example.com",
+        timestamp=timestamp,
+    )
+
+    validation = registry.validate_step_approval(
+        workflow_id="deploy_litserve_gpu",
+        workflow_run_id="run-123",
+        step_id="start_litserve_server",
+        approval_records=(approval_record,),
+    )
+
+    assert approval_record.status is ApprovalStatus.APPROVED
+    assert approval_record.approver == "ops@example.com"
+    assert approval_record.timestamp == timestamp
+    assert validation.status is WorkflowStatus.PENDING
+    assert validation.approval_record == approval_record
+    assert validation.next_action == "Approval satisfied; step may run."
+
+
+def test_gated_step_with_matching_denied_record_fails_with_structured_reason():
+    registry = get_workflow_registry()
+    approval_record = ApprovalRecord(
+        workflow_run_id="run-123",
+        step_id="start_litserve_server",
+        risk_categories=("starts_server", "exposes_port"),
+        status="denied",
+        approver="ops@example.com",
+        timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+    )
+
+    validation = registry.validate_step_approval(
+        workflow_id="deploy_litserve_gpu",
+        workflow_run_id="run-123",
+        step_id="start_litserve_server",
+        approval_records=(approval_record,),
+    )
+
+    assert validation.status is WorkflowStatus.FAILED
+    assert validation.risk_categories == ("starts_server", "exposes_port")
+    assert validation.approval_record == approval_record
+    assert "denied" in validation.next_action
+    assert "ops@example.com" in validation.next_action
+
+
+def test_approval_gate_uses_controlled_risk_categories():
+    gate = ApprovalGate(
+        step_id="start_server",
+        risk_categories=("starts_server", "exposes_port"),
+    )
+
+    assert gate.risk_categories == (RiskCategory.STARTS_SERVER, RiskCategory.EXPOSES_PORT)
+
+    with pytest.raises(ValueError, match="Unknown risk category"):
+        ApprovalGate(
+            step_id="delete_cluster",
+            risk_categories=("deletes_cluster",),
+        )
 
 
 def test_select_workflow_returns_structured_litserve_gpu_decision():
