@@ -618,6 +618,10 @@ class TestAgentLoopRun:
     @pytest.mark.asyncio
     async def test_run_selects_setup_workflow_before_perception_or_decision(self, mock_agent):
         """Test registry workflow selection runs before prompt-authored planning."""
+        expected_step_ids = [
+            step.step_id for step in mock_agent.workflow_registry.get("setup_pipeline").steps
+        ]
+
         with (
             patch.object(
                 mock_agent.perception,
@@ -632,6 +636,10 @@ class TestAgentLoopRun:
 
         assert mock_agent.workflow_selection.workflow_id == "setup_pipeline"
         assert mock_agent.workflow_selection.status is WorkflowStatus.PENDING
+        assert mock_agent.ctx.get_pending_steps() == expected_step_ids
+        for step in mock_agent.workflow_registry.get("setup_pipeline").steps:
+            runtime_step = mock_agent.ctx.graph.nodes[step.step_id]["data"]
+            assert runtime_step.tool in step.tool_functions
         assert "setup_pipeline" in result
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()

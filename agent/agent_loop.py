@@ -281,6 +281,16 @@ class AgentLoop:
         )
 
         if selection.status is WorkflowStatus.PENDING:
+            if selection.workflow_id == "setup_pipeline":
+                projected_step_ids = await self._project_registry_workflow(selection.workflow_id)
+                self.status = "paused"
+                self.final_output = (
+                    f"Selected workflow '{selection.workflow_id}' from registry. "
+                    "Projected executable runtime steps: "
+                    f"{', '.join(projected_step_ids)}. No tools were run."
+                )
+                return True
+
             self.status = "paused"
             self.final_output = (
                 f"Selected workflow '{selection.workflow_id}' from registry. "
@@ -298,6 +308,30 @@ class AgentLoop:
             return True
 
         return False
+
+    async def _project_registry_workflow(self, workflow_id: str) -> tuple[str, ...]:
+        """Project a selected registry template into pending runtime steps."""
+        template = self.workflow_registry.get(workflow_id)
+        projected_step_ids: list[str] = []
+
+        for workflow_step in template.steps:
+            tool = workflow_step.tool_functions[0] if workflow_step.tool_functions else None
+            self.ctx.add_step(
+                step_id=workflow_step.step_id,
+                description=workflow_step.description,
+                step_type=StepType.CODE,
+                tool=tool,
+                args=dict(workflow_step.default_args),
+                from_node=StepType.ROOT,
+            )
+            projected_step_ids.append(workflow_step.step_id)
+
+        await self._emit(
+            "workflow_runtime",
+            {"workflow_id": workflow_id, "projected_step_ids": projected_step_ids},
+        )
+        self.next_step_id = projected_step_ids[0] if projected_step_ids else None
+        return tuple(projected_step_ids)
 
     def _add_runtime_input_requirements(
         self, selection: WorkflowSelection
