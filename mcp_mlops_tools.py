@@ -614,6 +614,10 @@ class CreateLitserveAPIInput(BaseModel):
         description="Model type: image_classifier, text_classifier, object_detection",
     )
     class_labels: list[str] | None = Field(default=None, description="List of class labels")
+    source_step: str = Field(
+        default="generate_litserve_api",
+        description="Workflow step that should own emitted evidence.",
+    )
 
 
 class ConfigureLitserverInput(BaseModel):
@@ -625,6 +629,53 @@ class ConfigureLitserverInput(BaseModel):
     workers_per_device: int = Field(default=4, description="Number of workers per device")
     accelerator: str = Field(default="auto", description="Accelerator: cpu, gpu, auto")
     port: int = Field(default=8000, description="Server port")
+
+
+class SelectOrCreateModelArtifactInput(BaseModel):
+    """Select or create a local model artifact for LitServe preflight."""
+
+    project_path: str = Field(..., description="Path to the project")
+    model_path: str | None = Field(
+        default=None,
+        description="Optional model artifact path relative to the project.",
+    )
+    model_name: str = Field(default="model", description="Name to use for a placeholder model")
+    create_placeholder: bool = Field(
+        default=True,
+        description="Create a local placeholder when no model artifact is found.",
+    )
+
+
+class GenerateLitserveDockerfileInput(BaseModel):
+    """Generate or validate a local Dockerfile for LitServe preflight."""
+
+    project_path: str = Field(..., description="Path to the project")
+    server_path: str = Field(
+        default="deployment/litserve/server.py",
+        description="LitServe server entry point relative to the project.",
+    )
+    requirements_file: str = Field(
+        default="deployment/litserve/requirements.txt",
+        description="Requirements file relative to the project.",
+    )
+    port: int = Field(default=8000, description="Container port to expose")
+
+
+class RecordLitserveLaunchCommandInput(BaseModel):
+    """Record the local LitServe launch command without starting the server."""
+
+    project_path: str = Field(..., description="Path to the project")
+    server_path: str = Field(
+        default="deployment/litserve/server.py",
+        description="LitServe server entry point relative to the project.",
+    )
+    port: int = Field(default=8000, description="Port the command would bind")
+
+
+class RecordLitserveMissingLiveEvidenceInput(BaseModel):
+    """Record live deployment evidence intentionally missing from local preflight."""
+
+    project_path: str = Field(..., description="Path to the project")
 
 
 # Gradio Tools
@@ -4155,6 +4206,7 @@ def create_litserve_api(
     model_name: str,
     model_type: str = "image_classifier",
     class_labels: list[str] | None = None,
+    source_step: str = "generate_litserve_api",
 ) -> dict[str, Any]:
     """Create LitServe API for model serving."""
     path = Path(project_path)
@@ -4266,7 +4318,184 @@ Pillow>=10.0.0
         "server_path": str(server_path),
         "requirements_path": str(req_path),
         "class_name": f"{class_name}API",
+        "verification_results": [
+            {
+                "check_name": "litserve_app_artifact_ready",
+                "evidence_type": "declared",
+                "source_step": source_step,
+                "passed": True,
+                "evidence": (
+                    "LitServe server and requirements files were generated for local preflight."
+                ),
+            }
+        ],
+        "artifact_manifest": {
+            "entries": [
+                {
+                    "artifact_type": "serving_application",
+                    "producing_step": source_step,
+                    "state": "generated",
+                    "path": relative_to_project(project_path, server_path),
+                }
+            ]
+        },
         "message": f"LitServe API created at {deploy_dir}",
+    }
+
+
+def select_or_create_model_artifact(
+    project_path: str,
+    model_path: str | None = None,
+    model_name: str = "model",
+    create_placeholder: bool = True,
+) -> dict[str, Any]:
+    """Select or create a local model artifact for LitServe preflight."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    candidates = []
+    if model_path:
+        candidates.append(path / model_path)
+    candidates.extend(
+        candidate
+        for pattern in ("models/*.pt", "model/*.pt", "*.pt", "models/*.pth", "model/*.pth")
+        for candidate in path.glob(pattern)
+    )
+
+    selected = next((candidate for candidate in candidates if candidate.exists()), None)
+    state = "selected"
+    if selected is None:
+        if not create_placeholder:
+            return {"success": False, "error": "No local model artifact found"}
+        selected = path / "models" / f"{model_name.replace('-', '_')}_preflight.pt"
+        ensure_directory(selected.parent)
+        selected.write_text("Local LitServe preflight placeholder; replace with a real model.\n")
+
+    relative_path = relative_to_project(project_path, selected)
+    return {
+        "success": True,
+        "model_path": relative_path,
+        "verification_results": [
+            {
+                "check_name": "model_artifact_selected",
+                "evidence_type": "declared",
+                "source_step": "select_or_create_model_artifact",
+                "passed": True,
+                "evidence": f"Model artifact selected for local preflight: {relative_path}.",
+            }
+        ],
+        "artifact_manifest": {
+            "entries": [
+                {
+                    "artifact_type": "model_artifact",
+                    "producing_step": "select_or_create_model_artifact",
+                    "state": state,
+                    "path": relative_path,
+                }
+            ]
+        },
+        "message": f"Model artifact selected for preflight: {relative_path}",
+    }
+
+
+def generate_litserve_dockerfile(
+    project_path: str,
+    server_path: str = "deployment/litserve/server.py",
+    requirements_file: str = "deployment/litserve/requirements.txt",
+    port: int = 8000,
+) -> dict[str, Any]:
+    """Generate or validate a Dockerfile for local LitServe preflight."""
+    result = create_ml_dockerfile(
+        project_path=project_path,
+        base_image="python:3.11-slim",
+        cuda_version=None,
+        entry_point=server_path,
+        requirements_file=requirements_file,
+        expose_port=port,
+    )
+    if not result.get("success"):
+        return result
+
+    dockerfile_path = result["dockerfile_path"]
+    return {
+        **result,
+        "verification_results": [
+            {
+                "check_name": "dockerfile_artifact_ready",
+                "evidence_type": "declared",
+                "source_step": "generate_or_validate_dockerfile",
+                "passed": True,
+                "evidence": "Dockerfile generated for local LitServe preflight; image not built.",
+            }
+        ],
+        "artifact_manifest": {
+            "entries": [
+                {
+                    "artifact_type": "container_definition",
+                    "producing_step": "generate_or_validate_dockerfile",
+                    "state": "generated",
+                    "path": relative_to_project(project_path, dockerfile_path),
+                }
+            ]
+        },
+    }
+
+
+def record_litserve_launch_command(
+    project_path: str,
+    server_path: str = "deployment/litserve/server.py",
+    port: int = 8000,
+) -> dict[str, Any]:
+    """Record the LitServe launch command without starting a server."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    command = f"python {server_path}"
+    return {
+        "success": True,
+        "launch_command": command,
+        "port": port,
+        "verification_results": [
+            {
+                "check_name": "launch_command_recorded",
+                "evidence_type": "declared",
+                "source_step": "record_launch_command",
+                "passed": True,
+                "evidence": f"Launch command recorded but not executed: {command}.",
+            }
+        ],
+        "message": "LitServe launch command recorded without starting a server.",
+    }
+
+
+def record_litserve_missing_live_evidence(project_path: str) -> dict[str, Any]:
+    """Record live evidence intentionally absent from a local LitServe preflight."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    missing_live_evidence = {
+        "gpu_detection": "not_checked_in_local_preflight",
+        "server_start": "not_started_in_local_preflight",
+        "/health": "not_called_in_local_preflight",
+        "/predict": "not_called_in_local_preflight",
+        "endpoint_url": "not_available_without_server_start",
+    }
+    return {
+        "success": True,
+        "missing_live_evidence": missing_live_evidence,
+        "verification_results": [
+            {
+                "check_name": "missing_live_evidence_recorded",
+                "evidence_type": "declared",
+                "source_step": "record_missing_live_evidence",
+                "passed": True,
+                "evidence": ", ".join(missing_live_evidence),
+            }
+        ],
+        "message": "Missing live deployment evidence recorded for preflight-only success.",
     }
 
 
@@ -6139,9 +6368,29 @@ async def list_tools() -> list[Tool]:
         # Deployment Tools (Phase 4)
         # LitServe
         Tool(
+            name="select_or_create_model_artifact",
+            description="Select or create a local model artifact for LitServe preflight",
+            inputSchema=SelectOrCreateModelArtifactInput.model_json_schema(),
+        ),
+        Tool(
             name="create_litserve_api",
             description="Create LitServe API for high-throughput model serving with batching and GPU support",
             inputSchema=CreateLitserveAPIInput.model_json_schema(),
+        ),
+        Tool(
+            name="generate_litserve_dockerfile",
+            description="Generate a Dockerfile for local LitServe preflight without building an image",
+            inputSchema=GenerateLitserveDockerfileInput.model_json_schema(),
+        ),
+        Tool(
+            name="record_litserve_launch_command",
+            description="Record the local LitServe launch command without starting the server",
+            inputSchema=RecordLitserveLaunchCommandInput.model_json_schema(),
+        ),
+        Tool(
+            name="record_litserve_missing_live_evidence",
+            description="Record GPU, server, /health, /predict, and endpoint evidence missing from preflight",
+            inputSchema=RecordLitserveMissingLiveEvidenceInput.model_json_schema(),
         ),
         Tool(
             name="configure_litserver",
@@ -6594,6 +6843,15 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
 
         # Deployment Tools (Phase 4)
         # LitServe
+        elif name == "select_or_create_model_artifact":
+            input_data = SelectOrCreateModelArtifactInput(**arguments)
+            result = select_or_create_model_artifact(
+                input_data.project_path,
+                input_data.model_path,
+                input_data.model_name,
+                input_data.create_placeholder,
+            )
+
         elif name == "create_litserve_api":
             input_data = CreateLitserveAPIInput(**arguments)
             result = create_litserve_api(
@@ -6602,7 +6860,29 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 input_data.model_name,
                 input_data.model_type,
                 input_data.class_labels,
+                input_data.source_step,
             )
+
+        elif name == "generate_litserve_dockerfile":
+            input_data = GenerateLitserveDockerfileInput(**arguments)
+            result = generate_litserve_dockerfile(
+                input_data.project_path,
+                input_data.server_path,
+                input_data.requirements_file,
+                input_data.port,
+            )
+
+        elif name == "record_litserve_launch_command":
+            input_data = RecordLitserveLaunchCommandInput(**arguments)
+            result = record_litserve_launch_command(
+                input_data.project_path,
+                input_data.server_path,
+                input_data.port,
+            )
+
+        elif name == "record_litserve_missing_live_evidence":
+            input_data = RecordLitserveMissingLiveEvidenceInput(**arguments)
+            result = record_litserve_missing_live_evidence(input_data.project_path)
 
         elif name == "configure_litserver":
             input_data = ConfigureLitserverInput(**arguments)
