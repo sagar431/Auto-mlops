@@ -168,6 +168,7 @@ class WorkflowStep:
     order: int
     tool_functions: tuple[str, ...] = ()
     default_args: dict[str, Any] = field(default_factory=dict)
+    post_step_perception: bool = False
 
 
 @dataclass(frozen=True)

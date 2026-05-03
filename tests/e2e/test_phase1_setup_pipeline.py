@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from agent.agent_loop import AgentLoop, Route
+from agent.agent_loop import AgentLoop
 from workflow.registry import ArtifactManifest, VerificationResult, WorkflowStatus
 
 
@@ -260,8 +260,8 @@ async def test_local_setup_pipeline_requires_approval_then_reaches_contract_succ
             agent.perception,
             "run",
             new_callable=AsyncMock,
-            return_value={"route": Route.DECISION, "original_goal_achieved": False},
-        ),
+            side_effect=AssertionError("registry setup execution must skip post-step perception"),
+        ) as mock_perception,
         patch.object(
             agent.decision,
             "run",
@@ -279,6 +279,7 @@ async def test_local_setup_pipeline_requires_approval_then_reaches_contract_succ
 
     template = agent.workflow_registry.get("setup_pipeline")
     assert agent.workflow_selection.workflow_id == "setup_pipeline"
+    mock_perception.assert_not_awaited()
     assert [event["type"] for event in events].count("step_complete") == len(template.steps)
     assert successful_call_order == [
         step.tool_functions[0] for step in template.steps if step.tool_functions
