@@ -5,11 +5,15 @@ Tests for agent/agent_loop.py - MLOps agent orchestration loop.
 Run with: pytest tests/unit/test_agent_loop.py -v
 """
 
-from datetime import UTC, datetime
+import json
+import pickle
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import mcp_mlops_tools
 from agent.agent_loop import (
     AgentLoop,
     Route,
@@ -18,6 +22,14 @@ from agent.agent_loop import (
     StepType,
     run_mlops_agent,
 )
+from mcp_mlops_tools import (
+    _find_available_port,
+    create_litserve_api,
+    select_best_model_artifact,
+)
+from mcp_mlops_tools import (
+    test_litserve_prediction_endpoint as call_litserve_prediction_endpoint,
+)
 from workflow.registry import (
     ApprovalRecord,
     ArtifactManifest,
@@ -25,6 +37,122 @@ from workflow.registry import (
     VerificationResult,
     WorkflowStatus,
 )
+
+
+def test_select_best_model_artifact_finds_training_output_pickle(tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+    (outputs_dir / "model.pkl").write_bytes(b"pickle-model")
+
+    result = select_best_model_artifact(str(tmp_path))
+
+    assert result["success"] is True
+    assert result["model_path"] == "outputs/model.pkl"
+    assert result["model_type"] == "tabular_regressor"
+    assert result["artifact_manifest"]["entries"][0]["path"] == "outputs/model.pkl"
+
+
+def test_create_litserve_api_generates_tabular_server_for_pickle_artifact(tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+    (outputs_dir / "model.pkl").write_bytes(b"pickle-model")
+    (outputs_dir / "scaler.pkl").write_bytes(b"pickle-scaler")
+
+    result = create_litserve_api(
+        project_path=str(tmp_path),
+        model_path="outputs/model.pkl",
+        model_name="model",
+    )
+
+    server_path = tmp_path / "deployment" / "litserve" / "server.py"
+    server_code = server_path.read_text()
+    assert result["success"] is True
+    assert "pickle.load" in server_code
+    assert "torch.jit.load" not in server_code
+    assert "outputs/scaler.pkl" in server_code
+    assert "_litserve_server._MCP_AVAILABLE = False" in server_code
+    assert "ModelAPI(max_batch_size=64, batch_timeout=0.05)" in server_code
+    assert "server = ls.LitServer(\n        api,\n        accelerator=\"auto\",\n        workers_per_device=4" in server_code
+    assert "array = self.scaler.transform(array.reshape(1, -1))[0]" in server_code
+
+
+def test_litserve_prediction_endpoint_uses_artifact_feature_count_for_default_payload(
+    tmp_path, monkeypatch
+):
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+    (outputs_dir / "scaler.pkl").write_bytes(
+        pickle.dumps(SimpleNamespace(n_features_in_=8))
+    )
+    captured: dict[str, dict] = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def read(self, limit):
+            return b'{"predictions":[0.0]}'
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    result = call_litserve_prediction_endpoint(str(tmp_path))
+
+    assert result["prediction_passed"] is True
+    assert captured["payload"] == {"input": [0.0] * 8}
+
+
+def test_litserve_health_endpoint_retries_until_ready(monkeypatch):
+    attempts = {"count": 0}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def read(self, limit):
+            return b"ok"
+
+    def fake_urlopen(url, timeout):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise mcp_mlops_tools.urllib.error.URLError("connection refused")
+        return FakeResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("time.sleep", lambda seconds: None)
+
+    result = mcp_mlops_tools.test_litserve_health_endpoint(
+        "/home/ubuntu/Auto-mlops",
+        endpoint_url="http://127.0.0.1:8001",
+        timeout_seconds=3.0,
+    )
+
+    assert result["health_passed"] is True
+    assert attempts["count"] == 2
+
+
+def test_find_available_port_skips_bound_requested_port(monkeypatch):
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_is_port_available",
+        lambda host, port: port == 8001,
+    )
+
+    selected_port = _find_available_port("127.0.0.1", 8000, attempts=2)
+    assert selected_port == 8001
 
 # ============================================================================
 # Route Constants Tests
@@ -898,6 +1026,120 @@ class TestAgentLoopRun:
         assert "start_litserve_server" not in executed_step_ids
 
     @pytest.mark.asyncio
+    async def test_run_litserve_gpu_uses_selected_pickle_artifact_for_litserve_api(
+        self, mock_agent
+    ):
+        """Test selected sklearn artifacts are passed into LitServe generation."""
+        mock_agent.auto_approve = True
+        generate_args = None
+        runtime_args_by_step = {}
+
+        async def execute_registry_step(step_id, tool, args, ctx, tools_module):
+            nonlocal generate_args
+            if step_id == "detect_runtime_environment":
+                payload = {"success": True}
+            elif step_id == "detect_gpu_cuda":
+                payload = {
+                    "success": True,
+                    "verification_results": [
+                        {
+                            "check_name": "gpu_detection_recorded",
+                            "evidence_type": "observed",
+                            "source_step": "detect_gpu_cuda",
+                            "passed": True,
+                            "evidence": "nvidia-smi observed NVIDIA A10",
+                        }
+                    ],
+                }
+            elif step_id == "select_best_model_artifact":
+                payload = {
+                    "success": True,
+                    "model_path": "outputs/model.pkl",
+                    "model_type": "tabular_regressor",
+                    "artifact_manifest": {
+                        "entries": [
+                            {
+                                "artifact_type": "model_artifact",
+                                "producing_step": "select_best_model_artifact",
+                                "state": "selected",
+                                "path": "outputs/model.pkl",
+                            }
+                        ]
+                    },
+                }
+            elif step_id == "generate_litserve_api":
+                generate_args = args
+                payload = {
+                    "success": True,
+                    "artifact_manifest": {
+                        "entries": [
+                            {
+                                "artifact_type": "serving_application",
+                                "producing_step": "generate_litserve_api",
+                                "state": "generated",
+                                "path": "deployment/litserve/server.py",
+                            }
+                        ]
+                    },
+                }
+            else:
+                runtime_args_by_step[step_id] = args
+                payload = {
+                    "success": True,
+                    "verification_results": [
+                        {
+                            "check_name": {
+                                "start_litserve_server": "server_start_command_recorded",
+                                "test_health_endpoint": "health_result_recorded",
+                                "test_prediction_endpoint": "prediction_result_recorded",
+                                "capture_logs_and_endpoint": "endpoint_url_recorded",
+                            }.get(step_id, "unused"),
+                            "evidence_type": "observed",
+                            "source_step": step_id,
+                            "passed": True,
+                            "evidence": f"{step_id} evidence",
+                        }
+                    ],
+                }
+                if step_id == "start_litserve_server":
+                    payload["endpoint_url"] = "http://127.0.0.1:8001"
+                    payload["process_id"] = 123
+                    payload["port"] = 8001
+                if step_id == "write_monitoring_and_rollback_report":
+                    payload = {
+                        "success": True,
+                        "rollback_plan": {"command": "kill 123"},
+                    }
+            return (
+                True,
+                {"success": True, "result": payload, "step_id": step_id, "tool": tool},
+            )
+
+        with patch(
+            "agent.agent_loop.execute_step",
+            new_callable=AsyncMock,
+            side_effect=execute_registry_step,
+        ):
+            await mock_agent.run(
+                "Deploy this model on Lambda Labs GPU with LitServe",
+                "/test/path",
+            )
+
+        assert generate_args["model_path"] == "outputs/model.pkl"
+        assert generate_args["model_type"] == "tabular_regressor"
+        assert runtime_args_by_step["test_health_endpoint"]["endpoint_url"] == "http://127.0.0.1:8001"
+        assert (
+            runtime_args_by_step["test_prediction_endpoint"]["endpoint_url"]
+            == "http://127.0.0.1:8001"
+        )
+        assert (
+            runtime_args_by_step["capture_logs_and_endpoint"]["endpoint_url"]
+            == "http://127.0.0.1:8001"
+        )
+        assert runtime_args_by_step["write_monitoring_and_rollback_report"]["process_id"] == 123
+        assert runtime_args_by_step["write_monitoring_and_rollback_report"]["port"] == 8001
+
+    @pytest.mark.asyncio
     async def test_run_blocks_setup_workflow_missing_project_path_with_clarifying_question(
         self, mock_agent
     ):
@@ -999,7 +1241,7 @@ class TestAgentLoopRun:
                 risk_categories=("writes_project_files",),
                 status="denied",
                 approver="ops@example.com",
-                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
             ),
         )
         mock_agent.next_step_id = workflow_step.step_id
@@ -1048,7 +1290,7 @@ class TestAgentLoopRun:
                 risk_categories=("writes_project_files",),
                 status="approved",
                 approver="ops@example.com",
-                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
             ),
         )
         mock_agent.next_step_id = workflow_step.step_id
@@ -1102,7 +1344,7 @@ class TestAgentLoopRun:
                 risk_categories=("writes_project_files",),
                 status="approved",
                 approver="ops@example.com",
-                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
             ),
         )
         mock_agent.next_step_id = workflow_step.step_id
@@ -1150,7 +1392,7 @@ class TestAgentLoopRun:
                 risk_categories=("writes_project_files",),
                 status="approved",
                 approver="ops@example.com",
-                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
             ),
         )
         mock_agent.next_step_id = workflow_step.step_id
@@ -1220,7 +1462,7 @@ class TestAgentLoopRun:
                 risk_categories=("writes_project_files",),
                 status="approved",
                 approver="ops@example.com",
-                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
             ),
         )
         mock_agent.next_step_id = workflow_step.step_id
@@ -1342,7 +1584,7 @@ class TestAgentLoopRun:
                 risk_categories=("writes_project_files",),
                 status="approved",
                 approver="ops@example.com",
-                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
             ),
         )
         mock_agent.ctx.globals["verification_results"] = tuple(
