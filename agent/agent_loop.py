@@ -727,10 +727,14 @@ class AgentLoop:
             # Execute step with circuit breaker protection
             try:
                 async with tracker.circuit_breaker:
+                    runtime_args = self._runtime_args_for_registry_step(
+                        self.next_step_id,
+                        step_data.args or {},
+                    )
                     success, result = await execute_step(
                         step_id=self.next_step_id,
                         tool=step_data.tool,
-                        args=step_data.args or {},
+                        args=runtime_args,
                         ctx=self.ctx,
                         tools_module=self.tools_module,
                     )
@@ -1061,6 +1065,52 @@ class AgentLoop:
         rollback_plan = self._rollback_plan_from_step_result(payload)
         if rollback_plan is not None:
             self.ctx.globals["rollback_plan"] = rollback_plan
+
+        if step_id == "select_best_model_artifact":
+            selected_model_path = payload.get("model_path") or self._selected_model_path_from_payload(
+                payload
+            )
+            if selected_model_path:
+                self.ctx.globals["selected_model_artifact_path"] = selected_model_path
+            if payload.get("model_type"):
+                self.ctx.globals["selected_model_type"] = payload["model_type"]
+
+    def _runtime_args_for_registry_step(
+        self,
+        step_id: str,
+        args: dict[str, Any],
+    ) -> dict[str, Any]:
+        runtime_args = dict(args)
+        if (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "deploy_litserve_gpu"
+            and step_id == "generate_litserve_api"
+        ):
+            selected_model_path = self.ctx.globals.get("selected_model_artifact_path")
+            if selected_model_path:
+                runtime_args["model_path"] = selected_model_path
+            selected_model_type = self.ctx.globals.get("selected_model_type")
+            if selected_model_type:
+                runtime_args["model_type"] = selected_model_type
+        return runtime_args
+
+    def _selected_model_path_from_payload(self, payload: dict[str, Any]) -> str | None:
+        raw_manifest = payload.get("artifact_manifest")
+        if isinstance(raw_manifest, ArtifactManifest):
+            entries = raw_manifest.entries
+        elif isinstance(raw_manifest, dict):
+            entries = raw_manifest.get("entries", ())
+        else:
+            entries = ()
+
+        for entry in entries:
+            if isinstance(entry, ArtifactManifestEntry):
+                if entry.artifact_type == "model_artifact":
+                    return entry.path or entry.uri
+                continue
+            if isinstance(entry, dict) and entry.get("artifact_type") == "model_artifact":
+                return entry.get("path") or entry.get("uri")
+        return None
 
     def _registry_step_recorded_failed_contract_evidence(self, step_id: str) -> bool:
         if (

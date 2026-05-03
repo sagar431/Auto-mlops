@@ -18,6 +18,7 @@ from agent.agent_loop import (
     StepType,
     run_mlops_agent,
 )
+from mcp_mlops_tools import create_litserve_api, select_best_model_artifact
 from workflow.registry import (
     ApprovalRecord,
     ArtifactManifest,
@@ -25,6 +26,39 @@ from workflow.registry import (
     VerificationResult,
     WorkflowStatus,
 )
+
+
+def test_select_best_model_artifact_finds_training_output_pickle(tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+    (outputs_dir / "model.pkl").write_bytes(b"pickle-model")
+
+    result = select_best_model_artifact(str(tmp_path))
+
+    assert result["success"] is True
+    assert result["model_path"] == "outputs/model.pkl"
+    assert result["model_type"] == "tabular_regressor"
+    assert result["artifact_manifest"]["entries"][0]["path"] == "outputs/model.pkl"
+
+
+def test_create_litserve_api_generates_tabular_server_for_pickle_artifact(tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+    (outputs_dir / "model.pkl").write_bytes(b"pickle-model")
+    (outputs_dir / "scaler.pkl").write_bytes(b"pickle-scaler")
+
+    result = create_litserve_api(
+        project_path=str(tmp_path),
+        model_path="outputs/model.pkl",
+        model_name="model",
+    )
+
+    server_path = tmp_path / "deployment" / "litserve" / "server.py"
+    server_code = server_path.read_text()
+    assert result["success"] is True
+    assert "pickle.load" in server_code
+    assert "torch.jit.load" not in server_code
+    assert "outputs/scaler.pkl" in server_code
 
 # ============================================================================
 # Route Constants Tests
@@ -896,6 +930,103 @@ class TestAgentLoopRun:
         assert "contract_status: failed" in result
         assert "gpu_detection_recorded" in result
         assert "start_litserve_server" not in executed_step_ids
+
+    @pytest.mark.asyncio
+    async def test_run_litserve_gpu_uses_selected_pickle_artifact_for_litserve_api(
+        self, mock_agent
+    ):
+        """Test selected sklearn artifacts are passed into LitServe generation."""
+        mock_agent.auto_approve = True
+        generate_args = None
+
+        async def execute_registry_step(step_id, tool, args, ctx, tools_module):
+            nonlocal generate_args
+            if step_id == "detect_runtime_environment":
+                payload = {"success": True}
+            elif step_id == "detect_gpu_cuda":
+                payload = {
+                    "success": True,
+                    "verification_results": [
+                        {
+                            "check_name": "gpu_detection_recorded",
+                            "evidence_type": "observed",
+                            "source_step": "detect_gpu_cuda",
+                            "passed": True,
+                            "evidence": "nvidia-smi observed NVIDIA A10",
+                        }
+                    ],
+                }
+            elif step_id == "select_best_model_artifact":
+                payload = {
+                    "success": True,
+                    "model_path": "outputs/model.pkl",
+                    "model_type": "tabular_regressor",
+                    "artifact_manifest": {
+                        "entries": [
+                            {
+                                "artifact_type": "model_artifact",
+                                "producing_step": "select_best_model_artifact",
+                                "state": "selected",
+                                "path": "outputs/model.pkl",
+                            }
+                        ]
+                    },
+                }
+            elif step_id == "generate_litserve_api":
+                generate_args = args
+                payload = {
+                    "success": True,
+                    "artifact_manifest": {
+                        "entries": [
+                            {
+                                "artifact_type": "serving_application",
+                                "producing_step": "generate_litserve_api",
+                                "state": "generated",
+                                "path": "deployment/litserve/server.py",
+                            }
+                        ]
+                    },
+                }
+            else:
+                payload = {
+                    "success": True,
+                    "verification_results": [
+                        {
+                            "check_name": {
+                                "start_litserve_server": "server_start_command_recorded",
+                                "test_health_endpoint": "health_result_recorded",
+                                "test_prediction_endpoint": "prediction_result_recorded",
+                                "capture_logs_and_endpoint": "endpoint_url_recorded",
+                            }.get(step_id, "unused"),
+                            "evidence_type": "observed",
+                            "source_step": step_id,
+                            "passed": True,
+                            "evidence": f"{step_id} evidence",
+                        }
+                    ],
+                }
+                if step_id == "write_monitoring_and_rollback_report":
+                    payload = {
+                        "success": True,
+                        "rollback_plan": {"command": "kill 123"},
+                    }
+            return (
+                True,
+                {"success": True, "result": payload, "step_id": step_id, "tool": tool},
+            )
+
+        with patch(
+            "agent.agent_loop.execute_step",
+            new_callable=AsyncMock,
+            side_effect=execute_registry_step,
+        ):
+            await mock_agent.run(
+                "Deploy this model on Lambda Labs GPU with LitServe",
+                "/test/path",
+            )
+
+        assert generate_args["model_path"] == "outputs/model.pkl"
+        assert generate_args["model_type"] == "tabular_regressor"
 
     @pytest.mark.asyncio
     async def test_run_blocks_setup_workflow_missing_project_path_with_clarifying_question(
