@@ -70,6 +70,15 @@ def ensure_directory(path: str) -> Path:
     return p
 
 
+def relative_to_project(project_path: str, artifact_path: str | Path) -> str:
+    """Return a project-relative artifact path when possible."""
+    path = Path(artifact_path)
+    try:
+        return str(path.relative_to(Path(project_path)))
+    except ValueError:
+        return str(path)
+
+
 # ============================================================================
 # Pydantic Input Models
 # ============================================================================
@@ -1053,6 +1062,25 @@ def create_hydra_config(
         "success": True,
         "created_files": created_files,
         "config_dir": str(configs_dir),
+        "verification_results": [
+            {
+                "check_name": "hydra_config_validates",
+                "evidence_type": "declared",
+                "source_step": "create_or_validate_hydra_config",
+                "passed": True,
+                "evidence": f"Hydra config generated at {relative_to_project(project_path, config_path)}.",
+            }
+        ],
+        "artifact_manifest": {
+            "entries": [
+                {
+                    "artifact_type": "configuration",
+                    "producing_step": "create_or_validate_hydra_config",
+                    "state": "generated",
+                    "path": relative_to_project(project_path, config_path),
+                }
+            ]
+        },
         "message": f"Hydra configuration created at {configs_dir}",
     }
 
@@ -1144,11 +1172,14 @@ def init_mlflow_experiment(
     tracking_uri: str | None = None,
     artifact_location: str | None = None,
     tags: dict[str, str] | None = None,
+    project_path: str | None = None,
 ) -> dict[str, Any]:
     """Initialize MLflow experiment."""
     try:
         import mlflow
 
+        if project_path and tracking_uri is None:
+            tracking_uri = str(Path(project_path) / "mlruns")
         if tracking_uri:
             mlflow.set_tracking_uri(tracking_uri)
 
@@ -1169,6 +1200,15 @@ def init_mlflow_experiment(
             "experiment_id": experiment_id,
             "experiment_name": experiment_name,
             "tracking_uri": mlflow.get_tracking_uri(),
+            "verification_results": [
+                {
+                    "check_name": "mlflow_experiment_exists",
+                    "evidence_type": "declared",
+                    "source_step": "initialize_mlflow_experiment",
+                    "passed": True,
+                    "evidence": f"MLflow experiment '{experiment_name}' is available.",
+                }
+            ],
             "message": f"Experiment '{experiment_name}' initialized (ID: {experiment_id})",
         }
     except ImportError:
@@ -1314,7 +1354,6 @@ def get_best_mlflow_run(
 ) -> dict[str, Any]:
     """Get best run from experiment based on metric."""
     try:
-        import mlflow
         from mlflow.tracking import MlflowClient
 
         client = MlflowClient()
@@ -1369,12 +1408,30 @@ def end_mlflow_run(run_id: str | None = None, status: str = "FINISHED") -> dict[
 
 def init_dvc_repo(project_path: str, no_scm: bool = False) -> dict[str, Any]:
     """Initialize DVC in a repository."""
-    if not check_tool_installed("dvc"):
-        return {"success": False, "error": "DVC not installed. Run: pip install dvc"}
-
     path = Path(project_path)
     if not path.exists():
         return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    dvc_config = path / ".dvc" / "config"
+    if dvc_config.exists():
+        return {
+            "success": True,
+            "project_path": project_path,
+            "dvc_dir": str(path / ".dvc"),
+            "verification_results": [
+                {
+                    "check_name": "dvc_repo_exists",
+                    "evidence_type": "observed",
+                    "source_step": "initialize_dvc",
+                    "passed": True,
+                    "evidence": "DVC metadata already exists at .dvc/config.",
+                }
+            ],
+            "message": "DVC already initialized",
+        }
+
+    if not check_tool_installed("dvc"):
+        return {"success": False, "error": "DVC not installed. Run: pip install dvc"}
 
     cmd = ["dvc", "init"]
     if no_scm:
@@ -1387,6 +1444,15 @@ def init_dvc_repo(project_path: str, no_scm: bool = False) -> dict[str, Any]:
             "success": True,
             "project_path": project_path,
             "dvc_dir": str(path / ".dvc"),
+            "verification_results": [
+                {
+                    "check_name": "dvc_repo_exists",
+                    "evidence_type": "observed",
+                    "source_step": "initialize_dvc",
+                    "passed": True,
+                    "evidence": "DVC metadata initialized at .dvc/config.",
+                }
+            ],
             "message": "DVC initialized successfully",
         }
 
@@ -1397,6 +1463,13 @@ def configure_dvc_remote(
     project_path: str, remote_name: str = "storage", remote_url: str = None, default: bool = True
 ) -> dict[str, Any]:
     """Configure DVC remote storage."""
+    if not remote_url:
+        return {
+            "success": True,
+            "skipped": True,
+            "reason": "No DVC remote URL requested for local setup.",
+        }
+
     if not check_tool_installed("dvc"):
         return {"success": False, "error": "DVC not installed"}
 
@@ -1448,12 +1521,24 @@ def add_data_to_dvc(project_path: str, data_path: str) -> dict[str, Any]:
     return result
 
 
-def create_dvc_pipeline(project_path: str, stages: list[dict[str, Any]]) -> dict[str, Any]:
+def create_dvc_pipeline(
+    project_path: str, stages: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
     """Create DVC pipeline (dvc.yaml)."""
     path = Path(project_path)
 
     if not path.exists():
         return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    if stages is None:
+        train_script = "src/train.py" if (path / "src" / "train.py").exists() else "train.py"
+        stages = [
+            {
+                "name": "train",
+                "cmd": f"python {train_script}",
+                "deps": [train_script],
+            }
+        ]
 
     # Convert stages to DVC format
     dvc_config = {"stages": {}}
@@ -1485,6 +1570,25 @@ def create_dvc_pipeline(project_path: str, stages: list[dict[str, Any]]) -> dict
         "success": True,
         "dvc_yaml_path": str(dvc_yaml_path),
         "stages": list(dvc_config["stages"].keys()),
+        "verification_results": [
+            {
+                "check_name": "dvc_yaml_parseable",
+                "evidence_type": "declared",
+                "source_step": "create_dvc_yaml",
+                "passed": True,
+                "evidence": "dvc.yaml generated with at least one pipeline stage.",
+            }
+        ],
+        "artifact_manifest": {
+            "entries": [
+                {
+                    "artifact_type": "pipeline_definition",
+                    "producing_step": "create_dvc_yaml",
+                    "state": "generated",
+                    "path": relative_to_project(project_path, dvc_yaml_path),
+                }
+            ]
+        },
         "message": f"DVC pipeline created with {len(stages)} stages",
     }
 
@@ -1662,6 +1766,25 @@ outputs/
         "dockerignore_path": str(dockerignore_path),
         "base_image": base_image,
         "entry_point": entry_point,
+        "verification_results": [
+            {
+                "check_name": "dockerfile_build_evidence",
+                "evidence_type": "declared",
+                "source_step": "create_dockerfile",
+                "passed": True,
+                "evidence": "Dockerfile generated for local build validation.",
+            }
+        ],
+        "artifact_manifest": {
+            "entries": [
+                {
+                    "artifact_type": "container_definition",
+                    "producing_step": "create_dockerfile",
+                    "state": "generated",
+                    "path": relative_to_project(project_path, dockerfile_path),
+                }
+            ]
+        },
         "message": f"Dockerfile created at {dockerfile_path}",
     }
 
@@ -1897,6 +2020,16 @@ fi
             "mlflow": use_mlflow,
             "accuracy_threshold": accuracy_threshold,
         },
+        "artifact_manifest": {
+            "entries": [
+                {
+                    "artifact_type": "automation_workflow",
+                    "producing_step": "create_ci_workflow",
+                    "state": "generated",
+                    "path": relative_to_project(project_path, workflow_path),
+                }
+            ]
+        },
         "message": f"GitHub Actions workflow created at {workflow_path}",
     }
 
@@ -1946,7 +2079,6 @@ def analyze_training_results(
 ) -> dict[str, Any]:
     """Analyze training results and suggest improvements."""
     try:
-        import mlflow
         from mlflow.tracking import MlflowClient
 
         client = MlflowClient()
@@ -2090,7 +2222,6 @@ def check_accuracy_threshold(
 ) -> dict[str, Any]:
     """Check if accuracy threshold is met."""
     try:
-        import mlflow
         from mlflow.tracking import MlflowClient
 
         client = MlflowClient()

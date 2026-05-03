@@ -833,6 +833,54 @@ class TestAgentLoopRun:
         assert mock_execute_step.await_args.kwargs["step_id"] == workflow_step.step_id
 
     @pytest.mark.asyncio
+    async def test_setup_pipeline_approved_step_skips_post_step_perception(self, mock_agent):
+        """Test registry setup steps do not require LLM perception after execution."""
+        mock_agent._initialize_session("Set up MLOps for this project", "/test/path", 0.85)
+        mock_agent.workflow_selection = mock_agent.workflow_registry.select_workflow(
+            "Set up MLOps for this project"
+        )
+        workflow_step = mock_agent.workflow_registry.get("setup_pipeline").step_by_id(
+            "create_or_validate_hydra_config"
+        )
+        mock_agent.ctx.add_step(
+            step_id=workflow_step.step_id,
+            description=workflow_step.description,
+            step_type=StepType.CODE,
+            tool=workflow_step.tool_functions[0],
+            args={},
+            from_node=StepType.ROOT,
+        )
+        mock_agent.ctx.globals["approval_records"] = (
+            ApprovalRecord(
+                workflow_run_id=mock_agent.session_id,
+                step_id=workflow_step.step_id,
+                risk_categories=("writes_project_files",),
+                status="approved",
+                approver="ops@example.com",
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+            ),
+        )
+        mock_agent.next_step_id = workflow_step.step_id
+
+        with (
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("registry setup step must skip post-step perception"),
+            ) as mock_perception,
+        ):
+            mock_execute_step.return_value = (
+                True,
+                {"success": True, "step_id": workflow_step.step_id},
+            )
+            await mock_agent._execute_steps_loop()
+
+        mock_execute_step.assert_awaited_once()
+        mock_perception.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_setup_pipeline_captures_structured_verification_result(self, mock_agent):
         """Test setup workflow records structured verification evidence from step results."""
         mock_agent._initialize_session("Set up MLOps for this project", "/test/path", 0.85)

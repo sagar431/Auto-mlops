@@ -1,10 +1,11 @@
+import os
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from agent.agent_loop import AgentLoop, Route
+from agent.agent_loop import AgentLoop
 from workflow.registry import ArtifactManifest, VerificationResult, WorkflowStatus
 
 
@@ -75,11 +76,11 @@ def _local_setup_tools(call_order: list[str]) -> ModuleType:
             },
         }
 
-    def init_dvc_repo(project_path: str) -> dict:
+    def init_dvc_repo(project_path: str, no_scm: bool = False) -> dict:
         call_order.append("init_dvc_repo")
         dvc_config = Path(project_path) / ".dvc" / "config"
         dvc_config.parent.mkdir()
-        dvc_config.write_text("[core]\n    no_scm = true\n")
+        dvc_config.write_text(f"[core]\n    no_scm = {str(no_scm).lower()}\n")
         return {
             "success": True,
             "verification_results": [
@@ -101,12 +102,13 @@ def _local_setup_tools(call_order: list[str]) -> ModuleType:
             "reason": "No DVC remote requested for local Phase 1 setup.",
         }
 
-    def add_data_to_dvc(project_path: str) -> dict:
+    def add_data_to_dvc(project_path: str, data_path: str = "data/train.csv") -> dict:
         call_order.append("add_data_to_dvc")
-        (Path(project_path) / "data" / "train.csv.dvc").write_text(
-            "outs:\n  - path: train.csv\n"
+        tracked_path = Path(project_path) / data_path
+        tracked_path.with_name(f"{tracked_path.name}.dvc").write_text(
+            f"outs:\n  - path: {tracked_path.name}\n"
         )
-        return {"success": True, "tracked_path": "data/train.csv"}
+        return {"success": True, "tracked_path": data_path}
 
     def create_dvc_pipeline(project_path: str) -> dict:
         call_order.append("create_dvc_pipeline")
@@ -135,7 +137,7 @@ def _local_setup_tools(call_order: list[str]) -> ModuleType:
             },
         }
 
-    def init_mlflow_experiment(project_path: str) -> dict:
+    def init_mlflow_experiment(project_path: str, experiment_name: str = "mlops") -> dict:
         call_order.append("init_mlflow_experiment")
         (Path(project_path) / "mlruns").mkdir()
         return {
@@ -260,8 +262,8 @@ async def test_local_setup_pipeline_requires_approval_then_reaches_contract_succ
             agent.perception,
             "run",
             new_callable=AsyncMock,
-            return_value={"route": Route.DECISION, "original_goal_achieved": False},
-        ),
+            side_effect=AssertionError("registry setup execution must skip post-step perception"),
+        ) as mock_perception,
         patch.object(
             agent.decision,
             "run",
@@ -279,6 +281,7 @@ async def test_local_setup_pipeline_requires_approval_then_reaches_contract_succ
 
     template = agent.workflow_registry.get("setup_pipeline")
     assert agent.workflow_selection.workflow_id == "setup_pipeline"
+    mock_perception.assert_not_awaited()
     assert [event["type"] for event in events].count("step_complete") == len(template.steps)
     assert successful_call_order == [
         step.tool_functions[0] for step in template.steps if step.tool_functions
@@ -324,3 +327,72 @@ async def test_local_setup_pipeline_requires_approval_then_reaches_contract_succ
     assert "configs/config.yaml" in output
     assert ".github/workflows/mlops.yml" in output
     assert "approvals:" in output
+
+
+@pytest.mark.asyncio
+async def test_local_setup_pipeline_real_tools_reach_contract_success_without_perception(
+    tmp_path, monkeypatch
+):
+    project = _local_ml_project(tmp_path)
+    query = f"Set up MLOps for this local Python ML project at {project}"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_dvc = fake_bin / "dvc"
+    fake_dvc.write_text(
+        "#!/usr/bin/env python3\n"
+        "from pathlib import Path\n"
+        "import sys\n"
+        "cwd = Path.cwd()\n"
+        "args = sys.argv[1:]\n"
+        "if args and args[0] == 'init':\n"
+        "    (cwd / '.dvc').mkdir(exist_ok=True)\n"
+        "    (cwd / '.dvc' / 'config').write_text('[core]\\n    no_scm = true\\n')\n"
+        "    raise SystemExit(0)\n"
+        "if len(args) >= 2 and args[0] == 'add':\n"
+        "    for rel_path in args[1:]:\n"
+        "        (cwd / f'{rel_path}.dvc').write_text('outs:\\n  - path: ' + rel_path + '\\n')\n"
+        "    raise SystemExit(0)\n"
+        "raise SystemExit(0)\n"
+    )
+    fake_dvc.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    import mcp_mlops_tools
+
+    agent = AgentLoop(
+        prompts_dir=_prompts_dir(tmp_path / "real-tools"),
+        tools_module=mcp_mlops_tools,
+        auto_approve=True,
+    )
+
+    with (
+        patch.object(
+            agent.perception,
+            "run",
+            new_callable=AsyncMock,
+            side_effect=AssertionError("registry setup execution must skip post-step perception"),
+        ) as mock_perception,
+        patch.object(
+            agent.decision,
+            "run",
+            new_callable=AsyncMock,
+            side_effect=AssertionError("setup_pipeline must not use prompt-authored plans"),
+        ),
+        patch.object(
+            agent.summarizer,
+            "summarize",
+            new_callable=AsyncMock,
+            side_effect=AssertionError("SuccessContract must derive setup_pipeline status"),
+        ),
+    ):
+        output = await agent.run(query=query, project_path=str(project))
+
+    mock_perception.assert_not_awaited()
+    assert agent.ctx.globals["contract_status"].status is WorkflowStatus.SUCCEEDED
+    assert "workflow_status: succeeded" in output
+    assert "missing_evidence: none" in output
+    assert "failed_checks: none" in output
+    assert "configs/config.yaml" in output
+    assert "dvc.yaml" in output
+    assert "Dockerfile" in output
+    assert ".github/workflows/ml-pipeline.yml" in output

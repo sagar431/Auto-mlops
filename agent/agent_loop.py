@@ -772,33 +772,37 @@ class AgentLoop:
                 },
             )
 
-            # Run perception after step
-            p_input = build_perception_input(
-                query=self.query, memory=self.memory, ctx=self.ctx, snapshot_type="step_result"
-            )
-            self.p_out = await self.perception.run(p_input, session=self.session)
-            self.ctx.attach_perception(self.next_step_id, self.p_out)
+            if self._should_run_post_step_perception(self.next_step_id):
+                # Run perception after step
+                p_input = build_perception_input(
+                    query=self.query,
+                    memory=self.memory,
+                    ctx=self.ctx,
+                    snapshot_type="step_result",
+                )
+                self.p_out = await self.perception.run(p_input, session=self.session)
+                self.ctx.attach_perception(self.next_step_id, self.p_out)
 
-            # Check routing
-            if (
-                self.p_out.get("original_goal_achieved")
-                or self.p_out.get("route") == Route.SUMMARIZE
-            ):
-                if self._is_pending_setup_pipeline():
-                    self._finalize_setup_pipeline_contract()
+                # Check routing
+                if (
+                    self.p_out.get("original_goal_achieved")
+                    or self.p_out.get("route") == Route.SUMMARIZE
+                ):
+                    if self._is_pending_setup_pipeline():
+                        self._finalize_setup_pipeline_contract()
+                        return
+                    self.status = "success"
+                    await self._emit("phase", {"phase": "summary", "message": "Goal achieved!"})
+                    self.final_output = await self._summarize()
                     return
-                self.status = "success"
-                await self._emit("phase", {"phase": "summary", "message": "Goal achieved!"})
-                self.final_output = await self._summarize()
-                return
 
-            if self.p_out.get("route") == Route.IMPROVE:
-                # Break to run improvement loop
-                return
+                if self.p_out.get("route") == Route.IMPROVE:
+                    # Break to run improvement loop
+                    return
 
-            if self.p_out.get("route") == Route.DEPLOY:
-                # Break to run deployment loop
-                return
+                if self.p_out.get("route") == Route.DEPLOY:
+                    # Break to run deployment loop
+                    return
 
             # Get next step
             self.next_step_id = self._pick_next_step()
@@ -858,6 +862,24 @@ class AgentLoop:
             and self.workflow_selection.workflow_id == "setup_pipeline"
             and self.workflow_selection.status is WorkflowStatus.PENDING
         )
+
+    def _should_run_post_step_perception(self, step_id: str) -> bool:
+        """Return whether this completed step should trigger perception feedback."""
+        if (
+            self.workflow_selection is None
+            or self.workflow_selection.workflow_id is None
+            or self.workflow_selection.status is not WorkflowStatus.PENDING
+        ):
+            return True
+
+        try:
+            workflow_step = self.workflow_registry.get(
+                self.workflow_selection.workflow_id
+            ).step_by_id(step_id)
+        except KeyError:
+            return True
+
+        return workflow_step.post_step_perception
 
     def _finalize_setup_pipeline_contract(self) -> ContractValidation:
         """Derive setup_pipeline status from captured success contract evidence."""
