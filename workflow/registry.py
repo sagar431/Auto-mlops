@@ -513,10 +513,10 @@ class WorkflowRegistry:
                 )
             )
         status = WorkflowStatus.SUCCEEDED
-        if missing_evidence:
-            status = WorkflowStatus.BLOCKED
-        elif failed_checks:
+        if failed_checks:
             status = WorkflowStatus.FAILED
+        elif missing_evidence:
+            status = WorkflowStatus.BLOCKED
         return ContractValidation(
             workflow_id=workflow_id,
             status=status,
@@ -1153,6 +1153,7 @@ def _deploy_litserve_gpu_template() -> WorkflowTemplate:
         "server_start_command_recorded": "start_litserve_server",
         "health_result_recorded": "test_health_endpoint",
         "prediction_result_recorded": "test_prediction_endpoint",
+        "endpoint_url_recorded": "capture_logs_and_endpoint",
     }
     check_source_steps = {
         **observed_check_source_steps,
@@ -1163,7 +1164,104 @@ def _deploy_litserve_gpu_template() -> WorkflowTemplate:
         name=template.name,
         description=template.description,
         required_inputs=template.required_inputs,
-        steps=template.steps,
+        steps=(
+            WorkflowStep(
+                step_id="detect_runtime_environment",
+                name="Detect Runtime Environment",
+                description="Record local runtime context without provisioning cloud resources.",
+                order=1,
+                tool_functions=("detect_runtime_environment",),
+            ),
+            WorkflowStep(
+                step_id="detect_gpu_cuda",
+                name="Detect GPU CUDA",
+                description="Detect GPU availability from observed nvidia-smi or PyTorch CUDA evidence.",
+                order=2,
+                tool_functions=("detect_gpu_cuda",),
+            ),
+            WorkflowStep(
+                step_id="select_best_model_artifact",
+                name="Select Best Model Artifact",
+                description="Select an existing model artifact or validated preflight artifact.",
+                order=3,
+                tool_functions=("select_best_model_artifact",),
+            ),
+            WorkflowStep(
+                step_id="generate_litserve_api",
+                name="Generate LitServe API",
+                description="Generate the LitServe serving application for the selected model.",
+                order=4,
+                tool_functions=("create_litserve_api",),
+                default_args={
+                    "model_path": "models/model.pt",
+                    "model_name": "model",
+                    "source_step": "generate_litserve_api",
+                },
+            ),
+            WorkflowStep(
+                step_id="configure_litserve_gpu_runtime",
+                name="Configure LitServe GPU Runtime",
+                description="Configure LitServe to use the GPU runtime.",
+                order=5,
+                tool_functions=("configure_litserver",),
+                default_args={"accelerator": "gpu", "port": 8000},
+            ),
+            WorkflowStep(
+                step_id="create_dockerfile",
+                name="Create Dockerfile",
+                description="Generate an optional GPU-capable Dockerfile without building an image.",
+                order=6,
+                tool_functions=("create_ml_dockerfile",),
+                default_args={
+                    "base_image": "python:3.11-slim",
+                    "entry_point": "deployment/litserve/server.py",
+                    "requirements_file": "deployment/litserve/requirements.txt",
+                    "expose_port": 8000,
+                },
+            ),
+            WorkflowStep(
+                step_id="build_image_if_available",
+                name="Build Image If Available",
+                description="Record that Docker image build is optional and skipped by default.",
+                order=7,
+                tool_functions=("record_litserve_image_build_skipped",),
+            ),
+            WorkflowStep(
+                step_id="start_litserve_server",
+                name="Start LitServe Server",
+                description="Start the LitServe server and record observed process evidence.",
+                order=8,
+                tool_functions=("start_litserve_server",),
+            ),
+            WorkflowStep(
+                step_id="test_health_endpoint",
+                name="Test Health Endpoint",
+                description="Call the LitServe /health endpoint and record observed response evidence.",
+                order=9,
+                tool_functions=("test_litserve_health_endpoint",),
+            ),
+            WorkflowStep(
+                step_id="test_prediction_endpoint",
+                name="Test Prediction Endpoint",
+                description="Call the LitServe /predict endpoint and record observed response evidence.",
+                order=10,
+                tool_functions=("test_litserve_prediction_endpoint",),
+            ),
+            WorkflowStep(
+                step_id="capture_logs_and_endpoint",
+                name="Capture Logs And Endpoint",
+                description="Record deployed endpoint URL and server log location.",
+                order=11,
+                tool_functions=("capture_litserve_logs_and_endpoint",),
+            ),
+            WorkflowStep(
+                step_id="write_monitoring_and_rollback_report",
+                name="Write Monitoring And Rollback Report",
+                description="Record stop command and manual Lambda Cloud stop instruction.",
+                order=12,
+                tool_functions=("record_litserve_gpu_rollback_readiness",),
+            ),
+        ),
         success_contract=SuccessContract(
             checks=tuple(
                 SuccessContractCheck(
@@ -1211,7 +1309,15 @@ def _deploy_litserve_gpu_template() -> WorkflowTemplate:
         ),
         approval_gates=(
             ApprovalGate(
+                step_id="detect_gpu_cuda",
+                risk_categories=("uses_gpu",),
+            ),
+            ApprovalGate(
                 step_id="generate_litserve_api",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="create_dockerfile",
                 risk_categories=("writes_project_files",),
             ),
             ApprovalGate(

@@ -158,6 +158,7 @@ def test_deploy_litserve_gpu_requires_observed_runtime_evidence():
         "server_start_command_recorded",
         "health_result_recorded",
         "prediction_result_recorded",
+        "endpoint_url_recorded",
     }.issubset(observed_checks)
 
 
@@ -616,6 +617,32 @@ def test_declared_evidence_does_not_satisfy_observed_contract_check():
     assert "/health" in health_failure.actual_evidence[0].evidence
 
 
+def test_declared_endpoint_evidence_does_not_satisfy_litserve_gpu_contract():
+    registry = get_workflow_registry()
+    declared_endpoint_result = VerificationResult(
+        check_name="endpoint_url_recorded",
+        evidence_type="declared",
+        source_step="capture_logs_and_endpoint",
+        passed=True,
+        evidence="endpoint_url=http://127.0.0.1:8000",
+    )
+
+    validation = registry.validate_success_contract(
+        "deploy_litserve_gpu",
+        verification_results=(declared_endpoint_result,),
+    )
+
+    endpoint_failure = next(
+        failure
+        for failure in validation.missing_evidence
+        if failure.check_name == "endpoint_url_recorded"
+    )
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert endpoint_failure.expected_evidence_type == "observed"
+    assert endpoint_failure.source_step == "capture_logs_and_endpoint"
+    assert endpoint_failure.actual_evidence == (declared_endpoint_result,)
+
+
 def test_failed_required_check_derives_failed_workflow_status():
     registry = get_workflow_registry()
     template = registry.get("deploy_litserve_gpu")
@@ -962,6 +989,36 @@ def test_deployment_templates_are_non_fake_ordered_templates():
         assert template.success_contract.checks
         assert template.routing_aliases
         assert template.approval_gates
+
+
+def test_litserve_gpu_template_declares_executable_runtime_tools():
+    template = get_workflow_registry().get("deploy_litserve_gpu")
+
+    tools_by_step = {step.step_id: step.tool_functions for step in template.steps}
+
+    assert tools_by_step == {
+        "detect_runtime_environment": ("detect_runtime_environment",),
+        "detect_gpu_cuda": ("detect_gpu_cuda",),
+        "select_best_model_artifact": ("select_best_model_artifact",),
+        "generate_litserve_api": ("create_litserve_api",),
+        "configure_litserve_gpu_runtime": ("configure_litserver",),
+        "create_dockerfile": ("create_ml_dockerfile",),
+        "build_image_if_available": ("record_litserve_image_build_skipped",),
+        "start_litserve_server": ("start_litserve_server",),
+        "test_health_endpoint": ("test_litserve_health_endpoint",),
+        "test_prediction_endpoint": ("test_litserve_prediction_endpoint",),
+        "capture_logs_and_endpoint": ("capture_litserve_logs_and_endpoint",),
+        "write_monitoring_and_rollback_report": ("record_litserve_gpu_rollback_readiness",),
+    }
+
+    approval_gates = {
+        gate.step_id: gate.risk_categories for gate in template.approval_gates
+    }
+    assert approval_gates["detect_gpu_cuda"] == ("uses_gpu",)
+    assert approval_gates["generate_litserve_api"] == ("writes_project_files",)
+    assert approval_gates["create_dockerfile"] == ("writes_project_files",)
+    assert approval_gates["build_image_if_available"] == ("builds_image",)
+    assert approval_gates["start_litserve_server"] == ("starts_server", "exposes_port")
 
 
 def test_workflow_step_is_separate_from_tool_function():

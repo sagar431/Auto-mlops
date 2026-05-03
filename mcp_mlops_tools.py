@@ -18,6 +18,10 @@ import json
 import os
 import shutil
 import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -676,6 +680,90 @@ class RecordLitserveMissingLiveEvidenceInput(BaseModel):
     """Record live deployment evidence intentionally missing from local preflight."""
 
     project_path: str = Field(..., description="Path to the project")
+
+
+class DetectRuntimeEnvironmentInput(BaseModel):
+    """Record local runtime environment for LitServe GPU deployment."""
+
+    project_path: str = Field(..., description="Path to the project")
+
+
+class DetectGpuCudaInput(BaseModel):
+    """Detect GPU availability from observed runtime checks."""
+
+    project_path: str = Field(..., description="Path to the project")
+
+
+class SelectBestModelArtifactInput(BaseModel):
+    """Select an existing model artifact for LitServe GPU deployment."""
+
+    project_path: str = Field(..., description="Path to the project")
+    model_path: str | None = Field(
+        default=None,
+        description="Optional model artifact path relative to the project.",
+    )
+
+
+class RecordLitserveImageBuildSkippedInput(BaseModel):
+    """Record that Docker image build is optional and skipped by default."""
+
+    project_path: str = Field(..., description="Path to the project")
+
+
+class StartLitserveServerInput(BaseModel):
+    """Start LitServe server in the current project environment."""
+
+    project_path: str = Field(..., description="Path to the project")
+    server_path: str = Field(
+        default="deployment/litserve/server.py",
+        description="LitServe server entry point relative to the project.",
+    )
+    port: int = Field(default=8000, description="Server port")
+    host: str = Field(default="127.0.0.1", description="Server host")
+    log_path: str = Field(
+        default="deployment/litserve/server.log",
+        description="Server log path relative to the project.",
+    )
+    startup_wait_seconds: float = Field(default=2.0, description="Seconds to wait after start")
+
+
+class TestLitserveHealthEndpointInput(BaseModel):
+    """Call the LitServe health endpoint and record observed evidence."""
+
+    project_path: str = Field(..., description="Path to the project")
+    endpoint_url: str = Field(default="http://127.0.0.1:8000", description="Endpoint URL")
+    timeout_seconds: float = Field(default=5.0, description="HTTP timeout in seconds")
+
+
+class TestLitservePredictionEndpointInput(BaseModel):
+    """Call the LitServe prediction endpoint and record observed evidence."""
+
+    project_path: str = Field(..., description="Path to the project")
+    endpoint_url: str = Field(default="http://127.0.0.1:8000", description="Endpoint URL")
+    sample_input: dict[str, Any] = Field(
+        default_factory=lambda: {"input": [0.0]},
+        description="Sample JSON payload for /predict.",
+    )
+    timeout_seconds: float = Field(default=10.0, description="HTTP timeout in seconds")
+
+
+class CaptureLitserveLogsAndEndpointInput(BaseModel):
+    """Record LitServe logs and deployed endpoint URL."""
+
+    project_path: str = Field(..., description="Path to the project")
+    endpoint_url: str = Field(default="http://127.0.0.1:8000", description="Endpoint URL")
+    log_path: str = Field(
+        default="deployment/litserve/server.log",
+        description="Server log path relative to the project.",
+    )
+
+
+class RecordLitserveGpuRollbackReadinessInput(BaseModel):
+    """Record process cleanup and manual Lambda Cloud stop instruction."""
+
+    project_path: str = Field(..., description="Path to the project")
+    process_id: int | None = Field(default=None, description="LitServe server process ID")
+    port: int = Field(default=8000, description="Server port")
 
 
 # Gradio Tools
@@ -4499,6 +4587,350 @@ def record_litserve_missing_live_evidence(project_path: str) -> dict[str, Any]:
     }
 
 
+def detect_runtime_environment(project_path: str) -> dict[str, Any]:
+    """Record local runtime context without provisioning cloud resources."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    return {
+        "success": True,
+        "python_executable": sys.executable,
+        "python_version": sys.version.split()[0],
+        "project_path": str(path),
+        "message": "Runtime environment recorded on the current machine.",
+    }
+
+
+def detect_gpu_cuda(project_path: str) -> dict[str, Any]:
+    """Detect GPU availability from observed nvidia-smi and PyTorch CUDA checks."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    nvidia_smi = {
+        "available": False,
+        "success": False,
+        "stdout": "",
+        "stderr": "nvidia-smi not found",
+    }
+    if check_tool_installed("nvidia-smi"):
+        result = run_command(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,driver_version,memory.total",
+                "--format=csv,noheader",
+            ],
+            cwd=str(path),
+            timeout=10,
+        )
+        nvidia_smi = {
+            "available": result.get("success", False) and bool(result.get("stdout")),
+            "success": result.get("success", False),
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr") or result.get("error", ""),
+        }
+
+    torch_cuda: dict[str, Any] = {"available": False, "error": None}
+    try:
+        import torch
+
+        cuda_available = bool(torch.cuda.is_available())
+        torch_cuda = {
+            "available": cuda_available,
+            "device_count": torch.cuda.device_count() if cuda_available else 0,
+            "device_name": torch.cuda.get_device_name(0) if cuda_available else None,
+            "cuda_version": getattr(torch.version, "cuda", None),
+        }
+    except Exception as exc:
+        torch_cuda = {"available": False, "error": str(exc)}
+
+    gpu_available = bool(nvidia_smi["available"] or torch_cuda["available"])
+    evidence = {"nvidia_smi": nvidia_smi, "torch_cuda": torch_cuda}
+    return {
+        "success": True,
+        "gpu_available": gpu_available,
+        "gpu_evidence": evidence,
+        "verification_results": [
+            {
+                "check_name": "gpu_detection_recorded",
+                "evidence_type": "observed",
+                "source_step": "detect_gpu_cuda",
+                "passed": gpu_available,
+                "evidence": json.dumps(evidence, sort_keys=True),
+            }
+        ],
+        "message": (
+            "GPU detected from observed runtime evidence."
+            if gpu_available
+            else "No GPU detected from nvidia-smi or PyTorch CUDA."
+        ),
+    }
+
+
+def select_best_model_artifact(
+    project_path: str,
+    model_path: str | None = None,
+) -> dict[str, Any]:
+    """Select an existing model artifact or preflight artifact for LitServe deployment."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    candidates = []
+    if model_path:
+        candidates.append(path / model_path)
+    candidates.extend(
+        candidate
+        for pattern in (
+            "models/model.pt",
+            "models/model.pth",
+            "models/*_preflight.pt",
+            "models/*.pt",
+            "models/*.pth",
+            "model/*.pt",
+            "model/*.pth",
+            "*.pt",
+            "*.pth",
+        )
+        for candidate in path.glob(pattern)
+    )
+    selected = next((candidate for candidate in candidates if candidate.exists()), None)
+    if selected is None:
+        return {
+            "success": False,
+            "error": "No model artifact or LitServe preflight artifact found.",
+        }
+
+    relative_path = relative_to_project(project_path, selected)
+    return {
+        "success": True,
+        "model_path": relative_path,
+        "artifact_manifest": {
+            "entries": [
+                {
+                    "artifact_type": "model_artifact",
+                    "producing_step": "select_best_model_artifact",
+                    "state": "selected",
+                    "path": relative_path,
+                }
+            ]
+        },
+        "message": f"Model artifact selected for LitServe GPU deployment: {relative_path}",
+    }
+
+
+def record_litserve_image_build_skipped(project_path: str) -> dict[str, Any]:
+    """Record that Docker image build is optional and skipped by default."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    return {
+        "success": True,
+        "image_build": "skipped",
+        "message": "Docker image build is optional for this runtime slice and was not run.",
+    }
+
+
+def start_litserve_server(
+    project_path: str,
+    server_path: str = "deployment/litserve/server.py",
+    port: int = 8000,
+    host: str = "127.0.0.1",
+    log_path: str = "deployment/litserve/server.log",
+    startup_wait_seconds: float = 2.0,
+) -> dict[str, Any]:
+    """Start LitServe server and record observed process evidence."""
+    path = Path(project_path)
+    server_file = path / server_path
+    if not server_file.exists():
+        return {"success": False, "error": f"LitServe server not found: {server_path}"}
+
+    log_file = path / log_path
+    ensure_directory(log_file.parent)
+    command = [sys.executable, str(server_file)]
+    log_handle = open(log_file, "a")
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=str(path),
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    finally:
+        log_handle.close()
+    time.sleep(startup_wait_seconds)
+    running = process.poll() is None
+    endpoint_url = f"http://{host}:{port}"
+    evidence = {
+        "pid": process.pid,
+        "running": running,
+        "returncode": process.returncode,
+        "command": " ".join(command),
+        "endpoint_url": endpoint_url,
+        "log_path": relative_to_project(project_path, log_file),
+    }
+    return {
+        "success": True,
+        "process_id": process.pid,
+        "endpoint_url": endpoint_url,
+        "server_start_command": " ".join(command),
+        "log_path": relative_to_project(project_path, log_file),
+        "verification_results": [
+            {
+                "check_name": "server_start_command_recorded",
+                "evidence_type": "observed",
+                "source_step": "start_litserve_server",
+                "passed": running,
+                "evidence": json.dumps(evidence, sort_keys=True),
+            }
+        ],
+        "message": "LitServe server start attempted and process evidence recorded.",
+    }
+
+
+def test_litserve_health_endpoint(
+    project_path: str,
+    endpoint_url: str = "http://127.0.0.1:8000",
+    timeout_seconds: float = 5.0,
+) -> dict[str, Any]:
+    """Call /health and record observed HTTP evidence."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    url = endpoint_url.rstrip("/") + "/health"
+    evidence: dict[str, Any] = {"url": url}
+    passed = False
+    try:
+        with urllib.request.urlopen(url, timeout=timeout_seconds) as response:
+            body = response.read(4096).decode("utf-8", errors="replace")
+            evidence.update({"status_code": response.status, "body": body})
+            passed = 200 <= response.status < 300
+    except urllib.error.URLError as exc:
+        evidence["error"] = str(exc)
+
+    return {
+        "success": True,
+        "health_passed": passed,
+        "verification_results": [
+            {
+                "check_name": "health_result_recorded",
+                "evidence_type": "observed",
+                "source_step": "test_health_endpoint",
+                "passed": passed,
+                "evidence": json.dumps(evidence, sort_keys=True),
+            }
+        ],
+        "message": "LitServe /health check recorded.",
+    }
+
+
+def test_litserve_prediction_endpoint(
+    project_path: str,
+    endpoint_url: str = "http://127.0.0.1:8000",
+    sample_input: dict[str, Any] | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, Any]:
+    """Call /predict and record observed HTTP evidence."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    url = endpoint_url.rstrip("/") + "/predict"
+    payload = json.dumps(sample_input or {"input": [0.0]}).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    evidence: dict[str, Any] = {"url": url, "request": sample_input or {"input": [0.0]}}
+    passed = False
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            body = response.read(4096).decode("utf-8", errors="replace")
+            evidence.update({"status_code": response.status, "body": body})
+            passed = 200 <= response.status < 300
+    except urllib.error.URLError as exc:
+        evidence["error"] = str(exc)
+
+    return {
+        "success": True,
+        "prediction_passed": passed,
+        "verification_results": [
+            {
+                "check_name": "prediction_result_recorded",
+                "evidence_type": "observed",
+                "source_step": "test_prediction_endpoint",
+                "passed": passed,
+                "evidence": json.dumps(evidence, sort_keys=True),
+            }
+        ],
+        "message": "LitServe /predict check recorded.",
+    }
+
+
+def capture_litserve_logs_and_endpoint(
+    project_path: str,
+    endpoint_url: str = "http://127.0.0.1:8000",
+    log_path: str = "deployment/litserve/server.log",
+) -> dict[str, Any]:
+    """Record endpoint URL and server log location as observed deployment evidence."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    log_file = path / log_path
+    evidence = {
+        "endpoint_url": endpoint_url,
+        "log_path": relative_to_project(project_path, log_file),
+        "log_exists": log_file.exists(),
+    }
+    return {
+        "success": True,
+        "endpoint_url": endpoint_url,
+        "log_path": relative_to_project(project_path, log_file),
+        "verification_results": [
+            {
+                "check_name": "endpoint_url_recorded",
+                "evidence_type": "observed",
+                "source_step": "capture_logs_and_endpoint",
+                "passed": bool(endpoint_url),
+                "evidence": json.dumps(evidence, sort_keys=True),
+            }
+        ],
+        "message": "LitServe endpoint URL and log path recorded.",
+    }
+
+
+def record_litserve_gpu_rollback_readiness(
+    project_path: str,
+    process_id: int | None = None,
+    port: int = 8000,
+) -> dict[str, Any]:
+    """Record process cleanup and manual Lambda Cloud stop instructions."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    command = f"kill {process_id}" if process_id else f"lsof -ti:{port} | xargs -r kill"
+    manual_instruction = (
+        "Stop the user-started Lambda Cloud instance manually from the Lambda Cloud console "
+        "when deployment testing is complete."
+    )
+    return {
+        "success": True,
+        "rollback_plan": {
+            "command": command,
+            "documented_target": manual_instruction,
+        },
+        "message": "LitServe process cleanup and manual Lambda stop instruction recorded.",
+    }
+
+
 def configure_litserver(
     project_path: str,
     max_batch_size: int = 64,
@@ -6393,6 +6825,51 @@ async def list_tools() -> list[Tool]:
             inputSchema=RecordLitserveMissingLiveEvidenceInput.model_json_schema(),
         ),
         Tool(
+            name="detect_runtime_environment",
+            description="Record local runtime context for LitServe GPU deployment",
+            inputSchema=DetectRuntimeEnvironmentInput.model_json_schema(),
+        ),
+        Tool(
+            name="detect_gpu_cuda",
+            description="Detect GPU availability from observed nvidia-smi or PyTorch CUDA evidence",
+            inputSchema=DetectGpuCudaInput.model_json_schema(),
+        ),
+        Tool(
+            name="select_best_model_artifact",
+            description="Select an existing model artifact or LitServe preflight artifact",
+            inputSchema=SelectBestModelArtifactInput.model_json_schema(),
+        ),
+        Tool(
+            name="record_litserve_image_build_skipped",
+            description="Record that Docker image build is optional and skipped by default",
+            inputSchema=RecordLitserveImageBuildSkippedInput.model_json_schema(),
+        ),
+        Tool(
+            name="start_litserve_server",
+            description="Start LitServe server and record observed process evidence",
+            inputSchema=StartLitserveServerInput.model_json_schema(),
+        ),
+        Tool(
+            name="test_litserve_health_endpoint",
+            description="Call LitServe /health and record observed HTTP evidence",
+            inputSchema=TestLitserveHealthEndpointInput.model_json_schema(),
+        ),
+        Tool(
+            name="test_litserve_prediction_endpoint",
+            description="Call LitServe /predict and record observed HTTP evidence",
+            inputSchema=TestLitservePredictionEndpointInput.model_json_schema(),
+        ),
+        Tool(
+            name="capture_litserve_logs_and_endpoint",
+            description="Record deployed LitServe endpoint URL and server log location",
+            inputSchema=CaptureLitserveLogsAndEndpointInput.model_json_schema(),
+        ),
+        Tool(
+            name="record_litserve_gpu_rollback_readiness",
+            description="Record LitServe cleanup command and manual Lambda Cloud stop instruction",
+            inputSchema=RecordLitserveGpuRollbackReadinessInput.model_json_schema(),
+        ),
+        Tool(
             name="configure_litserver",
             description="Configure LitServe server settings (batch size, workers, accelerator)",
             inputSchema=ConfigureLitserverInput.model_json_schema(),
@@ -6883,6 +7360,66 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         elif name == "record_litserve_missing_live_evidence":
             input_data = RecordLitserveMissingLiveEvidenceInput(**arguments)
             result = record_litserve_missing_live_evidence(input_data.project_path)
+
+        elif name == "detect_runtime_environment":
+            input_data = DetectRuntimeEnvironmentInput(**arguments)
+            result = detect_runtime_environment(input_data.project_path)
+
+        elif name == "detect_gpu_cuda":
+            input_data = DetectGpuCudaInput(**arguments)
+            result = detect_gpu_cuda(input_data.project_path)
+
+        elif name == "select_best_model_artifact":
+            input_data = SelectBestModelArtifactInput(**arguments)
+            result = select_best_model_artifact(input_data.project_path, input_data.model_path)
+
+        elif name == "record_litserve_image_build_skipped":
+            input_data = RecordLitserveImageBuildSkippedInput(**arguments)
+            result = record_litserve_image_build_skipped(input_data.project_path)
+
+        elif name == "start_litserve_server":
+            input_data = StartLitserveServerInput(**arguments)
+            result = start_litserve_server(
+                input_data.project_path,
+                input_data.server_path,
+                input_data.port,
+                input_data.host,
+                input_data.log_path,
+                input_data.startup_wait_seconds,
+            )
+
+        elif name == "test_litserve_health_endpoint":
+            input_data = TestLitserveHealthEndpointInput(**arguments)
+            result = test_litserve_health_endpoint(
+                input_data.project_path,
+                input_data.endpoint_url,
+                input_data.timeout_seconds,
+            )
+
+        elif name == "test_litserve_prediction_endpoint":
+            input_data = TestLitservePredictionEndpointInput(**arguments)
+            result = test_litserve_prediction_endpoint(
+                input_data.project_path,
+                input_data.endpoint_url,
+                input_data.sample_input,
+                input_data.timeout_seconds,
+            )
+
+        elif name == "capture_litserve_logs_and_endpoint":
+            input_data = CaptureLitserveLogsAndEndpointInput(**arguments)
+            result = capture_litserve_logs_and_endpoint(
+                input_data.project_path,
+                input_data.endpoint_url,
+                input_data.log_path,
+            )
+
+        elif name == "record_litserve_gpu_rollback_readiness":
+            input_data = RecordLitserveGpuRollbackReadinessInput(**arguments)
+            result = record_litserve_gpu_rollback_readiness(
+                input_data.project_path,
+                input_data.process_id,
+                input_data.port,
+            )
 
         elif name == "configure_litserver":
             input_data = ConfigureLitserverInput(**arguments)

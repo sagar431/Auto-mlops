@@ -28,6 +28,7 @@ from workflow.registry import (
     ArtifactManifestEntry,
     ContractFailure,
     ContractValidation,
+    RollbackPlan,
     VerificationResult,
     WorkflowSelection,
     WorkflowStatus,
@@ -276,6 +277,9 @@ class AgentLoop:
 
     async def _select_registry_workflow(self) -> bool:
         """Select a registry workflow before prompt-authored planning."""
+        if self._should_defer_to_prompt_planning_before_registry():
+            return False
+
         selection = self.workflow_registry.select_workflow(self.query)
         selection = self._add_runtime_input_requirements(selection)
         self.workflow_selection = selection
@@ -292,16 +296,27 @@ class AgentLoop:
         )
 
         if selection.status is WorkflowStatus.PENDING:
-            if selection.workflow_id == "setup_pipeline":
+            if self._is_executable_registry_workflow(selection.workflow_id):
                 projected_step_ids = await self._project_registry_workflow(selection.workflow_id)
                 if not self.auto_approve and not self.ctx.globals.get("approval_records"):
-                    approval_validation = self._first_blocking_setup_pipeline_approval()
+                    approval_validation = self._first_blocking_registry_approval()
                     if approval_validation is not None:
                         self.status = "paused"
                         risk_categories = [
                             risk_category.value
                             for risk_category in approval_validation.risk_categories
                         ]
+                        await self._emit(
+                            "approval_required",
+                            {
+                                "workflow_id": approval_validation.workflow_id,
+                                "workflow_run_id": approval_validation.workflow_run_id,
+                                "step_id": approval_validation.step_id,
+                                "risk_categories": risk_categories,
+                                "status": approval_validation.status.value,
+                                "next_action": approval_validation.next_action,
+                            },
+                        )
                         self.final_output = (
                             f"Selected workflow '{selection.workflow_id}' from registry. "
                             "Projected executable runtime steps: "
@@ -337,20 +352,40 @@ class AgentLoop:
 
         return False
 
-    def _first_blocking_setup_pipeline_approval(self):
-        """Return the first setup_pipeline approval gate that lacks approval."""
+    def _should_defer_to_prompt_planning_before_registry(self) -> bool:
+        """Keep broad multi-phase requests on the prompt-authored planning path."""
+        normalized_query = self.query.casefold()
+        setup_requested = any(
+            term in normalized_query
+            for term in ("set up mlops", "setup mlops", "set up mlops pipeline")
+        )
+        additional_phase_requested = any(
+            term in normalized_query for term in (" and deploy", ", train", " train ")
+        )
+        explicit_litserve_gpu = any(
+            term in normalized_query
+            for term in ("lambda labs gpu", "lambda gpu", "litserve gpu deployment")
+        )
+        return setup_requested and additional_phase_requested and not explicit_litserve_gpu
+
+    def _is_executable_registry_workflow(self, workflow_id: str | None) -> bool:
+        return workflow_id in {"setup_pipeline", "deploy_litserve_gpu"}
+
+    def _first_blocking_registry_approval(self):
+        """Return the first selected registry approval gate that lacks approval."""
         if (
             self.workflow_selection is None
-            or self.workflow_selection.workflow_id != "setup_pipeline"
+            or self.workflow_selection.workflow_id is None
             or self.workflow_selection.status is not WorkflowStatus.PENDING
         ):
             return None
 
-        template = self.workflow_registry.get("setup_pipeline")
+        workflow_id = self.workflow_selection.workflow_id
+        template = self.workflow_registry.get(workflow_id)
         approval_records = tuple(self.ctx.globals.get("approval_records", ()))
         for step in template.steps:
             validation = self.workflow_registry.validate_step_approval(
-                workflow_id="setup_pipeline",
+                workflow_id=workflow_id,
                 workflow_run_id=self.session_id,
                 step_id=step.step_id,
                 approval_records=approval_records,
@@ -418,23 +453,7 @@ class AgentLoop:
 
     def _should_block_for_workflow_selection(self, selection: WorkflowSelection) -> bool:
         """Block registry-like requests that did not yield an executable selection."""
-        if selection.matched_aliases or selection.rejected_workflows:
-            return True
-
-        workflow_terms = (
-            "deploy",
-            "setup",
-            "set up",
-            "mlops",
-            "pipeline",
-            "serve",
-            "gradio",
-            "kserve",
-            "gpu",
-            "lambda",
-        )
-        normalized_query = self.query.casefold()
-        return any(term in normalized_query for term in workflow_terms)
+        return bool(selection.matched_aliases or selection.rejected_workflows)
 
     async def _run_initial_perception(self):
         """Run initial perception on user query."""
@@ -761,7 +780,10 @@ class AgentLoop:
 
             # Update result
             self.ctx.update_step_result(self.next_step_id, result)
-            self._capture_setup_pipeline_evidence(self.next_step_id, result)
+            self._capture_registry_workflow_evidence(self.next_step_id, result)
+            if self._registry_step_recorded_failed_contract_evidence(self.next_step_id):
+                self._finalize_registry_workflow_contract()
+                return
 
             await self._emit(
                 "step_complete",
@@ -809,14 +831,14 @@ class AgentLoop:
             if self.next_step_id is None:
                 break
 
-        if self._is_pending_setup_pipeline():
-            self._finalize_setup_pipeline_contract()
+        if self._is_pending_executable_registry_workflow():
+            self._finalize_registry_workflow_contract()
 
     async def _validate_registry_step_approval(self, step_id: str):
-        """Validate setup_pipeline registry approval gates before tool execution."""
+        """Validate selected registry approval gates before tool execution."""
         if (
             self.workflow_selection is None
-            or self.workflow_selection.workflow_id != "setup_pipeline"
+            or self.workflow_selection.workflow_id is None
             or self.workflow_selection.status is not WorkflowStatus.PENDING
         ):
             return None
@@ -863,6 +885,14 @@ class AgentLoop:
             and self.workflow_selection.status is WorkflowStatus.PENDING
         )
 
+    def _is_pending_executable_registry_workflow(self) -> bool:
+        """Return whether the selected workflow should be finalized by registry contract."""
+        return (
+            self.workflow_selection is not None
+            and self.workflow_selection.status is WorkflowStatus.PENDING
+            and self._is_executable_registry_workflow(self.workflow_selection.workflow_id)
+        )
+
     def _should_run_post_step_perception(self, step_id: str) -> bool:
         """Return whether this completed step should trigger perception feedback."""
         if (
@@ -883,10 +913,24 @@ class AgentLoop:
 
     def _finalize_setup_pipeline_contract(self) -> ContractValidation:
         """Derive setup_pipeline status from captured success contract evidence."""
+        return self._finalize_registry_workflow_contract("setup_pipeline")
+
+    def _finalize_registry_workflow_contract(
+        self,
+        workflow_id: str | None = None,
+    ) -> ContractValidation:
+        """Derive selected registry workflow status from captured evidence."""
+        workflow_id = workflow_id or (
+            self.workflow_selection.workflow_id if self.workflow_selection else None
+        )
+        if workflow_id is None:
+            raise ValueError("Cannot finalize a registry workflow without a workflow_id")
+
         contract_status = self.workflow_registry.validate_success_contract(
-            "setup_pipeline",
+            workflow_id,
             verification_results=tuple(self.ctx.globals.get("verification_results", ())),
             artifact_manifest=self.ctx.globals.get("artifact_manifest"),
+            rollback_plan=self.ctx.globals.get("rollback_plan"),
         )
         self.ctx.globals["contract_status"] = contract_status
         self.ctx.globals["workflow_status"] = contract_status.status
@@ -898,23 +942,31 @@ class AgentLoop:
         else:
             self.status = "paused"
 
-        self.final_output = self._format_setup_pipeline_contract_output(contract_status)
+        self.final_output = self._format_registry_contract_output(contract_status)
         return contract_status
 
     def _format_setup_pipeline_contract_output(
         self,
         contract_status: ContractValidation,
     ) -> str:
+        return self._format_registry_contract_output(contract_status)
+
+    def _format_registry_contract_output(
+        self,
+        contract_status: ContractValidation,
+    ) -> str:
         missing_evidence = self._format_contract_failures(contract_status.missing_evidence)
         failed_checks = self._format_contract_failures(contract_status.failed_checks)
         return (
-            "setup_pipeline final workflow status derived from SuccessContract. "
+            f"{contract_status.workflow_id} final workflow status derived from SuccessContract. "
             f"contract_status: {contract_status.status.value}. "
             f"workflow_status: {contract_status.status.value}. "
             f"missing_evidence: {missing_evidence}. "
             f"failed_checks: {failed_checks}. "
+            f"evidence: {self._format_verification_results()}. "
             f"artifacts: {self._format_artifacts()}. "
-            f"approvals: {self._format_approval_records()}."
+            f"approvals: {self._format_approval_records()}. "
+            f"rollback: {self._format_rollback_plan()}."
         )
 
     def _format_contract_failures(self, failures: tuple[ContractFailure, ...]) -> str:
@@ -937,6 +989,18 @@ class AgentLoop:
             for entry in artifact_manifest.entries
         )
 
+    def _format_verification_results(self) -> str:
+        verification_results = tuple(self.ctx.globals.get("verification_results", ()))
+        if not verification_results:
+            return "none"
+        return "; ".join(
+            (
+                f"{result.check_name}:{result.evidence_type.value}:"
+                f"{'passed' if result.passed else 'failed'}:{result.evidence}"
+            )
+            for result in verification_results
+        )
+
     def _format_approval_records(self) -> str:
         approval_records = tuple(self.ctx.globals.get("approval_records", ()))
         if not approval_records:
@@ -949,12 +1013,28 @@ class AgentLoop:
             for record in approval_records
         )
 
-    def _capture_setup_pipeline_evidence(self, step_id: str, result: dict[str, Any]) -> None:
-        """Capture explicit setup_pipeline evidence from a completed step result."""
+    def _format_rollback_plan(self) -> str:
+        rollback_plan = self.ctx.globals.get("rollback_plan")
+        if not isinstance(rollback_plan, RollbackPlan):
+            return "none"
+        parts = [
+            value
+            for value in (
+                rollback_plan.command,
+                rollback_plan.script_path,
+                rollback_plan.documented_target,
+            )
+            if value
+        ]
+        return "; ".join(parts)
+
+    def _capture_registry_workflow_evidence(self, step_id: str, result: dict[str, Any]) -> None:
+        """Capture explicit registry workflow evidence from a completed step result."""
         if (
             self.workflow_selection is None
-            or self.workflow_selection.workflow_id != "setup_pipeline"
+            or self.workflow_selection.workflow_id is None
             or self.workflow_selection.status is not WorkflowStatus.PENDING
+            or not self._is_executable_registry_workflow(self.workflow_selection.workflow_id)
             or not isinstance(result, dict)
         ):
             return
@@ -978,17 +1058,43 @@ class AgentLoop:
                 entries=(*existing_manifest.entries, *artifact_entries)
             )
 
+        rollback_plan = self._rollback_plan_from_step_result(payload)
+        if rollback_plan is not None:
+            self.ctx.globals["rollback_plan"] = rollback_plan
+
+    def _registry_step_recorded_failed_contract_evidence(self, step_id: str) -> bool:
+        if (
+            self.workflow_selection is None
+            or self.workflow_selection.workflow_id is None
+            or not self._is_executable_registry_workflow(self.workflow_selection.workflow_id)
+        ):
+            return False
+
+        template = self.workflow_registry.get(self.workflow_selection.workflow_id)
+        contract_check_names = {
+            check.name for check in template.success_contract.checks if check.source_step == step_id
+        }
+        return any(
+            result.check_name in contract_check_names
+            and result.source_step == step_id
+            and not result.passed
+            for result in tuple(self.ctx.globals.get("verification_results", ()))
+        )
+
     def _verification_results_from_step_result(
         self,
         step_id: str,
         payload: dict[str, Any],
     ) -> tuple[VerificationResult, ...]:
-        """Return setup verification records explicitly reported by a step."""
+        """Return verification records explicitly reported by a registry step."""
+        if self.workflow_selection is None or self.workflow_selection.workflow_id is None:
+            return ()
+
         raw_results = payload.get("verification_results", ())
         if isinstance(raw_results, dict):
             raw_results = (raw_results,)
 
-        template = self.workflow_registry.get("setup_pipeline")
+        template = self.workflow_registry.get(self.workflow_selection.workflow_id)
         checks_by_name = {
             check.name: check
             for check in template.success_contract.checks
@@ -1032,7 +1138,10 @@ class AgentLoop:
         step_id: str,
         payload: dict[str, Any],
     ) -> tuple[ArtifactManifestEntry, ...]:
-        """Return setup artifact manifest entries explicitly reported by a step."""
+        """Return artifact manifest entries explicitly reported by a registry step."""
+        if self.workflow_selection is None or self.workflow_selection.workflow_id is None:
+            return ()
+
         raw_manifest = payload.get("artifact_manifest")
         if isinstance(raw_manifest, ArtifactManifest):
             raw_entries = raw_manifest.entries
@@ -1044,7 +1153,7 @@ class AgentLoop:
         if isinstance(raw_entries, dict):
             raw_entries = (raw_entries,)
 
-        template = self.workflow_registry.get("setup_pipeline")
+        template = self.workflow_registry.get(self.workflow_selection.workflow_id)
         step_ids = {step.step_id for step in template.steps}
         artifact_entries: list[ArtifactManifestEntry] = []
 
@@ -1074,6 +1183,21 @@ class AgentLoop:
                 continue
 
         return tuple(artifact_entries)
+
+    def _rollback_plan_from_step_result(self, payload: dict[str, Any]) -> RollbackPlan | None:
+        raw_plan = payload.get("rollback_plan")
+        if isinstance(raw_plan, RollbackPlan):
+            return raw_plan
+        if not isinstance(raw_plan, dict):
+            return None
+        try:
+            return RollbackPlan(
+                command=raw_plan.get("command"),
+                script_path=raw_plan.get("script_path"),
+                documented_target=raw_plan.get("documented_target"),
+            )
+        except ValueError:
+            return None
 
     async def _run_improvement_loop(self):
         """Run the self-improvement loop for training."""
