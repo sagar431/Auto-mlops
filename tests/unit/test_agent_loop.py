@@ -653,6 +653,251 @@ class TestAgentLoopRun:
         mock_execute_step.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_run_projects_litserve_gpu_workflow_and_blocks_before_risky_actions(
+        self, mock_agent
+    ):
+        """Test LitServe GPU runtime uses registry steps and approval gates."""
+        events = []
+
+        async def capture_event(event_type, data):
+            events.append({"type": event_type, "data": data})
+
+        mock_agent.on_event = capture_event
+        expected_step_ids = [
+            step.step_id for step in mock_agent.workflow_registry.get("deploy_litserve_gpu").steps
+        ]
+
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("perception should not run before selection"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+        ):
+            result = await mock_agent.run(
+                "Deploy this model on Lambda Labs GPU with LitServe",
+                "/test/path",
+            )
+
+        approval_events = [event for event in events if event["type"] == "approval_required"]
+        assert mock_agent.workflow_selection.workflow_id == "deploy_litserve_gpu"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.PENDING
+        assert mock_agent.ctx.get_pending_steps() == expected_step_ids
+        assert approval_events
+        assert approval_events[0]["data"]["workflow_id"] == "deploy_litserve_gpu"
+        assert approval_events[0]["data"]["step_id"] == "detect_gpu_cuda"
+        assert approval_events[0]["data"]["risk_categories"] == ["uses_gpu"]
+        assert "Approval required" in result
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+        mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_litserve_gpu_succeeds_from_observed_runtime_evidence(
+        self, mock_agent
+    ):
+        """Test LitServe GPU success is derived from observed live evidence."""
+        mock_agent.auto_approve = True
+
+        async def execute_registry_step(step_id, tool, args, ctx, tools_module):
+            payloads = {
+                "detect_runtime_environment": {"success": True},
+                "detect_gpu_cuda": {
+                    "success": True,
+                    "verification_results": [
+                        {
+                            "check_name": "gpu_detection_recorded",
+                            "evidence_type": "observed",
+                            "source_step": "detect_gpu_cuda",
+                            "passed": True,
+                            "evidence": "nvidia-smi observed NVIDIA A10",
+                        }
+                    ],
+                },
+                "select_best_model_artifact": {
+                    "success": True,
+                    "artifact_manifest": {
+                        "entries": [
+                            {
+                                "artifact_type": "model_artifact",
+                                "producing_step": "select_best_model_artifact",
+                                "state": "selected",
+                                "path": "models/model.pt",
+                            }
+                        ]
+                    },
+                },
+                "generate_litserve_api": {
+                    "success": True,
+                    "artifact_manifest": {
+                        "entries": [
+                            {
+                                "artifact_type": "serving_application",
+                                "producing_step": "generate_litserve_api",
+                                "state": "generated",
+                                "path": "deployment/litserve/server.py",
+                            }
+                        ]
+                    },
+                },
+                "configure_litserve_gpu_runtime": {"success": True},
+                "create_dockerfile": {"success": True},
+                "build_image_if_available": {"success": True},
+                "start_litserve_server": {
+                    "success": True,
+                    "verification_results": [
+                        {
+                            "check_name": "server_start_command_recorded",
+                            "evidence_type": "observed",
+                            "source_step": "start_litserve_server",
+                            "passed": True,
+                            "evidence": "process 123 started: python deployment/litserve/server.py",
+                        }
+                    ],
+                },
+                "test_health_endpoint": {
+                    "success": True,
+                    "verification_results": [
+                        {
+                            "check_name": "health_result_recorded",
+                            "evidence_type": "observed",
+                            "source_step": "test_health_endpoint",
+                            "passed": True,
+                            "evidence": "GET /health returned 200",
+                        }
+                    ],
+                },
+                "test_prediction_endpoint": {
+                    "success": True,
+                    "verification_results": [
+                        {
+                            "check_name": "prediction_result_recorded",
+                            "evidence_type": "observed",
+                            "source_step": "test_prediction_endpoint",
+                            "passed": True,
+                            "evidence": "POST /predict returned sample prediction",
+                        }
+                    ],
+                },
+                "capture_logs_and_endpoint": {
+                    "success": True,
+                    "verification_results": [
+                        {
+                            "check_name": "endpoint_url_recorded",
+                            "evidence_type": "observed",
+                            "source_step": "capture_logs_and_endpoint",
+                            "passed": True,
+                            "evidence": "endpoint_url=http://127.0.0.1:8000",
+                        }
+                    ],
+                },
+                "write_monitoring_and_rollback_report": {
+                    "success": True,
+                    "rollback_plan": {
+                        "command": "kill 123",
+                        "documented_target": "Stop the user-started Lambda Cloud instance manually.",
+                    },
+                },
+            }
+            return (
+                True,
+                {
+                    "success": True,
+                    "result": payloads[step_id],
+                    "step_id": step_id,
+                    "tool": tool,
+                },
+            )
+
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("registry runtime must skip perception"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch(
+                "agent.agent_loop.execute_step",
+                new_callable=AsyncMock,
+                side_effect=execute_registry_step,
+            ) as mock_execute_step,
+        ):
+            result = await mock_agent.run(
+                "Deploy this model on Lambda Labs GPU with LitServe",
+                "/test/path",
+            )
+
+        assert mock_agent.workflow_selection.workflow_id == "deploy_litserve_gpu"
+        assert mock_agent.status == "success"
+        assert "deploy_litserve_gpu final workflow status derived from SuccessContract" in result
+        assert "contract_status: succeeded" in result
+        assert "workflow_status: succeeded" in result
+        assert "endpoint_url=http://127.0.0.1:8000" in result
+        assert "Stop the user-started Lambda Cloud instance manually" in result
+        assert mock_execute_step.await_count == len(
+            mock_agent.workflow_registry.get("deploy_litserve_gpu").steps
+        )
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_litserve_gpu_failed_gpu_check_stops_before_server_start(
+        self, mock_agent
+    ):
+        """Test failed observed GPU evidence fails safely before deployment actions."""
+        mock_agent.auto_approve = True
+        executed_step_ids = []
+
+        async def execute_registry_step(step_id, tool, args, ctx, tools_module):
+            executed_step_ids.append(step_id)
+            if step_id == "detect_runtime_environment":
+                return True, {
+                    "success": True,
+                    "result": {"success": True},
+                    "step_id": step_id,
+                    "tool": tool,
+                }
+            if step_id == "detect_gpu_cuda":
+                return True, {
+                    "success": True,
+                    "result": {
+                        "success": True,
+                        "verification_results": [
+                            {
+                                "check_name": "gpu_detection_recorded",
+                                "evidence_type": "observed",
+                                "source_step": "detect_gpu_cuda",
+                                "passed": False,
+                                "evidence": "nvidia-smi unavailable and torch CUDA unavailable",
+                            }
+                        ],
+                    },
+                    "step_id": step_id,
+                    "tool": tool,
+                }
+            raise AssertionError(f"unsafe step executed after failed GPU check: {step_id}")
+
+        with patch(
+            "agent.agent_loop.execute_step",
+            new_callable=AsyncMock,
+            side_effect=execute_registry_step,
+        ):
+            result = await mock_agent.run(
+                "Deploy this model on Lambda Labs GPU with LitServe",
+                "/test/path",
+            )
+
+        assert executed_step_ids == ["detect_runtime_environment", "detect_gpu_cuda"]
+        assert mock_agent.status == "failed"
+        assert "contract_status: failed" in result
+        assert "gpu_detection_recorded" in result
+        assert "start_litserve_server" not in executed_step_ids
+
+    @pytest.mark.asyncio
     async def test_run_blocks_setup_workflow_missing_project_path_with_clarifying_question(
         self, mock_agent
     ):

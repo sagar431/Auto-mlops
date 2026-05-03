@@ -1,7 +1,7 @@
 {
   "/home/ubuntu/Auto-mlops/mcp_mlops_tools.py": {
-    "mtime": 1777807041.1922321,
-    "hash": "d82d94230e888d0c305805f11e3135cd"
+    "mtime": 1777810479.242033,
+    "hash": "7d4507009c4b153455a83c976d48e48f"
   },
   "/home/ubuntu/Auto-mlops/cli.py": {
     "mtime": 1777523814.3312435,
@@ -112,8 +112,8 @@
     "hash": "eff45437305e33e1c52ae92db49e9ab0"
   },
   "/home/ubuntu/Auto-mlops/agent/agent_loop.py": {
-    "mtime": 1777805035.5092473,
-    "hash": "11140fdfa20b0e09904d2df7a4ed738e"
+    "mtime": 1777810394.7901866,
+    "hash": "ebe757c8d1e6eedaa60faf79d23d737d"
   },
   "/home/ubuntu/Auto-mlops/agent/contextManager.py": {
     "mtime": 1777523814.3269207,
@@ -148,8 +148,8 @@
     "hash": "265f87f8cb2cbfe9824a2373dddeab67"
   },
   "/home/ubuntu/Auto-mlops/workflow/registry.py": {
-    "mtime": 1777807245.673878,
-    "hash": "3360d1fdd65b62f62fa71ee00eeb5fa2"
+    "mtime": 1777810086.2627409,
+    "hash": "ea8b121445ecf7307013c1a2c87f485e"
   },
   "/home/ubuntu/Auto-mlops/automation/full_platform/scripts/download_datasets.py": {
     "mtime": 1777523814.330047,
@@ -248,12 +248,12 @@
     "hash": "02719f44abd1f2c81b297c4555104ab7"
   },
   "/home/ubuntu/Auto-mlops/tests/unit/test_agent_loop.py": {
-    "mtime": 1777805035.5111828,
-    "hash": "69d99d0a39c6786552777bf7474ff863"
+    "mtime": 1777809949.688987,
+    "hash": "ab072266fba62da3e164098d246dde15"
   },
   "/home/ubuntu/Auto-mlops/tests/unit/test_workflow_registry.py": {
-    "mtime": 1777807291.6627967,
-    "hash": "0bb8c3a8b76c8d1c6a78ea906fa309ea"
+    "mtime": 1777810023.6044838,
+    "hash": "aa392e53359a9b10c39a1efaf132e82b"
   },
   "/home/ubuntu/Auto-mlops/tests/unit/test_security_middleware.py": {
     "mtime": 1777523814.402313,
@@ -556,8 +556,8 @@
     "hash": "7786f73c0c0bc2813a4fe686ac318970"
   },
   "/home/ubuntu/Auto-mlops/action/execute_step.py": {
-    "mtime": 1777747815.695296,
-    "hash": "d46b0a6ed6352f82a014e44ca456fbf6"
+    "mtime": 1777810316.6673272,
+    "hash": "e3fcbba067c35347d1e7e7b2b0e27389"
   },
   "/home/ubuntu/Auto-mlops/security/__init__.py": {
     "mtime": 1777523814.3923128,
@@ -946,6 +946,10 @@
   "/home/ubuntu/Auto-mlops/docs/examples/basic-pipeline.md": {
     "mtime": 1777523814.3340628,
     "hash": "3d101fb77165e5d9559ecfb369cb84e7"
+  },
+  "/home/ubuntu/Auto-mlops/course_context/emlo_graphify/graph_view.html": {
+    "mtime": 1777808106.2773232,
+    "hash": "bbd2961b342b7e06bca9e576e3a055f4"
   },
   "/home/ubuntu/Auto-mlops/course_context/emlo_graphify/README.md": {
     "mtime": 1777523814.3317153,
