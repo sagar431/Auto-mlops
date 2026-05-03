@@ -5,6 +5,7 @@ Tests for agent/agent_loop.py - MLOps agent orchestration loop.
 Run with: pytest tests/unit/test_agent_loop.py -v
 """
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -17,7 +18,7 @@ from agent.agent_loop import (
     StepType,
     run_mlops_agent,
 )
-from workflow.registry import WorkflowStatus
+from workflow.registry import ApprovalRecord, WorkflowStatus
 
 # ============================================================================
 # Route Constants Tests
@@ -672,6 +673,158 @@ class TestAgentLoopRun:
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
         mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_setup_pipeline_gated_step_without_approval_blocks_before_execute_step(
+        self, mock_agent
+    ):
+        """Test setup workflow approval gates block before tool execution."""
+        events = []
+
+        async def capture_event(event_type, data):
+            events.append({"type": event_type, "data": data})
+
+        mock_agent.on_event = capture_event
+        mock_agent._initialize_session("Set up MLOps for this project", "/test/path", 0.85)
+        mock_agent.workflow_selection = mock_agent.workflow_registry.select_workflow(
+            "Set up MLOps for this project"
+        )
+        workflow_step = mock_agent.workflow_registry.get("setup_pipeline").step_by_id(
+            "create_or_validate_hydra_config"
+        )
+        mock_agent.ctx.add_step(
+            step_id=workflow_step.step_id,
+            description=workflow_step.description,
+            step_type=StepType.CODE,
+            tool=workflow_step.tool_functions[0],
+            args={},
+            from_node=StepType.ROOT,
+        )
+        mock_agent.next_step_id = workflow_step.step_id
+
+        with patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step:
+            await mock_agent._execute_steps_loop()
+
+        approval_events = [
+            event for event in events if event["type"] == "approval_required"
+        ]
+        assert mock_agent.status == "paused"
+        assert approval_events
+        assert approval_events[0]["data"]["workflow_id"] == "setup_pipeline"
+        assert approval_events[0]["data"]["step_id"] == "create_or_validate_hydra_config"
+        assert approval_events[0]["data"]["risk_categories"] == ["writes_project_files"]
+        assert approval_events[0]["data"]["next_action"]
+        assert "Approval required" in mock_agent.final_output
+        mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_setup_pipeline_denied_approval_blocks_before_execute_step(self, mock_agent):
+        """Test denied setup workflow approval prevents tool execution."""
+        events = []
+
+        async def capture_event(event_type, data):
+            events.append({"type": event_type, "data": data})
+
+        mock_agent.on_event = capture_event
+        mock_agent._initialize_session("Set up MLOps for this project", "/test/path", 0.85)
+        mock_agent.workflow_selection = mock_agent.workflow_registry.select_workflow(
+            "Set up MLOps for this project"
+        )
+        workflow_step = mock_agent.workflow_registry.get("setup_pipeline").step_by_id(
+            "create_or_validate_hydra_config"
+        )
+        mock_agent.ctx.add_step(
+            step_id=workflow_step.step_id,
+            description=workflow_step.description,
+            step_type=StepType.CODE,
+            tool=workflow_step.tool_functions[0],
+            args={},
+            from_node=StepType.ROOT,
+        )
+        mock_agent.ctx.globals["approval_records"] = (
+            ApprovalRecord(
+                workflow_run_id=mock_agent.session_id,
+                step_id=workflow_step.step_id,
+                risk_categories=("writes_project_files",),
+                status="denied",
+                approver="ops@example.com",
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+            ),
+        )
+        mock_agent.next_step_id = workflow_step.step_id
+
+        with patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step:
+            await mock_agent._execute_steps_loop()
+
+        denied_events = [event for event in events if event["type"] == "approval_denied"]
+        assert mock_agent.status == "failed"
+        assert denied_events
+        assert denied_events[0]["data"]["workflow_id"] == "setup_pipeline"
+        assert denied_events[0]["data"]["step_id"] == "create_or_validate_hydra_config"
+        assert denied_events[0]["data"]["risk_categories"] == ["writes_project_files"]
+        assert "Approval denied" in mock_agent.final_output
+        assert "ops@example.com" in mock_agent.final_output
+        mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_setup_pipeline_approved_record_allows_execute_step(self, mock_agent):
+        """Test approved setup workflow approval allows tool execution."""
+        events = []
+
+        async def capture_event(event_type, data):
+            events.append({"type": event_type, "data": data})
+
+        mock_agent.on_event = capture_event
+        mock_agent._initialize_session("Set up MLOps for this project", "/test/path", 0.85)
+        mock_agent.workflow_selection = mock_agent.workflow_registry.select_workflow(
+            "Set up MLOps for this project"
+        )
+        workflow_step = mock_agent.workflow_registry.get("setup_pipeline").step_by_id(
+            "create_or_validate_hydra_config"
+        )
+        mock_agent.ctx.add_step(
+            step_id=workflow_step.step_id,
+            description=workflow_step.description,
+            step_type=StepType.CODE,
+            tool=workflow_step.tool_functions[0],
+            args={},
+            from_node=StepType.ROOT,
+        )
+        mock_agent.ctx.globals["approval_records"] = (
+            ApprovalRecord(
+                workflow_run_id=mock_agent.session_id,
+                step_id=workflow_step.step_id,
+                risk_categories=("writes_project_files",),
+                status="approved",
+                approver="ops@example.com",
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+            ),
+        )
+        mock_agent.next_step_id = workflow_step.step_id
+
+        with (
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                return_value={"route": Route.DECISION, "original_goal_achieved": False},
+            ),
+        ):
+            mock_execute_step.return_value = (
+                True,
+                {"success": True, "step_id": workflow_step.step_id},
+            )
+            await mock_agent._execute_steps_loop()
+
+        approval_events = [
+            event
+            for event in events
+            if event["type"] in {"approval_required", "approval_denied"}
+        ]
+        assert approval_events == []
+        mock_execute_step.assert_awaited_once()
+        assert mock_execute_step.await_args.kwargs["step_id"] == workflow_step.step_id
 
 
 # ============================================================================
