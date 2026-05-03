@@ -301,13 +301,21 @@ class AgentLoop:
         if self._should_block_for_workflow_selection(selection):
             self.status = "paused"
             missing_inputs = ", ".join(selection.missing_inputs) or "workflow_intent"
+            clarifying_question = self._workflow_clarifying_question(selection.missing_inputs)
             self.final_output = (
                 "Workflow selection blocked: "
-                f"{selection.selection_reason} Next action: provide {missing_inputs}."
+                f"{selection.selection_reason} missing_inputs: {missing_inputs}. "
+                f"Clarifying question: {clarifying_question}"
             )
             return True
 
         return False
+
+    def _workflow_clarifying_question(self, missing_inputs: tuple[str, ...]) -> str:
+        """Return a deterministic question for missing workflow inputs."""
+        if "project_path" in missing_inputs:
+            return "What project path should I set up MLOps for?"
+        return "Which workflow should I run?"
 
     async def _project_registry_workflow(self, workflow_id: str) -> tuple[str, ...]:
         """Project a selected registry template into pending runtime steps."""

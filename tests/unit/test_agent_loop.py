@@ -645,6 +645,34 @@ class TestAgentLoopRun:
         mock_decision.assert_not_awaited()
         mock_execute_step.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    async def test_run_blocks_setup_workflow_missing_project_path_with_clarifying_question(
+        self, mock_agent
+    ):
+        """Test missing setup workflow inputs block before planning or tool execution."""
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("perception should not run while workflow is blocked"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+        ):
+            result = await mock_agent.run("Set up MLOps for this project")
+
+        assert mock_agent.workflow_selection.workflow_id == "setup_pipeline"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.BLOCKED
+        assert mock_agent.workflow_selection.missing_inputs == ("project_path",)
+        assert mock_agent.ctx.get_pending_steps() == []
+        assert "missing_inputs" in result
+        assert "project_path" in result
+        assert "What project path should I set up MLOps for?" in result
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+        mock_execute_step.assert_not_awaited()
+
 
 # ============================================================================
 # run_mlops_agent Convenience Function Tests
