@@ -852,6 +852,40 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 contract_check_name="generated_files_reported",
             ),
         ),
+        approval_gates=(
+            ApprovalGate(
+                step_id="create_or_validate_hydra_config",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="initialize_dvc",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="configure_dvc_remote",
+                risk_categories=("writes_project_files", "uses_cloud_credentials"),
+            ),
+            ApprovalGate(
+                step_id="add_data_to_dvc",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="create_dvc_yaml",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="initialize_mlflow_experiment",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="create_dockerfile",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="create_ci_workflow",
+                risk_categories=("writes_project_files",),
+            ),
+        ),
         routing_aliases=("Set up MLOps", "setup MLOps pipeline", "create MLOps foundation"),
     )
 

@@ -600,6 +600,52 @@ class AgentLoop:
                 break
 
             step_data = self.ctx.graph.nodes[self.next_step_id]["data"]
+            approval_validation = await self._validate_registry_step_approval(self.next_step_id)
+            if approval_validation is not None:
+                if approval_validation.status is WorkflowStatus.BLOCKED:
+                    self.status = "paused"
+                    risk_categories = [
+                        risk_category.value
+                        for risk_category in approval_validation.risk_categories
+                    ]
+                    payload = {
+                        "workflow_id": approval_validation.workflow_id,
+                        "workflow_run_id": approval_validation.workflow_run_id,
+                        "step_id": approval_validation.step_id,
+                        "risk_categories": risk_categories,
+                        "status": approval_validation.status.value,
+                        "next_action": approval_validation.next_action,
+                    }
+                    await self._emit("approval_required", payload)
+                    self.final_output = (
+                        "Approval required before executing workflow step "
+                        f"'{approval_validation.step_id}'. risk_categories: "
+                        f"{', '.join(risk_categories)}. "
+                        f"next_action: {approval_validation.next_action}"
+                    )
+                    return
+                if approval_validation.status is WorkflowStatus.FAILED:
+                    self.status = "failed"
+                    risk_categories = [
+                        risk_category.value
+                        for risk_category in approval_validation.risk_categories
+                    ]
+                    payload = {
+                        "workflow_id": approval_validation.workflow_id,
+                        "workflow_run_id": approval_validation.workflow_run_id,
+                        "step_id": approval_validation.step_id,
+                        "risk_categories": risk_categories,
+                        "status": approval_validation.status.value,
+                        "next_action": approval_validation.next_action,
+                    }
+                    await self._emit("approval_denied", payload)
+                    self.final_output = (
+                        "Approval denied before executing workflow step "
+                        f"'{approval_validation.step_id}'. risk_categories: "
+                        f"{', '.join(risk_categories)}. "
+                        f"next_action: {approval_validation.next_action}"
+                    )
+                    return
 
             await self._emit(
                 "step_start",
@@ -706,6 +752,25 @@ class AgentLoop:
             self.next_step_id = self._pick_next_step()
             if self.next_step_id is None:
                 break
+
+    async def _validate_registry_step_approval(self, step_id: str):
+        """Validate setup_pipeline registry approval gates before tool execution."""
+        if (
+            self.workflow_selection is None
+            or self.workflow_selection.workflow_id != "setup_pipeline"
+            or self.workflow_selection.status is not WorkflowStatus.PENDING
+        ):
+            return None
+
+        try:
+            return self.workflow_registry.validate_step_approval(
+                workflow_id=self.workflow_selection.workflow_id,
+                workflow_run_id=self.session_id,
+                step_id=step_id,
+                approval_records=tuple(self.ctx.globals.get("approval_records", ())),
+            )
+        except KeyError:
+            return None
 
     async def _run_improvement_loop(self):
         """Run the self-improvement loop for training."""
