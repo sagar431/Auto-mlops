@@ -973,6 +973,155 @@ class TestAgentLoopRun:
             )
         )
 
+    @pytest.mark.asyncio
+    async def test_setup_pipeline_missing_evidence_blocks_prompt_success(self, mock_agent):
+        """Test setup workflow missing evidence blocks prompt-authored success."""
+        mock_agent._initialize_session("Set up MLOps for this project", "/test/path", 0.85)
+        mock_agent.workflow_selection = mock_agent.workflow_registry.select_workflow(
+            "Set up MLOps for this project"
+        )
+        workflow_step = mock_agent.workflow_registry.get("setup_pipeline").step_by_id(
+            "analyze_project_structure"
+        )
+        mock_agent.ctx.add_step(
+            step_id=workflow_step.step_id,
+            description=workflow_step.description,
+            step_type=StepType.CODE,
+            tool=workflow_step.tool_functions[0],
+            args={},
+            from_node=StepType.ROOT,
+        )
+        mock_agent.next_step_id = workflow_step.step_id
+
+        with (
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                return_value={"route": Route.SUMMARIZE, "original_goal_achieved": True},
+            ),
+            patch.object(
+                mock_agent.summarizer,
+                "summarize",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("summarizer must not decide setup success"),
+            ),
+        ):
+            mock_execute_step.return_value = (
+                True,
+                {"success": True, "step_id": workflow_step.step_id},
+            )
+            await mock_agent._execute_steps_loop()
+
+        contract_status = mock_agent.ctx.globals["contract_status"]
+        assert contract_status.status is WorkflowStatus.BLOCKED
+        assert contract_status.failed_checks == ()
+        assert contract_status.missing_evidence
+        assert mock_agent.ctx.globals["workflow_status"] is WorkflowStatus.BLOCKED
+        assert mock_agent.status == "paused"
+        assert "contract_status: blocked" in mock_agent.final_output
+        assert "missing_evidence" in mock_agent.final_output
+
+    @pytest.mark.asyncio
+    async def test_setup_pipeline_passing_contract_succeeds_from_structured_evidence(
+        self, mock_agent
+    ):
+        """Test setup workflow succeeds only from passing contract evidence."""
+        mock_agent._initialize_session("Set up MLOps for this project", "/test/path", 0.85)
+        mock_agent.workflow_selection = mock_agent.workflow_registry.select_workflow(
+            "Set up MLOps for this project"
+        )
+        template = mock_agent.workflow_registry.get("setup_pipeline")
+        workflow_step = template.step_by_id("create_ci_workflow")
+        mock_agent.ctx.add_step(
+            step_id=workflow_step.step_id,
+            description=workflow_step.description,
+            step_type=StepType.CODE,
+            tool=workflow_step.tool_functions[0],
+            args={},
+            from_node=StepType.ROOT,
+        )
+        mock_agent.ctx.globals["approval_records"] = (
+            ApprovalRecord(
+                workflow_run_id=mock_agent.session_id,
+                step_id=workflow_step.step_id,
+                risk_categories=("writes_project_files",),
+                status="approved",
+                approver="ops@example.com",
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+            ),
+        )
+        mock_agent.ctx.globals["verification_results"] = tuple(
+            VerificationResult(
+                check_name=check.name,
+                evidence_type="declared",
+                source_step=check.source_step,
+                passed=True,
+                evidence=f"{check.name} evidence",
+            )
+            for check in template.success_contract.checks
+            if check.name != "generated_files_reported"
+        )
+        mock_agent.ctx.globals["artifact_manifest"] = ArtifactManifest(
+            entries=(
+                ArtifactManifestEntry(
+                    artifact_type="configuration",
+                    producing_step="create_or_validate_hydra_config",
+                    state="generated",
+                    path="conf/config.yaml",
+                ),
+                ArtifactManifestEntry(
+                    artifact_type="pipeline_definition",
+                    producing_step="create_dvc_yaml",
+                    state="generated",
+                    path="dvc.yaml",
+                ),
+                ArtifactManifestEntry(
+                    artifact_type="container_definition",
+                    producing_step="create_dockerfile",
+                    state="generated",
+                    path="Dockerfile",
+                ),
+                ArtifactManifestEntry(
+                    artifact_type="automation_workflow",
+                    producing_step="create_ci_workflow",
+                    state="generated",
+                    path=".github/workflows/mlops.yml",
+                ),
+            )
+        )
+        mock_agent.next_step_id = workflow_step.step_id
+
+        with (
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                return_value={"route": Route.DECISION, "original_goal_achieved": False},
+            ),
+            patch.object(
+                mock_agent.summarizer,
+                "summarize",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("summarizer must not decide setup success"),
+            ),
+        ):
+            mock_execute_step.return_value = (
+                True,
+                {"success": True, "step_id": workflow_step.step_id},
+            )
+            await mock_agent._execute_steps_loop()
+
+        contract_status = mock_agent.ctx.globals["contract_status"]
+        assert contract_status.status is WorkflowStatus.SUCCEEDED
+        assert contract_status.missing_evidence == ()
+        assert contract_status.failed_checks == ()
+        assert mock_agent.ctx.globals["workflow_status"] is WorkflowStatus.SUCCEEDED
+        assert mock_agent.status == "success"
+        assert "contract_status: succeeded" in mock_agent.final_output
+
 
 # ============================================================================
 # run_mlops_agent Convenience Function Tests
