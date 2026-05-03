@@ -749,6 +749,7 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 description="Initialize data versioning metadata for the project.",
                 order=3,
                 tool_functions=("init_dvc_repo",),
+                default_args={"no_scm": True},
             ),
             WorkflowStep(
                 step_id="configure_dvc_remote",
@@ -763,6 +764,7 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 description="Track the declared data path with DVC.",
                 order=5,
                 tool_functions=("add_data_to_dvc",),
+                default_args={"data_path": "data"},
             ),
             WorkflowStep(
                 step_id="create_dvc_yaml",
@@ -777,6 +779,7 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 description="Create or validate the MLflow experiment used by the project.",
                 order=7,
                 tool_functions=("init_mlflow_experiment",),
+                default_args={"experiment_name": "mlops"},
             ),
             WorkflowStep(
                 step_id="create_dockerfile",
