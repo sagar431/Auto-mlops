@@ -18,7 +18,13 @@ from agent.agent_loop import (
     StepType,
     run_mlops_agent,
 )
-from workflow.registry import ApprovalRecord, WorkflowStatus
+from workflow.registry import (
+    ApprovalRecord,
+    ArtifactManifest,
+    ArtifactManifestEntry,
+    VerificationResult,
+    WorkflowStatus,
+)
 
 # ============================================================================
 # Route Constants Tests
@@ -825,6 +831,147 @@ class TestAgentLoopRun:
         assert approval_events == []
         mock_execute_step.assert_awaited_once()
         assert mock_execute_step.await_args.kwargs["step_id"] == workflow_step.step_id
+
+    @pytest.mark.asyncio
+    async def test_setup_pipeline_captures_structured_verification_result(self, mock_agent):
+        """Test setup workflow records structured verification evidence from step results."""
+        mock_agent._initialize_session("Set up MLOps for this project", "/test/path", 0.85)
+        mock_agent.workflow_selection = mock_agent.workflow_registry.select_workflow(
+            "Set up MLOps for this project"
+        )
+        workflow_step = mock_agent.workflow_registry.get("setup_pipeline").step_by_id(
+            "create_or_validate_hydra_config"
+        )
+        mock_agent.ctx.add_step(
+            step_id=workflow_step.step_id,
+            description=workflow_step.description,
+            step_type=StepType.CODE,
+            tool=workflow_step.tool_functions[0],
+            args={},
+            from_node=StepType.ROOT,
+        )
+        mock_agent.ctx.globals["approval_records"] = (
+            ApprovalRecord(
+                workflow_run_id=mock_agent.session_id,
+                step_id=workflow_step.step_id,
+                risk_categories=("writes_project_files",),
+                status="approved",
+                approver="ops@example.com",
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+            ),
+        )
+        mock_agent.next_step_id = workflow_step.step_id
+
+        with (
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                return_value={"route": Route.DECISION, "original_goal_achieved": False},
+            ),
+        ):
+            mock_execute_step.return_value = (
+                True,
+                {
+                    "success": True,
+                    "step_id": workflow_step.step_id,
+                    "result": {
+                        "verification_results": [
+                            {
+                                "check_name": "hydra_config_validates",
+                                "evidence_type": "observed",
+                                "source_step": workflow_step.step_id,
+                                "passed": True,
+                                "evidence": "validated conf/config.yaml",
+                            }
+                        ]
+                    },
+                },
+            )
+            await mock_agent._execute_steps_loop()
+
+        verification_results = mock_agent.ctx.globals["verification_results"]
+        assert verification_results == (
+            VerificationResult(
+                check_name="hydra_config_validates",
+                evidence_type="observed",
+                source_step=workflow_step.step_id,
+                passed=True,
+                evidence="validated conf/config.yaml",
+            ),
+        )
+
+    @pytest.mark.asyncio
+    async def test_setup_pipeline_captures_artifact_manifest_entry(self, mock_agent):
+        """Test setup workflow records explicit generated artifact evidence from step results."""
+        mock_agent._initialize_session("Set up MLOps for this project", "/test/path", 0.85)
+        mock_agent.workflow_selection = mock_agent.workflow_registry.select_workflow(
+            "Set up MLOps for this project"
+        )
+        workflow_step = mock_agent.workflow_registry.get("setup_pipeline").step_by_id(
+            "create_or_validate_hydra_config"
+        )
+        mock_agent.ctx.add_step(
+            step_id=workflow_step.step_id,
+            description=workflow_step.description,
+            step_type=StepType.CODE,
+            tool=workflow_step.tool_functions[0],
+            args={},
+            from_node=StepType.ROOT,
+        )
+        mock_agent.ctx.globals["approval_records"] = (
+            ApprovalRecord(
+                workflow_run_id=mock_agent.session_id,
+                step_id=workflow_step.step_id,
+                risk_categories=("writes_project_files",),
+                status="approved",
+                approver="ops@example.com",
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+            ),
+        )
+        mock_agent.next_step_id = workflow_step.step_id
+
+        with (
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                return_value={"route": Route.DECISION, "original_goal_achieved": False},
+            ),
+        ):
+            mock_execute_step.return_value = (
+                True,
+                {
+                    "success": True,
+                    "step_id": workflow_step.step_id,
+                    "result": {
+                        "artifact_manifest": {
+                            "entries": [
+                                {
+                                    "artifact_type": "configuration",
+                                    "producing_step": workflow_step.step_id,
+                                    "state": "validated",
+                                    "path": "conf/config.yaml",
+                                }
+                            ]
+                        }
+                    },
+                },
+            )
+            await mock_agent._execute_steps_loop()
+
+        assert mock_agent.ctx.globals["artifact_manifest"] == ArtifactManifest(
+            entries=(
+                ArtifactManifestEntry(
+                    artifact_type="configuration",
+                    producing_step=workflow_step.step_id,
+                    state="validated",
+                    path="conf/config.yaml",
+                ),
+            )
+        )
 
 
 # ============================================================================
