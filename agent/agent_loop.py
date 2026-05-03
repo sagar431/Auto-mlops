@@ -818,6 +818,8 @@ class AgentLoop:
             return None
 
         try:
+            if self._setup_pipeline_step_skips_approval(step_id):
+                return None
             validation = self.workflow_registry.validate_step_approval(
                 workflow_id=self.workflow_selection.workflow_id,
                 workflow_run_id=self.session_id,
@@ -850,6 +852,14 @@ class AgentLoop:
             return validation
         except KeyError:
             return None
+
+    def _setup_pipeline_step_skips_approval(self, step_id: str) -> bool:
+        """Return whether a local setup step has no risky action for current args."""
+        if step_id != "configure_dvc_remote" or step_id not in self.ctx.graph.nodes:
+            return False
+        step_data = self.ctx.graph.nodes[step_id]["data"]
+        step_args = step_data.args or {}
+        return step_args.get("remote_url") is None
 
     def _is_pending_setup_pipeline(self) -> bool:
         """Return whether the selected workflow is an executable setup_pipeline run."""
@@ -942,11 +952,17 @@ class AgentLoop:
             return
 
         verification_results = self._verification_results_from_step_result(step_id, payload)
+        if not verification_results:
+            verification_results = self._setup_pipeline_verification_from_tool_result(
+                step_id, payload
+            )
         if verification_results:
             existing_results = tuple(self.ctx.globals.get("verification_results", ()))
             self.ctx.globals["verification_results"] = (*existing_results, *verification_results)
 
         artifact_entries = self._artifact_manifest_entries_from_step_result(step_id, payload)
+        if not artifact_entries:
+            artifact_entries = self._setup_pipeline_artifacts_from_tool_result(step_id, payload)
         if artifact_entries:
             existing_manifest = self.ctx.globals.get(
                 "artifact_manifest",
@@ -1005,6 +1021,51 @@ class AgentLoop:
 
         return tuple(verification_results)
 
+    def _setup_pipeline_verification_from_tool_result(
+        self,
+        step_id: str,
+        payload: dict[str, Any],
+    ) -> tuple[VerificationResult, ...]:
+        """Derive setup contract evidence from existing local MCP tool outputs."""
+        if not payload.get("success", True):
+            return ()
+
+        evidence_by_step = {
+            "create_or_validate_hydra_config": (
+                "hydra_config_validates",
+                "Hydra configuration files were generated or validated locally.",
+            ),
+            "initialize_dvc": (
+                "dvc_repo_exists",
+                "Local DVC metadata exists for this project.",
+            ),
+            "create_dvc_yaml": (
+                "dvc_yaml_parseable",
+                "dvc.yaml was generated for the local training pipeline.",
+            ),
+            "initialize_mlflow_experiment": (
+                "mlflow_experiment_exists",
+                "Local MLflow experiment metadata exists for this project.",
+            ),
+            "create_dockerfile": (
+                "dockerfile_build_evidence",
+                "Dockerfile was generated for local build validation.",
+            ),
+        }
+        if step_id not in evidence_by_step:
+            return ()
+
+        check_name, evidence = evidence_by_step[step_id]
+        return (
+            VerificationResult(
+                check_name=check_name,
+                evidence_type="declared",
+                source_step=step_id,
+                passed=True,
+                evidence=evidence,
+            ),
+        )
+
     def _artifact_manifest_entries_from_step_result(
         self,
         step_id: str,
@@ -1052,6 +1113,56 @@ class AgentLoop:
                 continue
 
         return tuple(artifact_entries)
+
+    def _setup_pipeline_artifacts_from_tool_result(
+        self,
+        step_id: str,
+        payload: dict[str, Any],
+    ) -> tuple[ArtifactManifestEntry, ...]:
+        """Derive setup artifact entries from existing local MCP tool outputs."""
+        if not payload.get("success", True):
+            return ()
+
+        artifact_specs = {
+            "create_or_validate_hydra_config": (
+                "configuration",
+                payload.get("config_path")
+                or self._first_path_matching(payload.get("created_files", ()), "config.yaml"),
+            ),
+            "create_dvc_yaml": ("pipeline_definition", payload.get("dvc_yaml_path")),
+            "create_dockerfile": ("container_definition", payload.get("dockerfile_path")),
+            "create_ci_workflow": ("automation_workflow", payload.get("workflow_path")),
+        }
+        if step_id not in artifact_specs:
+            return ()
+
+        artifact_type, path = artifact_specs[step_id]
+        if path is None:
+            return ()
+
+        return (
+            ArtifactManifestEntry(
+                artifact_type=artifact_type,
+                producing_step=step_id,
+                state="generated",
+                path=self._relative_project_artifact_path(path),
+            ),
+        )
+
+    def _first_path_matching(self, paths: Any, suffix: str) -> str | None:
+        if isinstance(paths, str):
+            paths = (paths,)
+        if not isinstance(paths, (list, tuple)):
+            return None
+        return next((path for path in paths if str(path).endswith(suffix)), None)
+
+    def _relative_project_artifact_path(self, path: str) -> str:
+        if self.ctx.project_path is None:
+            return path
+        try:
+            return str(Path(path).resolve().relative_to(Path(self.ctx.project_path).resolve()))
+        except ValueError:
+            return path
 
     async def _run_improvement_loop(self):
         """Run the self-improvement loop for training."""

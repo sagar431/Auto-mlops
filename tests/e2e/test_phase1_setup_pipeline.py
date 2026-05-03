@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+import mcp_mlops_tools
 from agent.agent_loop import AgentLoop, Route
 from workflow.registry import ArtifactManifest, VerificationResult, WorkflowStatus
 
@@ -75,7 +76,7 @@ def _local_setup_tools(call_order: list[str]) -> ModuleType:
             },
         }
 
-    def init_dvc_repo(project_path: str) -> dict:
+    def init_dvc_repo(project_path: str, **kwargs) -> dict:
         call_order.append("init_dvc_repo")
         dvc_config = Path(project_path) / ".dvc" / "config"
         dvc_config.parent.mkdir()
@@ -93,7 +94,7 @@ def _local_setup_tools(call_order: list[str]) -> ModuleType:
             ],
         }
 
-    def configure_dvc_remote(project_path: str) -> dict:
+    def configure_dvc_remote(project_path: str, **kwargs) -> dict:
         call_order.append("configure_dvc_remote")
         return {
             "success": True,
@@ -101,14 +102,14 @@ def _local_setup_tools(call_order: list[str]) -> ModuleType:
             "reason": "No DVC remote requested for local Phase 1 setup.",
         }
 
-    def add_data_to_dvc(project_path: str) -> dict:
+    def add_data_to_dvc(project_path: str, **kwargs) -> dict:
         call_order.append("add_data_to_dvc")
         (Path(project_path) / "data" / "train.csv.dvc").write_text(
             "outs:\n  - path: train.csv\n"
         )
         return {"success": True, "tracked_path": "data/train.csv"}
 
-    def create_dvc_pipeline(project_path: str) -> dict:
+    def create_dvc_pipeline(project_path: str, **kwargs) -> dict:
         call_order.append("create_dvc_pipeline")
         dvc_yaml = Path(project_path) / "dvc.yaml"
         dvc_yaml.write_text("stages:\n  train:\n    cmd: python src/train.py\n")
@@ -135,7 +136,7 @@ def _local_setup_tools(call_order: list[str]) -> ModuleType:
             },
         }
 
-    def init_mlflow_experiment(project_path: str) -> dict:
+    def init_mlflow_experiment(project_path: str, **kwargs) -> dict:
         call_order.append("init_mlflow_experiment")
         (Path(project_path) / "mlruns").mkdir()
         return {
@@ -178,7 +179,7 @@ def _local_setup_tools(call_order: list[str]) -> ModuleType:
             },
         }
 
-    def create_github_workflow(project_path: str) -> dict:
+    def create_github_workflow(project_path: str, **kwargs) -> dict:
         call_order.append("create_github_workflow")
         workflow = Path(project_path) / ".github" / "workflows" / "mlops.yml"
         workflow.parent.mkdir(parents=True)
@@ -312,7 +313,9 @@ async def test_local_setup_pipeline_requires_approval_then_reaches_contract_succ
 
     approval_records = agent.ctx.globals["approval_records"]
     assert {record.step_id for record in approval_records} == {
-        gate.step_id for gate in template.approval_gates
+        gate.step_id
+        for gate in template.approval_gates
+        if gate.step_id != "configure_dvc_remote"
     }
     assert all(record.status.value == "approved" for record in approval_records)
 
@@ -324,3 +327,52 @@ async def test_local_setup_pipeline_requires_approval_then_reaches_contract_succ
     assert "configs/config.yaml" in output
     assert ".github/workflows/mlops.yml" in output
     assert "approvals:" in output
+
+
+@pytest.mark.asyncio
+async def test_local_setup_pipeline_real_tools_do_not_require_external_services(tmp_path):
+    project = _local_ml_project(tmp_path)
+    query = f"Set up MLOps for this local Python ML project at {project}"
+    agent = AgentLoop(
+        prompts_dir=_prompts_dir(tmp_path / "real_tools"),
+        tools_module=mcp_mlops_tools,
+        auto_approve=True,
+    )
+
+    with (
+        patch.object(
+            agent.perception,
+            "run",
+            new_callable=AsyncMock,
+            return_value={"route": Route.DECISION, "original_goal_achieved": False},
+        ),
+        patch.object(
+            agent.decision,
+            "run",
+            new_callable=AsyncMock,
+            side_effect=AssertionError("setup_pipeline must not use prompt-authored plans"),
+        ),
+        patch.object(
+            agent.summarizer,
+            "summarize",
+            new_callable=AsyncMock,
+            side_effect=AssertionError("SuccessContract must derive setup_pipeline status"),
+        ),
+    ):
+        output = await agent.run(query=query, project_path=str(project))
+
+    assert agent.status == "success"
+    assert agent.ctx.globals["contract_status"].status is WorkflowStatus.SUCCEEDED
+    assert "workflow_status: succeeded" in output
+    assert "contract_status: succeeded" in output
+    assert "missing_evidence: none" in output
+    assert "failed_checks: none" in output
+    assert (project / "configs" / "config.yaml").exists()
+    assert (project / ".dvc" / "config").exists()
+    assert (project / "dvc.yaml").exists()
+    assert (project / "mlruns").exists()
+    assert (project / "Dockerfile").exists()
+    assert (project / ".github" / "workflows" / "ml-pipeline.yml").exists()
+    approval_records = agent.ctx.globals["approval_records"]
+    assert "configure_dvc_remote" not in {record.step_id for record in approval_records}
+    assert "uses_cloud_credentials" not in output

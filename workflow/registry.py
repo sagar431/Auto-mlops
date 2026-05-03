@@ -748,6 +748,7 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 description="Initialize data versioning metadata for the project.",
                 order=3,
                 tool_functions=("init_dvc_repo",),
+                default_args={"no_scm": True},
             ),
             WorkflowStep(
                 step_id="configure_dvc_remote",
@@ -755,6 +756,7 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 description="Configure a DVC remote only when one is requested.",
                 order=4,
                 tool_functions=("configure_dvc_remote",),
+                default_args={"remote_url": None},
             ),
             WorkflowStep(
                 step_id="add_data_to_dvc",
@@ -762,6 +764,7 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 description="Track the declared data path with DVC.",
                 order=5,
                 tool_functions=("add_data_to_dvc",),
+                default_args={"data_path": "data"},
             ),
             WorkflowStep(
                 step_id="create_dvc_yaml",
@@ -769,6 +772,16 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 description="Create the pipeline definition for reproducible training.",
                 order=6,
                 tool_functions=("create_dvc_pipeline",),
+                default_args={
+                    "stages": [
+                        {
+                            "name": "train",
+                            "cmd": "python train.py",
+                            "deps": ["train.py", "data"],
+                            "outs": ["models"],
+                        }
+                    ]
+                },
             ),
             WorkflowStep(
                 step_id="initialize_mlflow_experiment",
@@ -776,6 +789,7 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 description="Create or validate the MLflow experiment used by the project.",
                 order=7,
                 tool_functions=("init_mlflow_experiment",),
+                default_args={"experiment_name": "local_ml_project"},
             ),
             WorkflowStep(
                 step_id="create_dockerfile",
@@ -790,6 +804,7 @@ def _setup_pipeline_template() -> WorkflowTemplate:
                 description="Create a CI workflow for pipeline validation.",
                 order=9,
                 tool_functions=("create_github_workflow",),
+                default_args={"use_dvc": False, "use_mlflow": False},
             ),
         ),
         success_contract=SuccessContract(
