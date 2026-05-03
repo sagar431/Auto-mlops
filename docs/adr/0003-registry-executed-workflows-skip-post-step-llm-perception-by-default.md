@@ -1,0 +1,3 @@
+# Registry-Executed Workflows Skip Post-Step LLM Perception By Default
+
+Auto-MLOps will execute selected registry-owned **Workflow Templates** through the **Workflow Runtime** without post-step LLM perception by default. The runtime advances by registry order and derives final status from **Success Contract** evidence; a workflow step may opt into LLM perception only when that need is declared by the registry. This trades some dynamic adaptation during registered workflows for faster, more reliable deterministic execution, while preserving existing non-registry perception, decision, and summarizer behavior.
