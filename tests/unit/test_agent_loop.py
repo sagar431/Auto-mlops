@@ -5,11 +5,15 @@ Tests for agent/agent_loop.py - MLOps agent orchestration loop.
 Run with: pytest tests/unit/test_agent_loop.py -v
 """
 
-from datetime import UTC, datetime
+import json
+import pickle
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import mcp_mlops_tools
 from agent.agent_loop import (
     AgentLoop,
     Route,
@@ -18,7 +22,14 @@ from agent.agent_loop import (
     StepType,
     run_mlops_agent,
 )
-from mcp_mlops_tools import create_litserve_api, select_best_model_artifact
+from mcp_mlops_tools import (
+    _find_available_port,
+    create_litserve_api,
+    select_best_model_artifact,
+)
+from mcp_mlops_tools import (
+    test_litserve_prediction_endpoint as call_litserve_prediction_endpoint,
+)
 from workflow.registry import (
     ApprovalRecord,
     ArtifactManifest,
@@ -59,6 +70,89 @@ def test_create_litserve_api_generates_tabular_server_for_pickle_artifact(tmp_pa
     assert "pickle.load" in server_code
     assert "torch.jit.load" not in server_code
     assert "outputs/scaler.pkl" in server_code
+    assert "_litserve_server._MCP_AVAILABLE = False" in server_code
+    assert "ModelAPI(max_batch_size=64, batch_timeout=0.05)" in server_code
+    assert "server = ls.LitServer(\n        api,\n        accelerator=\"auto\",\n        workers_per_device=4" in server_code
+    assert "array = self.scaler.transform(array.reshape(1, -1))[0]" in server_code
+
+
+def test_litserve_prediction_endpoint_uses_artifact_feature_count_for_default_payload(
+    tmp_path, monkeypatch
+):
+    outputs_dir = tmp_path / "outputs"
+    outputs_dir.mkdir()
+    (outputs_dir / "scaler.pkl").write_bytes(
+        pickle.dumps(SimpleNamespace(n_features_in_=8))
+    )
+    captured: dict[str, dict] = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def read(self, limit):
+            return b'{"predictions":[0.0]}'
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    result = call_litserve_prediction_endpoint(str(tmp_path))
+
+    assert result["prediction_passed"] is True
+    assert captured["payload"] == {"input": [0.0] * 8}
+
+
+def test_litserve_health_endpoint_retries_until_ready(monkeypatch):
+    attempts = {"count": 0}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def read(self, limit):
+            return b"ok"
+
+    def fake_urlopen(url, timeout):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise mcp_mlops_tools.urllib.error.URLError("connection refused")
+        return FakeResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("time.sleep", lambda seconds: None)
+
+    result = mcp_mlops_tools.test_litserve_health_endpoint(
+        "/home/ubuntu/Auto-mlops",
+        endpoint_url="http://127.0.0.1:8001",
+        timeout_seconds=3.0,
+    )
+
+    assert result["health_passed"] is True
+    assert attempts["count"] == 2
+
+
+def test_find_available_port_skips_bound_requested_port(monkeypatch):
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_is_port_available",
+        lambda host, port: port == 8001,
+    )
+
+    selected_port = _find_available_port("127.0.0.1", 8000, attempts=2)
+    assert selected_port == 8001
 
 # ============================================================================
 # Route Constants Tests
@@ -938,6 +1032,7 @@ class TestAgentLoopRun:
         """Test selected sklearn artifacts are passed into LitServe generation."""
         mock_agent.auto_approve = True
         generate_args = None
+        runtime_args_by_step = {}
 
         async def execute_registry_step(step_id, tool, args, ctx, tools_module):
             nonlocal generate_args
@@ -988,6 +1083,7 @@ class TestAgentLoopRun:
                     },
                 }
             else:
+                runtime_args_by_step[step_id] = args
                 payload = {
                     "success": True,
                     "verification_results": [
@@ -1005,6 +1101,10 @@ class TestAgentLoopRun:
                         }
                     ],
                 }
+                if step_id == "start_litserve_server":
+                    payload["endpoint_url"] = "http://127.0.0.1:8001"
+                    payload["process_id"] = 123
+                    payload["port"] = 8001
                 if step_id == "write_monitoring_and_rollback_report":
                     payload = {
                         "success": True,
@@ -1027,6 +1127,17 @@ class TestAgentLoopRun:
 
         assert generate_args["model_path"] == "outputs/model.pkl"
         assert generate_args["model_type"] == "tabular_regressor"
+        assert runtime_args_by_step["test_health_endpoint"]["endpoint_url"] == "http://127.0.0.1:8001"
+        assert (
+            runtime_args_by_step["test_prediction_endpoint"]["endpoint_url"]
+            == "http://127.0.0.1:8001"
+        )
+        assert (
+            runtime_args_by_step["capture_logs_and_endpoint"]["endpoint_url"]
+            == "http://127.0.0.1:8001"
+        )
+        assert runtime_args_by_step["write_monitoring_and_rollback_report"]["process_id"] == 123
+        assert runtime_args_by_step["write_monitoring_and_rollback_report"]["port"] == 8001
 
     @pytest.mark.asyncio
     async def test_run_blocks_setup_workflow_missing_project_path_with_clarifying_question(
@@ -1130,7 +1241,7 @@ class TestAgentLoopRun:
                 risk_categories=("writes_project_files",),
                 status="denied",
                 approver="ops@example.com",
-                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
             ),
         )
         mock_agent.next_step_id = workflow_step.step_id
@@ -1179,7 +1290,7 @@ class TestAgentLoopRun:
                 risk_categories=("writes_project_files",),
                 status="approved",
                 approver="ops@example.com",
-                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
             ),
         )
         mock_agent.next_step_id = workflow_step.step_id
@@ -1233,7 +1344,7 @@ class TestAgentLoopRun:
                 risk_categories=("writes_project_files",),
                 status="approved",
                 approver="ops@example.com",
-                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
             ),
         )
         mock_agent.next_step_id = workflow_step.step_id
@@ -1281,7 +1392,7 @@ class TestAgentLoopRun:
                 risk_categories=("writes_project_files",),
                 status="approved",
                 approver="ops@example.com",
-                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
             ),
         )
         mock_agent.next_step_id = workflow_step.step_id
@@ -1351,7 +1462,7 @@ class TestAgentLoopRun:
                 risk_categories=("writes_project_files",),
                 status="approved",
                 approver="ops@example.com",
-                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
             ),
         )
         mock_agent.next_step_id = workflow_step.step_id
@@ -1473,7 +1584,7 @@ class TestAgentLoopRun:
                 risk_categories=("writes_project_files",),
                 status="approved",
                 approver="ops@example.com",
-                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+                timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
             ),
         )
         mock_agent.ctx.globals["verification_results"] = tuple(

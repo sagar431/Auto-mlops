@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -219,7 +219,7 @@ def test_gated_step_without_matching_approval_record_is_blocked():
 
 def test_gated_step_with_matching_approved_record_is_pending():
     registry = get_workflow_registry()
-    timestamp = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+    timestamp = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
     approval_record = ApprovalRecord(
         workflow_run_id="run-123",
         step_id="start_litserve_server",
@@ -252,7 +252,7 @@ def test_gated_step_with_matching_denied_record_fails_with_structured_reason():
         risk_categories=("starts_server", "exposes_port"),
         status="denied",
         approver="ops@example.com",
-        timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
+        timestamp=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
     )
 
     validation = registry.validate_step_approval(

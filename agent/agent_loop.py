@@ -7,9 +7,10 @@ Orchestrates: Perception -> Decision -> Action -> (Improve if needed) -> Summari
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, replace
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from action.execute_step import execute_step
 from agent.agentSession import AgentSession
@@ -868,7 +869,7 @@ class AgentLoop:
                         risk_categories=validation.risk_categories,
                         status="approved",
                         approver="auto_approve",
-                        timestamp=datetime.now(UTC),
+                        timestamp=datetime.now(timezone.utc),
                     ),
                 )
                 return self.workflow_registry.validate_step_approval(
@@ -1074,6 +1075,13 @@ class AgentLoop:
                 self.ctx.globals["selected_model_artifact_path"] = selected_model_path
             if payload.get("model_type"):
                 self.ctx.globals["selected_model_type"] = payload["model_type"]
+        elif step_id == "start_litserve_server":
+            if payload.get("endpoint_url"):
+                self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
+            if payload.get("process_id"):
+                self.ctx.globals["litserve_process_id"] = payload["process_id"]
+            if payload.get("port"):
+                self.ctx.globals["litserve_port"] = payload["port"]
 
     def _runtime_args_for_registry_step(
         self,
@@ -1092,7 +1100,39 @@ class AgentLoop:
             selected_model_type = self.ctx.globals.get("selected_model_type")
             if selected_model_type:
                 runtime_args["model_type"] = selected_model_type
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "deploy_litserve_gpu"
+            and step_id
+            in {
+                "test_health_endpoint",
+                "test_prediction_endpoint",
+                "capture_logs_and_endpoint",
+            }
+        ):
+            endpoint_url = self.ctx.globals.get("litserve_endpoint_url")
+            if endpoint_url:
+                runtime_args["endpoint_url"] = endpoint_url
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "deploy_litserve_gpu"
+            and step_id == "write_monitoring_and_rollback_report"
+        ):
+            process_id = self.ctx.globals.get("litserve_process_id")
+            if process_id:
+                runtime_args["process_id"] = process_id
+            port = self.ctx.globals.get("litserve_port") or self._port_from_endpoint_url(
+                self.ctx.globals.get("litserve_endpoint_url")
+            )
+            if port:
+                runtime_args["port"] = port
         return runtime_args
+
+    def _port_from_endpoint_url(self, endpoint_url: Any) -> int | None:
+        if not isinstance(endpoint_url, str):
+            return None
+        parsed_url = urlparse(endpoint_url)
+        return parsed_url.port
 
     def _selected_model_path_from_payload(self, payload: dict[str, Any]) -> str | None:
         raw_manifest = payload.get("artifact_manifest")
