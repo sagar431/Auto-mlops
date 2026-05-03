@@ -71,15 +71,15 @@ class ModelManager:
 
         if provider == "google":
             try:
-                import google.generativeai as genai
+                from google import genai
 
                 api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
                 if api_key:
-                    genai.configure(api_key=api_key)
-                    self._clients[provider] = genai
-                    return genai
+                    client = genai.Client(api_key=api_key)
+                    self._clients[provider] = client
+                    return client
             except ImportError:
-                logger.warning("google-generativeai not installed", provider=provider)
+                logger.warning("google-genai not installed", provider=provider)
 
         elif provider == "openai":
             try:
@@ -251,8 +251,6 @@ class ModelManager:
         """Generate using Google Gemini."""
         import asyncio
 
-        model = client.GenerativeModel(model_id)
-
         generation_config = {
             "temperature": temperature,
             "max_output_tokens": max_tokens,
@@ -261,7 +259,12 @@ class ModelManager:
         # Run in executor since Gemini SDK is synchronous
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
-            None, lambda: model.generate_content(prompt, generation_config=generation_config)
+            None,
+            lambda: client.models.generate_content(
+                model=model_id,
+                contents=prompt,
+                config=generation_config,
+            ),
         )
 
         return response.text

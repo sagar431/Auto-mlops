@@ -71,6 +71,22 @@ class TestModelManagerInit:
         assert DEFAULT_FALLBACK_CHAIN == ["gemini", "gpt4", "gemini_flash"]
 
 
+class TestGoogleClient:
+    """Tests for Google Gemini client initialization."""
+
+    def test_google_client_uses_google_genai_sdk(self, model_manager, monkeypatch):
+        """Test Google provider uses the installed google-genai SDK."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+
+        with patch("google.genai.Client") as mock_client:
+            mock_client.return_value = "google-client"
+
+            client = model_manager._get_client("google")
+
+        assert client == "google-client"
+        mock_client.assert_called_once_with(api_key="test-key")
+
+
 class TestBuildFallbackChain:
     """Tests for _build_fallback_chain method."""
 
