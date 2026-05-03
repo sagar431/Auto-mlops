@@ -7,6 +7,7 @@ Orchestrates: Perception -> Decision -> Action -> (Improve if needed) -> Summari
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ from perception.perception import Perception, build_perception_input
 from resilience import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError
 from summarization.summarizer import Summarizer
 from workflow.registry import (
+    ApprovalRecord,
     ArtifactManifest,
     ArtifactManifestEntry,
     ContractFailure,
@@ -292,12 +294,27 @@ class AgentLoop:
         if selection.status is WorkflowStatus.PENDING:
             if selection.workflow_id == "setup_pipeline":
                 projected_step_ids = await self._project_registry_workflow(selection.workflow_id)
-                self.status = "paused"
-                self.final_output = (
-                    f"Selected workflow '{selection.workflow_id}' from registry. "
-                    "Projected executable runtime steps: "
-                    f"{', '.join(projected_step_ids)}. No tools were run."
-                )
+                if not self.auto_approve and not self.ctx.globals.get("approval_records"):
+                    approval_validation = self._first_blocking_setup_pipeline_approval()
+                    if approval_validation is not None:
+                        self.status = "paused"
+                        risk_categories = [
+                            risk_category.value
+                            for risk_category in approval_validation.risk_categories
+                        ]
+                        self.final_output = (
+                            f"Selected workflow '{selection.workflow_id}' from registry. "
+                            "Projected executable runtime steps: "
+                            f"{', '.join(projected_step_ids)}. "
+                            "Approval required before executing workflow step "
+                            f"'{approval_validation.step_id}'. risk_categories: "
+                            f"{', '.join(risk_categories)}. "
+                            f"next_action: {approval_validation.next_action}. "
+                            "No tools were run."
+                        )
+                        return True
+
+                await self._execute_steps_loop()
                 return True
 
             self.status = "paused"
@@ -319,6 +336,28 @@ class AgentLoop:
             return True
 
         return False
+
+    def _first_blocking_setup_pipeline_approval(self):
+        """Return the first setup_pipeline approval gate that lacks approval."""
+        if (
+            self.workflow_selection is None
+            or self.workflow_selection.workflow_id != "setup_pipeline"
+            or self.workflow_selection.status is not WorkflowStatus.PENDING
+        ):
+            return None
+
+        template = self.workflow_registry.get("setup_pipeline")
+        approval_records = tuple(self.ctx.globals.get("approval_records", ()))
+        for step in template.steps:
+            validation = self.workflow_registry.validate_step_approval(
+                workflow_id="setup_pipeline",
+                workflow_run_id=self.session_id,
+                step_id=step.step_id,
+                approval_records=approval_records,
+            )
+            if validation.status is WorkflowStatus.BLOCKED:
+                return validation
+        return None
 
     def _workflow_clarifying_question(self, missing_inputs: tuple[str, ...]) -> str:
         """Return a deterministic question for missing workflow inputs."""
@@ -779,12 +818,36 @@ class AgentLoop:
             return None
 
         try:
-            return self.workflow_registry.validate_step_approval(
+            validation = self.workflow_registry.validate_step_approval(
                 workflow_id=self.workflow_selection.workflow_id,
                 workflow_run_id=self.session_id,
                 step_id=step_id,
                 approval_records=tuple(self.ctx.globals.get("approval_records", ())),
             )
+            if (
+                validation.status is WorkflowStatus.BLOCKED
+                and validation.risk_categories
+                and self.auto_approve
+            ):
+                approval_records = tuple(self.ctx.globals.get("approval_records", ()))
+                self.ctx.globals["approval_records"] = (
+                    *approval_records,
+                    ApprovalRecord(
+                        workflow_run_id=self.session_id,
+                        step_id=step_id,
+                        risk_categories=validation.risk_categories,
+                        status="approved",
+                        approver="auto_approve",
+                        timestamp=datetime.now(UTC),
+                    ),
+                )
+                return self.workflow_registry.validate_step_approval(
+                    workflow_id=self.workflow_selection.workflow_id,
+                    workflow_run_id=self.session_id,
+                    step_id=step_id,
+                    approval_records=tuple(self.ctx.globals.get("approval_records", ())),
+                )
+            return validation
         except KeyError:
             return None
 
@@ -827,7 +890,9 @@ class AgentLoop:
             f"contract_status: {contract_status.status.value}. "
             f"workflow_status: {contract_status.status.value}. "
             f"missing_evidence: {missing_evidence}. "
-            f"failed_checks: {failed_checks}."
+            f"failed_checks: {failed_checks}. "
+            f"artifacts: {self._format_artifacts()}. "
+            f"approvals: {self._format_approval_records()}."
         )
 
     def _format_contract_failures(self, failures: tuple[ContractFailure, ...]) -> str:
@@ -836,6 +901,30 @@ class AgentLoop:
         return "; ".join(
             f"{failure.check_name} next_action: {failure.next_action}"
             for failure in failures
+        )
+
+    def _format_artifacts(self) -> str:
+        artifact_manifest = self.ctx.globals.get("artifact_manifest")
+        if not isinstance(artifact_manifest, ArtifactManifest) or not artifact_manifest.entries:
+            return "none"
+        return "; ".join(
+            (
+                f"{entry.artifact_type}:{entry.path or entry.uri}"
+                f"({entry.state.value} from {entry.producing_step})"
+            )
+            for entry in artifact_manifest.entries
+        )
+
+    def _format_approval_records(self) -> str:
+        approval_records = tuple(self.ctx.globals.get("approval_records", ()))
+        if not approval_records:
+            return "none"
+        return "; ".join(
+            (
+                f"{record.step_id}:{record.status.value}:"
+                f"{','.join(risk.value for risk in record.risk_categories)}"
+            )
+            for record in approval_records
         )
 
     def _capture_setup_pipeline_evidence(self, step_id: str, result: dict[str, Any]) -> None:
