@@ -21,7 +21,14 @@ from observability import get_logger
 from perception.perception import Perception, build_perception_input
 from resilience import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError
 from summarization.summarizer import Summarizer
-from workflow.registry import WorkflowSelection, WorkflowStatus, get_workflow_registry
+from workflow.registry import (
+    ArtifactManifest,
+    ArtifactManifestEntry,
+    VerificationResult,
+    WorkflowSelection,
+    WorkflowStatus,
+    get_workflow_registry,
+)
 
 logger = get_logger("agent.agent_loop")
 
@@ -713,6 +720,7 @@ class AgentLoop:
 
             # Update result
             self.ctx.update_step_result(self.next_step_id, result)
+            self._capture_setup_pipeline_evidence(self.next_step_id, result)
 
             await self._emit(
                 "step_complete",
@@ -771,6 +779,132 @@ class AgentLoop:
             )
         except KeyError:
             return None
+
+    def _capture_setup_pipeline_evidence(self, step_id: str, result: dict[str, Any]) -> None:
+        """Capture explicit setup_pipeline evidence from a completed step result."""
+        if (
+            self.workflow_selection is None
+            or self.workflow_selection.workflow_id != "setup_pipeline"
+            or self.workflow_selection.status is not WorkflowStatus.PENDING
+            or not isinstance(result, dict)
+        ):
+            return
+
+        payload = result.get("result", result)
+        if not isinstance(payload, dict):
+            return
+
+        verification_results = self._verification_results_from_step_result(step_id, payload)
+        if verification_results:
+            existing_results = tuple(self.ctx.globals.get("verification_results", ()))
+            self.ctx.globals["verification_results"] = (*existing_results, *verification_results)
+
+        artifact_entries = self._artifact_manifest_entries_from_step_result(step_id, payload)
+        if artifact_entries:
+            existing_manifest = self.ctx.globals.get(
+                "artifact_manifest",
+                ArtifactManifest(entries=()),
+            )
+            self.ctx.globals["artifact_manifest"] = ArtifactManifest(
+                entries=(*existing_manifest.entries, *artifact_entries)
+            )
+
+    def _verification_results_from_step_result(
+        self,
+        step_id: str,
+        payload: dict[str, Any],
+    ) -> tuple[VerificationResult, ...]:
+        """Return setup verification records explicitly reported by a step."""
+        raw_results = payload.get("verification_results", ())
+        if isinstance(raw_results, dict):
+            raw_results = (raw_results,)
+
+        template = self.workflow_registry.get("setup_pipeline")
+        checks_by_name = {
+            check.name: check
+            for check in template.success_contract.checks
+            if check.source_step == step_id
+        }
+        verification_results: list[VerificationResult] = []
+
+        for raw_result in raw_results:
+            if isinstance(raw_result, VerificationResult):
+                if raw_result.check_name in checks_by_name and raw_result.source_step == step_id:
+                    verification_results.append(raw_result)
+                continue
+            if not isinstance(raw_result, dict):
+                continue
+            check_name = raw_result.get("check_name")
+            if check_name not in checks_by_name:
+                continue
+            source_step = raw_result.get("source_step")
+            if source_step != step_id:
+                continue
+            if "passed" not in raw_result or "evidence" not in raw_result:
+                continue
+
+            verification_results.append(
+                VerificationResult(
+                    check_name=check_name,
+                    evidence_type=raw_result.get(
+                        "evidence_type",
+                        checks_by_name[check_name].evidence_type,
+                    ),
+                    source_step=source_step,
+                    passed=bool(raw_result["passed"]),
+                    evidence=raw_result["evidence"],
+                )
+            )
+
+        return tuple(verification_results)
+
+    def _artifact_manifest_entries_from_step_result(
+        self,
+        step_id: str,
+        payload: dict[str, Any],
+    ) -> tuple[ArtifactManifestEntry, ...]:
+        """Return setup artifact manifest entries explicitly reported by a step."""
+        raw_manifest = payload.get("artifact_manifest")
+        if isinstance(raw_manifest, ArtifactManifest):
+            raw_entries = raw_manifest.entries
+        elif isinstance(raw_manifest, dict):
+            raw_entries = raw_manifest.get("entries", ())
+        else:
+            raw_entries = ()
+
+        if isinstance(raw_entries, dict):
+            raw_entries = (raw_entries,)
+
+        template = self.workflow_registry.get("setup_pipeline")
+        step_ids = {step.step_id for step in template.steps}
+        artifact_entries: list[ArtifactManifestEntry] = []
+
+        for raw_entry in raw_entries:
+            if isinstance(raw_entry, ArtifactManifestEntry):
+                if raw_entry.producing_step == step_id:
+                    artifact_entries.append(raw_entry)
+                continue
+            if not isinstance(raw_entry, dict):
+                continue
+            if raw_entry.get("producing_step") != step_id or step_id not in step_ids:
+                continue
+            if not raw_entry.get("path") and not raw_entry.get("uri"):
+                continue
+            try:
+                artifact_entries.append(
+                    ArtifactManifestEntry(
+                        artifact_type=raw_entry["artifact_type"],
+                        producing_step=raw_entry["producing_step"],
+                        state=raw_entry["state"],
+                        path=raw_entry.get("path"),
+                        uri=raw_entry.get("uri"),
+                        checksum=raw_entry.get("checksum"),
+                    )
+                )
+            except (KeyError, ValueError):
+                continue
+
+        return tuple(artifact_entries)
 
     async def _run_improvement_loop(self):
         """Run the self-improvement loop for training."""
