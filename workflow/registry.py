@@ -43,6 +43,7 @@ class RiskCategory(str, Enum):
     BUILDS_IMAGE = "builds_image"
     PUSHES_REGISTRY = "pushes_registry"
     USES_CLOUD_CREDENTIALS = "uses_cloud_credentials"
+    USES_GPU = "uses_gpu"
     EXPOSES_PORT = "exposes_port"
 
 
@@ -709,6 +710,7 @@ def get_workflow_registry() -> WorkflowRegistry:
     return WorkflowRegistry(
         (
             _setup_pipeline_template(),
+            _deploy_litserve_preflight_template(),
             _deploy_litserve_gpu_template(),
             _deploy_gpu_inference_template(),
             _deploy_gradio_demo_template(),
@@ -894,6 +896,172 @@ def _setup_pipeline_template() -> WorkflowTemplate:
     )
 
 
+def _deploy_litserve_preflight_template() -> WorkflowTemplate:
+    return WorkflowTemplate(
+        workflow_id="deploy_litserve_preflight",
+        name="Deploy LitServe Preflight",
+        description=(
+            "Prepare local LitServe deployment artifacts and record missing live evidence "
+            "without starting a server or using GPU/cloud resources."
+        ),
+        required_inputs=(
+            WorkflowInput(
+                name="project_path",
+                description="Path to the ML project or model project to prepare locally.",
+            ),
+        ),
+        steps=(
+            WorkflowStep(
+                step_id="select_or_create_model_artifact",
+                name="Select or create model artifact",
+                description="Select an existing model artifact or create a local placeholder.",
+                order=1,
+                tool_functions=("select_or_create_model_artifact",),
+            ),
+            WorkflowStep(
+                step_id="generate_or_validate_litserve_app",
+                name="Generate or validate LitServe app",
+                description="Generate or validate the local LitServe application artifact.",
+                order=2,
+                tool_functions=("create_litserve_api",),
+                default_args={
+                    "model_path": "models/model_preflight.pt",
+                    "model_name": "model",
+                    "source_step": "generate_or_validate_litserve_app",
+                },
+            ),
+            WorkflowStep(
+                step_id="generate_or_validate_dockerfile",
+                name="Generate or validate Dockerfile",
+                description="Generate or validate the local LitServe Dockerfile artifact.",
+                order=3,
+                tool_functions=("generate_litserve_dockerfile",),
+            ),
+            WorkflowStep(
+                step_id="record_launch_command",
+                name="Record launch command",
+                description="Record the command that would launch the local LitServe server.",
+                order=4,
+                tool_functions=("record_litserve_launch_command",),
+            ),
+            WorkflowStep(
+                step_id="record_missing_live_evidence",
+                name="Record missing live evidence",
+                description=(
+                    "Record that GPU detection, server start, /health, /predict, and endpoint "
+                    "URL evidence are intentionally missing from local preflight."
+                ),
+                order=5,
+                tool_functions=("record_litserve_missing_live_evidence",),
+            ),
+            WorkflowStep(
+                step_id="future_server_start",
+                name="Future server start approval",
+                description="Approval gate declaration for future server start and port exposure.",
+                order=6,
+            ),
+            WorkflowStep(
+                step_id="future_docker_build",
+                name="Future Docker build approval",
+                description="Approval gate declaration for a future Docker image build.",
+                order=7,
+            ),
+            WorkflowStep(
+                step_id="future_cloud_gpu_launch",
+                name="Future cloud GPU approval",
+                description="Approval gate declaration for future cloud credentials or GPU usage.",
+                order=8,
+            ),
+        ),
+        success_contract=SuccessContract(
+            checks=(
+                SuccessContractCheck(
+                    name="model_artifact_selected",
+                    evidence_type="declared_or_observed",
+                    source_step="select_or_create_model_artifact",
+                ),
+                SuccessContractCheck(
+                    name="litserve_app_artifact_ready",
+                    evidence_type="declared_or_observed",
+                    source_step="generate_or_validate_litserve_app",
+                ),
+                SuccessContractCheck(
+                    name="dockerfile_artifact_ready",
+                    evidence_type="declared_or_observed",
+                    source_step="generate_or_validate_dockerfile",
+                ),
+                SuccessContractCheck(
+                    name="launch_command_recorded",
+                    evidence_type="declared",
+                    source_step="record_launch_command",
+                ),
+                SuccessContractCheck(
+                    name="missing_live_evidence_recorded",
+                    evidence_type="declared",
+                    source_step="record_missing_live_evidence",
+                ),
+            ),
+        ),
+        artifact_requirements=(
+            ArtifactRequirement(
+                name="selected_model",
+                artifact_type="model_artifact",
+                source_step="select_or_create_model_artifact",
+                state="selected",
+                contract_check_name="model_artifact_selected",
+            ),
+            ArtifactRequirement(
+                name="litserve_app",
+                artifact_type="serving_application",
+                source_step="generate_or_validate_litserve_app",
+                state="generated",
+                contract_check_name="litserve_app_artifact_ready",
+            ),
+            ArtifactRequirement(
+                name="litserve_dockerfile",
+                artifact_type="container_definition",
+                source_step="generate_or_validate_dockerfile",
+                state="generated",
+                contract_check_name="dockerfile_artifact_ready",
+            ),
+        ),
+        routing_aliases=(
+            "Prepare LitServe deployment locally",
+            "LitServe deployment preflight",
+            "local LitServe preflight",
+            "validate LitServe locally",
+        ),
+        negative_routing_rules=(
+            "Lambda Labs GPU",
+            "Lambda GPU",
+            "LitServe GPU deployment",
+            "start LitServe server",
+        ),
+        approval_gates=(
+            ApprovalGate(
+                step_id="generate_or_validate_litserve_app",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="generate_or_validate_dockerfile",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="future_server_start",
+                risk_categories=("starts_server", "exposes_port"),
+            ),
+            ApprovalGate(
+                step_id="future_docker_build",
+                risk_categories=("builds_image",),
+            ),
+            ApprovalGate(
+                step_id="future_cloud_gpu_launch",
+                risk_categories=("uses_cloud_credentials", "uses_gpu"),
+            ),
+        ),
+    )
+
+
 def _template(
     workflow_id: str,
     name: str,
@@ -1033,7 +1201,14 @@ def _deploy_litserve_gpu_template() -> WorkflowTemplate:
             "local GPU VM",
             "LitServe GPU deployment",
         ),
-        negative_routing_rules=("AWS Lambda serverless", "CPU Lambda function"),
+        negative_routing_rules=(
+            "AWS Lambda serverless",
+            "CPU Lambda function",
+            "Prepare LitServe deployment locally",
+            "LitServe deployment preflight",
+            "local LitServe preflight",
+            "validate LitServe locally",
+        ),
         approval_gates=(
             ApprovalGate(
                 step_id="generate_litserve_api",

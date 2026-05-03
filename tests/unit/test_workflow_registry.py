@@ -35,6 +35,7 @@ def test_registry_contains_exactly_phase_0_templates():
 
     assert registry.workflow_ids == (
         "setup_pipeline",
+        "deploy_litserve_preflight",
         "deploy_litserve_gpu",
         "deploy_gpu_inference",
         "deploy_gradio_demo",
@@ -295,6 +296,94 @@ def test_select_workflow_returns_structured_litserve_gpu_decision():
     assert "Lambda Labs GPU" in selection.selection_reason
 
 
+def test_select_workflow_routes_litserve_local_preflight_to_preflight_contract():
+    registry = get_workflow_registry()
+
+    selection = registry.select_workflow("Prepare LitServe deployment locally")
+    template = registry.get("deploy_litserve_preflight")
+
+    assert selection.workflow_id == "deploy_litserve_preflight"
+    assert selection.status is WorkflowStatus.PENDING
+    assert selection.matched_aliases == ("Prepare LitServe deployment locally",)
+    assert "deploy_litserve_gpu" in selection.rejected_workflows
+
+    checks_by_name = {check.name: check for check in template.success_contract.checks}
+    assert set(checks_by_name) == {
+        "model_artifact_selected",
+        "litserve_app_artifact_ready",
+        "dockerfile_artifact_ready",
+        "launch_command_recorded",
+        "missing_live_evidence_recorded",
+    }
+    assert all(check.evidence_type != "observed" for check in checks_by_name.values())
+    assert [gate.step_id for gate in template.approval_gates] == [
+        "generate_or_validate_litserve_app",
+        "generate_or_validate_dockerfile",
+        "future_server_start",
+        "future_docker_build",
+        "future_cloud_gpu_launch",
+    ]
+
+
+def test_litserve_preflight_succeeds_from_local_artifacts_and_declared_missing_live_evidence():
+    registry = get_workflow_registry()
+    verification_results = (
+        VerificationResult(
+            check_name="launch_command_recorded",
+            evidence_type="declared",
+            source_step="record_launch_command",
+            passed=True,
+            evidence="python deployment/litserve/server.py",
+        ),
+        VerificationResult(
+            check_name="missing_live_evidence_recorded",
+            evidence_type="declared",
+            source_step="record_missing_live_evidence",
+            passed=True,
+            evidence="gpu_detection, server_start, /health, /predict, endpoint_url missing",
+        ),
+    )
+    manifest = ArtifactManifest(
+        entries=(
+            ArtifactManifestEntry(
+                path="models/model_preflight.pt",
+                artifact_type="model_artifact",
+                producing_step="select_or_create_model_artifact",
+                state="selected",
+            ),
+            ArtifactManifestEntry(
+                path="deployment/litserve/server.py",
+                artifact_type="serving_application",
+                producing_step="generate_or_validate_litserve_app",
+                state="generated",
+            ),
+            ArtifactManifestEntry(
+                path="Dockerfile",
+                artifact_type="container_definition",
+                producing_step="generate_or_validate_dockerfile",
+                state="generated",
+            ),
+        )
+    )
+
+    validation = registry.validate_success_contract(
+        "deploy_litserve_preflight",
+        verification_results=verification_results,
+        artifact_manifest=manifest,
+    )
+
+    assert validation.status is WorkflowStatus.SUCCEEDED
+    assert validation.missing_evidence == ()
+    assert validation.failed_checks == ()
+
+    with pytest.raises(ValueError, match="Unknown artifact producing step"):
+        registry.validate_success_contract(
+            "deploy_litserve_gpu",
+            verification_results=verification_results,
+            artifact_manifest=manifest,
+        )
+
+
 def test_select_workflow_records_gpu_inference_branch_evidence():
     registry = get_workflow_registry()
 
@@ -347,7 +436,7 @@ def test_select_workflow_blocks_conflicting_alias_matches():
             "Deploy this model on Lambda Labs GPU",
             "deploy_litserve_gpu",
             "Lambda Labs GPU",
-            ("deploy_gpu_inference",),
+            ("deploy_litserve_preflight", "deploy_gpu_inference"),
             (
                 "gpu_detection_recorded",
                 "server_start_command_recorded",
