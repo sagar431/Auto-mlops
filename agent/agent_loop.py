@@ -24,6 +24,8 @@ from summarization.summarizer import Summarizer
 from workflow.registry import (
     ArtifactManifest,
     ArtifactManifestEntry,
+    ContractFailure,
+    ContractValidation,
     VerificationResult,
     WorkflowSelection,
     WorkflowStatus,
@@ -743,6 +745,9 @@ class AgentLoop:
                 self.p_out.get("original_goal_achieved")
                 or self.p_out.get("route") == Route.SUMMARIZE
             ):
+                if self._is_pending_setup_pipeline():
+                    self._finalize_setup_pipeline_contract()
+                    return
                 self.status = "success"
                 await self._emit("phase", {"phase": "summary", "message": "Goal achieved!"})
                 self.final_output = await self._summarize()
@@ -760,6 +765,9 @@ class AgentLoop:
             self.next_step_id = self._pick_next_step()
             if self.next_step_id is None:
                 break
+
+        if self._is_pending_setup_pipeline():
+            self._finalize_setup_pipeline_contract()
 
     async def _validate_registry_step_approval(self, step_id: str):
         """Validate setup_pipeline registry approval gates before tool execution."""
@@ -779,6 +787,56 @@ class AgentLoop:
             )
         except KeyError:
             return None
+
+    def _is_pending_setup_pipeline(self) -> bool:
+        """Return whether the selected workflow is an executable setup_pipeline run."""
+        return (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "setup_pipeline"
+            and self.workflow_selection.status is WorkflowStatus.PENDING
+        )
+
+    def _finalize_setup_pipeline_contract(self) -> ContractValidation:
+        """Derive setup_pipeline status from captured success contract evidence."""
+        contract_status = self.workflow_registry.validate_success_contract(
+            "setup_pipeline",
+            verification_results=tuple(self.ctx.globals.get("verification_results", ())),
+            artifact_manifest=self.ctx.globals.get("artifact_manifest"),
+        )
+        self.ctx.globals["contract_status"] = contract_status
+        self.ctx.globals["workflow_status"] = contract_status.status
+
+        if contract_status.status is WorkflowStatus.SUCCEEDED:
+            self.status = "success"
+        elif contract_status.status is WorkflowStatus.FAILED:
+            self.status = "failed"
+        else:
+            self.status = "paused"
+
+        self.final_output = self._format_setup_pipeline_contract_output(contract_status)
+        return contract_status
+
+    def _format_setup_pipeline_contract_output(
+        self,
+        contract_status: ContractValidation,
+    ) -> str:
+        missing_evidence = self._format_contract_failures(contract_status.missing_evidence)
+        failed_checks = self._format_contract_failures(contract_status.failed_checks)
+        return (
+            "setup_pipeline final workflow status derived from SuccessContract. "
+            f"contract_status: {contract_status.status.value}. "
+            f"workflow_status: {contract_status.status.value}. "
+            f"missing_evidence: {missing_evidence}. "
+            f"failed_checks: {failed_checks}."
+        )
+
+    def _format_contract_failures(self, failures: tuple[ContractFailure, ...]) -> str:
+        if not failures:
+            return "none"
+        return "; ".join(
+            f"{failure.check_name} next_action: {failure.next_action}"
+            for failure in failures
+        )
 
     def _capture_setup_pipeline_evidence(self, step_id: str, result: dict[str, Any]) -> None:
         """Capture explicit setup_pipeline evidence from a completed step result."""
