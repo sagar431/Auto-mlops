@@ -710,12 +710,57 @@ def get_workflow_registry() -> WorkflowRegistry:
     return WorkflowRegistry(
         (
             _setup_pipeline_template(),
+            _train_and_track_template(),
             _deploy_litserve_preflight_template(),
             _deploy_litserve_gpu_template(),
             _deploy_gpu_inference_template(),
             _deploy_gradio_demo_template(),
             _deploy_kserve_production_template(),
         )
+    )
+
+
+def _train_and_track_template() -> WorkflowTemplate:
+    return WorkflowTemplate(
+        workflow_id="train_and_track",
+        name="Train And Track",
+        description=(
+            "Detect a supported Hydra/PyTorch/TIMM training project and entrypoint "
+            "before any training or tracking work is allowed."
+        ),
+        required_inputs=(
+            WorkflowInput(
+                name="project_path",
+                description="Path to the training project to inspect.",
+            ),
+        ),
+        steps=(
+            WorkflowStep(
+                step_id="detect_training_project",
+                name="Detect Training Project",
+                description=(
+                    "Inspect project files for supported framework, Hydra configs, DVC signals, "
+                    "tests, and a training entrypoint without running training."
+                ),
+                order=1,
+                tool_functions=("detect_training_project",),
+            ),
+        ),
+        success_contract=SuccessContract(
+            checks=(
+                SuccessContractCheck(
+                    name="training_project_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+            ),
+        ),
+        routing_aliases=(
+            "Train and track",
+            "Train and track this model",
+            "train this model",
+            "track this model",
+        ),
     )
 
 

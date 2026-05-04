@@ -378,6 +378,12 @@ class CheckAccuracyThresholdInput(BaseModel):
     metric_name: str = Field(default="accuracy", description="Metric name to check")
 
 
+class DetectTrainingProjectInput(BaseModel):
+    """Detect a supported Hydra/PyTorch/TIMM training project without running training."""
+
+    project_path: str = Field(..., description="Path to the training project")
+
+
 # --- Data Quality Tools ---
 
 
@@ -2210,6 +2216,179 @@ def add_workflow_step(
 
 
 # --- Training Control Tools ---
+
+
+def detect_training_project(project_path: str) -> dict[str, Any]:
+    """Detect supported training project shape without running or installing anything."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+    if not path.is_dir():
+        return {"success": False, "error": f"Project path {project_path} is not a directory"}
+
+    project_files = _relative_files(path)
+    dependency_text = _dependency_signal_text(path)
+    config_text = _joined_file_text(path, [file for file in project_files if file.startswith("configs/")])
+    python_signal_files = [
+        file
+        for file in project_files
+        if file.endswith(".py")
+        and (
+            file == "src/train.py"
+            or file.startswith("src/models/")
+            or file.startswith("src/data/")
+        )
+    ]
+    python_text = _joined_file_text(path, python_signal_files)
+
+    training_entrypoint = _first_existing(path, ("src/train.py", "train.py"))
+    likely_config_files = tuple(
+        file
+        for file in project_files
+        if file.startswith("configs/") and file.endswith((".yaml", ".yml"))
+    )
+    test_files = tuple(
+        file
+        for file in project_files
+        if file.startswith("tests/") and file.endswith(".py") and Path(file).name.startswith("test_")
+    )
+
+    has_hydra_signal = (
+        "hydra-core" in dependency_text
+        or "import hydra" in python_text
+        or "@hydra.main" in python_text
+    )
+    has_pytorch_signal = any(
+        token in dependency_text or token in python_text
+        for token in ("torch", "pytorch", "lightning", "pytorch-lightning")
+    )
+    has_lightning_signal = any(
+        token in dependency_text or token in python_text
+        for token in ("lightning", "pytorch-lightning")
+    )
+    has_timm_signal = "timm" in dependency_text or "timm" in config_text or "timm" in python_text
+    has_dvc_signal = (
+        ".dvc/config" in project_files
+        or ".dvc" in {Path(file).parts[0] for file in project_files if Path(file).parts}
+        or "dvc.yaml" in project_files
+        or any(file.endswith(".dvc") for file in project_files)
+    )
+
+    framework_family = "unknown"
+    if has_lightning_signal:
+        framework_family = "pytorch_lightning"
+    elif has_pytorch_signal:
+        framework_family = "pytorch"
+
+    config_system = "hydra" if has_hydra_signal and likely_config_files else "missing"
+    model_library = "timm" if has_timm_signal else "unknown"
+    data_versioning = "dvc" if has_dvc_signal else "missing"
+
+    missing_required_pieces: list[str] = []
+    next_actions: list[str] = []
+    if training_entrypoint is None:
+        missing_required_pieces.append("training_entrypoint")
+        next_actions.append("Add or provide a training entrypoint such as src/train.py.")
+    if config_system != "hydra":
+        missing_required_pieces.append("hydra_config")
+        next_actions.append("Add or provide Hydra configs such as configs/train.yaml.")
+    if not has_pytorch_signal:
+        missing_required_pieces.append("pytorch_dependency")
+        next_actions.append("Add PyTorch or Lightning dependency evidence for Phase 3 support.")
+
+    status = "supported" if not missing_required_pieces else "blocked"
+    confidence = 0.95 if status == "supported" else 0.45
+    if model_library != "timm":
+        confidence = min(confidence, 0.75)
+    if data_versioning != "dvc":
+        confidence = min(confidence, 0.8)
+
+    observed_evidence = {
+        "project_files": project_files,
+        "entrypoint_exists": training_entrypoint is not None,
+        "hydra_config_files": likely_config_files,
+        "dvc_signals": tuple(
+            file
+            for file in project_files
+            if file == ".dvc/config" or file == "dvc.yaml" or file.endswith(".dvc")
+        ),
+        "dependency_files": tuple(
+            file
+            for file in project_files
+            if file in {"pyproject.toml", "requirements.txt", "requirements-test.txt"}
+        ),
+    }
+
+    return {
+        "success": True,
+        "status": status,
+        "confidence": confidence,
+        "framework_family": framework_family,
+        "model_library": model_library,
+        "config_system": config_system,
+        "data_versioning": data_versioning,
+        "training_entrypoint": training_entrypoint,
+        "likely_config_files": list(likely_config_files),
+        "test_files": list(test_files),
+        "missing_required_pieces": missing_required_pieces,
+        "next_actions": next_actions,
+        "observed_evidence": observed_evidence,
+        "suggested_validation_command": (
+            f"python {training_entrypoint} trainer.fast_dev_run=true"
+            if training_entrypoint
+            else None
+        ),
+        "output_candidates": [
+            "outputs/",
+            "logs/",
+            "mlruns/",
+            "checkpoints/",
+            "models/",
+        ],
+        "verification_results": [
+            {
+                "check_name": "training_project_detected",
+                "evidence_type": "observed",
+                "source_step": "detect_training_project",
+                "passed": status == "supported",
+                "evidence": (
+                    f"status={status}; framework_family={framework_family}; "
+                    f"model_library={model_library}; config_system={config_system}; "
+                    f"data_versioning={data_versioning}; entrypoint={training_entrypoint}; "
+                    f"missing_required_pieces={', '.join(missing_required_pieces) or 'none'}"
+                ),
+            }
+        ],
+    }
+
+
+def _relative_files(path: Path) -> tuple[str, ...]:
+    return tuple(
+        sorted(str(file.relative_to(path)) for file in path.rglob("*") if file.is_file())
+    )
+
+
+def _first_existing(path: Path, candidates: tuple[str, ...]) -> str | None:
+    for candidate in candidates:
+        if (path / candidate).exists():
+            return candidate
+    return None
+
+
+def _dependency_signal_text(path: Path) -> str:
+    dependency_files = ("pyproject.toml", "requirements.txt", "requirements-test.txt")
+    return "\n".join(_safe_read_text(path / file).lower() for file in dependency_files)
+
+
+def _joined_file_text(path: Path, relative_files: list[str] | tuple[str, ...]) -> str:
+    return "\n".join(_safe_read_text(path / file).lower() for file in relative_files)
+
+
+def _safe_read_text(path: Path) -> str:
+    try:
+        return path.read_text(errors="ignore")
+    except OSError:
+        return ""
 
 
 def analyze_training_results(
@@ -6951,6 +7130,11 @@ async def list_tools() -> list[Tool]:
         ),
         # Training Control Tools
         Tool(
+            name="detect_training_project",
+            description="Detect supported Hydra/PyTorch/TIMM training project shape without running training",
+            inputSchema=DetectTrainingProjectInput.model_json_schema(),
+        ),
+        Tool(
             name="analyze_training_results",
             description="Analyze training results and suggest improvements",
             inputSchema=AnalyzeTrainingResultsInput.model_json_schema(),
@@ -7407,6 +7591,10 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             )
 
         # Training Control Tools
+        elif name == "detect_training_project":
+            input_data = DetectTrainingProjectInput(**arguments)
+            result = detect_training_project(input_data.project_path)
+
         elif name == "analyze_training_results":
             input_data = AnalyzeTrainingResultsInput(**arguments)
             result = analyze_training_results(

@@ -181,6 +181,7 @@ AVAILABLE_TOOLS = [
     "create_github_workflow",
     "add_workflow_step",
     # Training Control
+    "detect_training_project",
     "analyze_training_results",
     "suggest_improvements",
     "check_accuracy_threshold",
