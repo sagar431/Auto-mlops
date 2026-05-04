@@ -1,7 +1,7 @@
 {
   "/home/ubuntu/Auto-mlops/mcp_mlops_tools.py": {
-    "mtime": 1777810479.242033,
-    "hash": "7d4507009c4b153455a83c976d48e48f"
+    "mtime": 1777914842.5366297,
+    "hash": "6398850f1b50f4aa53bd7e5209a1475e"
   },
   "/home/ubuntu/Auto-mlops/cli.py": {
     "mtime": 1777523814.3312435,
@@ -112,8 +112,8 @@
     "hash": "eff45437305e33e1c52ae92db49e9ab0"
   },
   "/home/ubuntu/Auto-mlops/agent/agent_loop.py": {
-    "mtime": 1777810394.7901866,
-    "hash": "ebe757c8d1e6eedaa60faf79d23d737d"
+    "mtime": 1777914553.9239755,
+    "hash": "7744c1b6a699406cb9d5968b11b57026"
   },
   "/home/ubuntu/Auto-mlops/agent/contextManager.py": {
     "mtime": 1777523814.3269207,
@@ -148,8 +148,8 @@
     "hash": "265f87f8cb2cbfe9824a2373dddeab67"
   },
   "/home/ubuntu/Auto-mlops/workflow/registry.py": {
-    "mtime": 1777810086.2627409,
-    "hash": "ea8b121445ecf7307013c1a2c87f485e"
+    "mtime": 1777914505.9600298,
+    "hash": "af1e5ddf9fa74e5e5283e71910c78f10"
   },
   "/home/ubuntu/Auto-mlops/automation/full_platform/scripts/download_datasets.py": {
     "mtime": 1777523814.330047,
@@ -248,12 +248,12 @@
     "hash": "02719f44abd1f2c81b297c4555104ab7"
   },
   "/home/ubuntu/Auto-mlops/tests/unit/test_agent_loop.py": {
-    "mtime": 1777809949.688987,
-    "hash": "ab072266fba62da3e164098d246dde15"
+    "mtime": 1777914837.8576355,
+    "hash": "574ec9073d1838780984e2c2ddf2a1a2"
   },
   "/home/ubuntu/Auto-mlops/tests/unit/test_workflow_registry.py": {
-    "mtime": 1777810023.6044838,
-    "hash": "aa392e53359a9b10c39a1efaf132e82b"
+    "mtime": 1777914377.2081888,
+    "hash": "cf8218cf3f5cd03ceb77adc7403534e2"
   },
   "/home/ubuntu/Auto-mlops/tests/unit/test_security_middleware.py": {
     "mtime": 1777523814.402313,
@@ -278,6 +278,10 @@
   "/home/ubuntu/Auto-mlops/tests/unit/test_perception.py": {
     "mtime": 1777523814.402313,
     "hash": "a998428cb3e82fe0f4b92266d47f6046"
+  },
+  "/home/ubuntu/Auto-mlops/tests/unit/test_mlflow_training_tracking.py": {
+    "mtime": 1777914976.5934749,
+    "hash": "d46e967e7983a48a8335e5e0c24c4ae9"
   },
   "/home/ubuntu/Auto-mlops/tests/unit/test_k8s_aws_tools.py": {
     "mtime": 1777523814.4017596,
@@ -556,8 +560,8 @@
     "hash": "7786f73c0c0bc2813a4fe686ac318970"
   },
   "/home/ubuntu/Auto-mlops/action/execute_step.py": {
-    "mtime": 1777810316.6673272,
-    "hash": "e3fcbba067c35347d1e7e7b2b0e27389"
+    "mtime": 1777913878.9739044,
+    "hash": "1cec0013b7790129f56e843263662de0"
   },
   "/home/ubuntu/Auto-mlops/security/__init__.py": {
     "mtime": 1777523814.3923128,
@@ -855,6 +859,30 @@
     "mtime": 1777722681.2295651,
     "hash": "49ddce35956a6ee951a48b36082b8e50"
   },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-3/0005-capstone-orchestrator-skeleton.md": {
+    "mtime": 1777911313.3858333,
+    "hash": "8803c14e41921cb28c932024cc0165cd"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-3/0002-run-training-and-capture-metrics.md": {
+    "mtime": 1777911313.3850937,
+    "hash": "a5e72c7d4f902cb4307f9797973aa0d4"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-3/0001-detect-training-project-and-entrypoint.md": {
+    "mtime": 1777911313.3846736,
+    "hash": "1e559edf02ff09be96c7c1efa333dec1"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-3/0004-select-best-model-artifact.md": {
+    "mtime": 1777911313.385613,
+    "hash": "7cd3071704f5682afeac83ed47247c4c"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-3/0003-track-training-in-mlflow.md": {
+    "mtime": 1777911313.385413,
+    "hash": "ef0f044dbf4322780d6945a636deaea8"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-3/README.md": {
+    "mtime": 1777911313.3860376,
+    "hash": "58b84e457a120b4af211d7f14e45bc1a"
+  },
   "/home/ubuntu/Auto-mlops/docs/issues/phase-2/0001-harden-registry-executed-workflow-runtime.md": {
     "mtime": 1777803683.6019511,
     "hash": "40ae7a00811abe00e80e962398a69c1d"
@@ -864,12 +892,12 @@
     "hash": "992b0042c507f68f2355b9c31b06a0a3"
   },
   "/home/ubuntu/Auto-mlops/docs/issues/phase-2/0003-run-litserve-on-user-started-lambda-gpu.md": {
-    "mtime": 1777803683.6022727,
-    "hash": "08e852e0e7c1b3f918d1a87aa5a9eed8"
+    "mtime": 1777905992.9303994,
+    "hash": "a6513856f898c5482c782db742ba0da5"
   },
   "/home/ubuntu/Auto-mlops/docs/issues/phase-2/README.md": {
-    "mtime": 1777803683.6023848,
-    "hash": "78b0ae5bd72960b1a9d54cda3d39c321"
+    "mtime": 1777906003.0847795,
+    "hash": "52bad1f7fc8a3b32f8794fa86142c897"
   },
   "/home/ubuntu/Auto-mlops/docs/issues/phase-0/0005-artifact-manifest-schema-and-contract-checks.md": {
     "mtime": 1777722681.2307007,
@@ -946,10 +974,6 @@
   "/home/ubuntu/Auto-mlops/docs/examples/basic-pipeline.md": {
     "mtime": 1777523814.3340628,
     "hash": "3d101fb77165e5d9559ecfb369cb84e7"
-  },
-  "/home/ubuntu/Auto-mlops/course_context/emlo_graphify/graph_view.html": {
-    "mtime": 1777808106.2773232,
-    "hash": "bbd2961b342b7e06bca9e576e3a055f4"
   },
   "/home/ubuntu/Auto-mlops/course_context/emlo_graphify/README.md": {
     "mtime": 1777523814.3317153,

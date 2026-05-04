@@ -161,6 +161,7 @@ AVAILABLE_TOOLS = [
     "log_mlflow_params",
     "log_mlflow_metrics",
     "log_mlflow_artifact",
+    "track_training_in_mlflow",
     "register_mlflow_model",
     "get_best_mlflow_run",
     "end_mlflow_run",
@@ -181,6 +182,8 @@ AVAILABLE_TOOLS = [
     "create_github_workflow",
     "add_workflow_step",
     # Training Control
+    "detect_training_project",
+    "run_bounded_training",
     "analyze_training_results",
     "suggest_improvements",
     "check_accuracy_threshold",

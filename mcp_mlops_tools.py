@@ -172,6 +172,35 @@ class LogMLflowArtifactInput(BaseModel):
     )
 
 
+class TrackTrainingInMLflowInput(BaseModel):
+    """Log captured bounded-training evidence to MLflow."""
+
+    project_path: str = Field(..., description="Path to the ML project")
+    experiment_name: str = Field(default="train_and_track", description="MLflow experiment name")
+    tracking_uri: str | None = Field(
+        default=None,
+        description="MLflow tracking URI. Defaults to a local mlruns store in the project.",
+    )
+    run_name: str | None = Field(default=None, description="Optional MLflow run name")
+    params: dict[str, Any] | None = Field(
+        default=None,
+        description="Captured config params, Hydra overrides, and bounded training controls",
+    )
+    metrics: dict[str, Any] | None = Field(
+        default=None,
+        description="Captured training metrics to log to MLflow",
+    )
+    artifacts: list[str] | None = Field(
+        default=None,
+        description="Captured log, artifact, or checkpoint paths to log",
+    )
+    checkpoint_path: str | None = Field(
+        default=None,
+        description="Selected checkpoint or model artifact path produced by training",
+    )
+    tags: dict[str, str] | None = Field(default=None, description="Optional MLflow run tags")
+
+
 class RegisterMLflowModelInput(BaseModel):
     """Register model in MLflow Model Registry."""
 
@@ -376,6 +405,34 @@ class CheckAccuracyThresholdInput(BaseModel):
     experiment_name: str = Field(..., description="MLflow experiment name")
     threshold: float = Field(..., description="Accuracy threshold")
     metric_name: str = Field(default="accuracy", description="Metric name to check")
+
+
+class DetectTrainingProjectInput(BaseModel):
+    """Detect a supported Hydra/PyTorch/TIMM training project without running training."""
+
+    project_path: str = Field(..., description="Path to the training project")
+
+
+class RunBoundedTrainingInput(BaseModel):
+    """Run a detected training entrypoint with explicit bounded controls."""
+
+    project_path: str = Field(..., description="Path to the training project")
+    training_entrypoint: str | None = Field(
+        default=None,
+        description="Detected training entrypoint relative to project_path",
+    )
+    timeout_seconds: int = Field(..., description="Hard timeout for the training process")
+    max_epochs: int = Field(..., description="Maximum epochs allowed for the bounded run")
+    device: str = Field(..., description="Training device control, for example cpu or cuda")
+    target_metric: str = Field(default="val_accuracy", description="Required metric name")
+    hydra_overrides: list[str] | tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="Explicit Hydra overrides to append to the train command",
+    )
+    config_files: list[str] | tuple[str, ...] | None = Field(
+        default=None,
+        description="Detected Hydra config files used as evidence for the bounded run",
+    )
 
 
 # --- Data Quality Tools ---
@@ -1463,6 +1520,174 @@ def log_mlflow_artifact(
         return {"success": False, "error": str(e)}
 
 
+def _flatten_mlflow_params(
+    values: dict[str, Any],
+    prefix: str = "",
+) -> dict[str, str | int | float | bool]:
+    flattened: dict[str, str | int | float | bool] = {}
+    for key, value in values.items():
+        param_key = f"{prefix}.{key}" if prefix else str(key)
+        if isinstance(value, dict):
+            flattened.update(_flatten_mlflow_params(value, param_key))
+            continue
+        if isinstance(value, (list, tuple)):
+            for index, item in enumerate(value):
+                item_key = f"{param_key}.{index}"
+                if isinstance(item, dict):
+                    flattened.update(_flatten_mlflow_params(item, item_key))
+                    continue
+                flattened[item_key] = (
+                    item if _is_simple_mlflow_param(item) else json.dumps(item)
+                )
+            continue
+        flattened[param_key] = value if _is_simple_mlflow_param(value) else json.dumps(value)
+    return flattened
+
+
+def _is_simple_mlflow_param(value: Any) -> bool:
+    return isinstance(value, str | int | float | bool)
+
+
+def _coerce_mlflow_metrics(metrics: dict[str, Any]) -> dict[str, float]:
+    coerced: dict[str, float] = {}
+    for key, value in metrics.items():
+        try:
+            coerced[str(key)] = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Metric '{key}' must be numeric") from exc
+    return coerced
+
+
+def _resolve_project_artifact_path(project_path: str, artifact_path: str) -> Path:
+    path = Path(artifact_path)
+    if path.is_absolute():
+        return path
+    return Path(project_path) / path
+
+
+def track_training_in_mlflow(
+    project_path: str,
+    experiment_name: str = "train_and_track",
+    tracking_uri: str | None = None,
+    run_name: str | None = None,
+    params: dict[str, Any] | None = None,
+    metrics: dict[str, Any] | None = None,
+    artifacts: list[str] | None = None,
+    checkpoint_path: str | None = None,
+    tags: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Log captured bounded-training evidence to MLflow and verify the run exists."""
+    try:
+        import mlflow
+        from mlflow.tracking import MlflowClient
+    except ImportError:
+        return {
+            "success": False,
+            "error": "MLflow not installed. Install mlflow before running train_and_track.",
+        }
+
+    project_root = Path(project_path)
+    if not project_root.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    effective_tracking_uri = tracking_uri or str(project_root / "mlruns")
+    all_artifact_paths = list(
+        dict.fromkeys(
+            [
+                *(artifacts or []),
+                *([checkpoint_path] if checkpoint_path else []),
+            ]
+        )
+    )
+
+    try:
+        numeric_metrics = _coerce_mlflow_metrics(metrics or {})
+        if not numeric_metrics:
+            return {
+                "success": False,
+                "error": "MLflow tracking requires captured training metrics.",
+            }
+        if not all_artifact_paths:
+            return {
+                "success": False,
+                "error": "MLflow tracking requires captured log, artifact, or checkpoint paths.",
+            }
+        flattened_params = _flatten_mlflow_params(params or {})
+        mlflow.set_tracking_uri(effective_tracking_uri)
+        experiment = mlflow.get_experiment_by_name(experiment_name)
+        if experiment is None:
+            experiment_id = mlflow.create_experiment(experiment_name)
+        else:
+            experiment_id = experiment.experiment_id
+        mlflow.set_experiment(experiment_name)
+
+        logged_artifact_uris: list[str] = []
+        with mlflow.start_run(run_name=run_name, tags=tags) as run:
+            if flattened_params:
+                mlflow.log_params(flattened_params)
+            mlflow.log_metrics(numeric_metrics)
+            for artifact_path in all_artifact_paths:
+                resolved_path = _resolve_project_artifact_path(project_path, artifact_path)
+                if not resolved_path.exists():
+                    return {
+                        "success": False,
+                        "error": f"Artifact path {artifact_path} does not exist",
+                    }
+                mlflow.log_artifact(str(resolved_path), artifact_path="artifacts")
+                logged_artifact_uris.append(
+                    f"{run.info.artifact_uri}/artifacts/{resolved_path.name}"
+                )
+            run_id = run.info.run_id
+            artifact_uri = run.info.artifact_uri
+
+        client = MlflowClient(tracking_uri=effective_tracking_uri)
+        verified_run = client.get_run(run_id)
+        return {
+            "success": True,
+            "experiment_id": experiment_id,
+            "experiment_name": experiment_name,
+            "run_id": run_id,
+            "tracking_uri": effective_tracking_uri,
+            "artifact_uri": artifact_uri,
+            "run_status": verified_run.info.status,
+            "params_logged": sorted(flattened_params),
+            "metrics_logged": numeric_metrics,
+            "artifacts_logged": logged_artifact_uris,
+            "verification_results": [
+                {
+                    "check_name": "mlflow_run_exists",
+                    "evidence_type": "observed",
+                    "source_step": "track_training_in_mlflow",
+                    "passed": True,
+                    "evidence": (
+                        f"MLflow run {run_id} exists in experiment {experiment_id}; "
+                        f"tracking_uri={effective_tracking_uri}; "
+                        f"artifact_uri={artifact_uri}; status={verified_run.info.status}"
+                    ),
+                }
+            ],
+            "artifact_manifest": {
+                "entries": [
+                    {
+                        "artifact_type": "mlflow_artifact",
+                        "producing_step": "track_training_in_mlflow",
+                        "state": "validated",
+                        "path": relative_to_project(project_path, artifact_path),
+                        "uri": artifact_uri_value,
+                    }
+                    for artifact_path, artifact_uri_value in zip(
+                        all_artifact_paths,
+                        logged_artifact_uris,
+                        strict=True,
+                    )
+                ]
+            },
+            "message": f"Logged training evidence to MLflow run {run_id}",
+        }
+    except Exception as e:
+        return {"success": False, "error": f"MLflow tracking failed: {e}"}
+
+
 def register_mlflow_model(
     model_path: str,
     model_name: str,
@@ -2210,6 +2435,429 @@ def add_workflow_step(
 
 
 # --- Training Control Tools ---
+
+
+def detect_training_project(project_path: str) -> dict[str, Any]:
+    """Detect supported training project shape without running or installing anything."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+    if not path.is_dir():
+        return {"success": False, "error": f"Project path {project_path} is not a directory"}
+
+    project_files = _relative_files(path)
+    dependency_text = _dependency_signal_text(path)
+    config_text = _joined_file_text(
+        path, [file for file in project_files if file.startswith("configs/")]
+    )
+    python_signal_files = [
+        file
+        for file in project_files
+        if file.endswith(".py")
+        and (
+            file == "src/train.py"
+            or file == "train.py"
+            or file.startswith("src/models/")
+            or file.startswith("src/data/")
+        )
+    ]
+    python_text = _joined_file_text(path, python_signal_files)
+
+    training_entrypoint = _first_existing(path, ("src/train.py", "train.py"))
+    likely_config_files = tuple(
+        file
+        for file in project_files
+        if file.startswith("configs/") and file.endswith((".yaml", ".yml"))
+    )
+    test_files = tuple(
+        file
+        for file in project_files
+        if file.startswith("tests/") and file.endswith(".py") and Path(file).name.startswith("test_")
+    )
+
+    has_hydra_signal = (
+        "hydra-core" in dependency_text
+        or "import hydra" in python_text
+        or "@hydra.main" in python_text
+    )
+    has_pytorch_signal = any(
+        token in dependency_text or token in python_text
+        for token in ("torch", "pytorch", "lightning", "pytorch-lightning")
+    )
+    has_lightning_signal = any(
+        token in dependency_text or token in python_text
+        for token in ("lightning", "pytorch-lightning")
+    )
+    has_timm_signal = "timm" in dependency_text or "timm" in config_text or "timm" in python_text
+    has_dvc_signal = (
+        ".dvc/config" in project_files
+        or ".dvc" in {Path(file).parts[0] for file in project_files if Path(file).parts}
+        or "dvc.yaml" in project_files
+        or any(file.endswith(".dvc") for file in project_files)
+    )
+
+    framework_family = "unknown"
+    if has_lightning_signal:
+        framework_family = "pytorch_lightning"
+    elif has_pytorch_signal:
+        framework_family = "pytorch"
+
+    config_system = "hydra" if has_hydra_signal and likely_config_files else "missing"
+    model_library = "timm" if has_timm_signal else "unknown"
+    data_versioning = "dvc" if has_dvc_signal else "missing"
+
+    missing_required_pieces: list[str] = []
+    next_actions: list[str] = []
+    if training_entrypoint is None:
+        missing_required_pieces.append("training_entrypoint")
+        next_actions.append("Add or provide a training entrypoint such as src/train.py.")
+    if config_system != "hydra":
+        missing_required_pieces.append("hydra_config")
+        next_actions.append("Add or provide Hydra configs such as configs/train.yaml.")
+    if not has_pytorch_signal:
+        missing_required_pieces.append("pytorch_dependency")
+        next_actions.append("Add PyTorch or Lightning dependency evidence for Phase 3 support.")
+
+    status = "supported" if not missing_required_pieces else "blocked"
+    confidence = 0.95 if status == "supported" else 0.45
+    if model_library != "timm":
+        confidence = min(confidence, 0.75)
+    if data_versioning != "dvc":
+        confidence = min(confidence, 0.8)
+
+    return {
+        "success": True,
+        "status": status,
+        "confidence": confidence,
+        "framework_family": framework_family,
+        "model_library": model_library,
+        "config_system": config_system,
+        "data_versioning": data_versioning,
+        "training_entrypoint": training_entrypoint,
+        "likely_config_files": list(likely_config_files),
+        "test_files": list(test_files),
+        "missing_required_pieces": missing_required_pieces,
+        "next_actions": next_actions,
+        "observed_evidence": {
+            "project_files": project_files,
+            "entrypoint_exists": training_entrypoint is not None,
+            "hydra_config_files": likely_config_files,
+            "dvc_signals": tuple(
+                file
+                for file in project_files
+                if file == ".dvc/config" or file == "dvc.yaml" or file.endswith(".dvc")
+            ),
+            "dependency_files": tuple(
+                file
+                for file in project_files
+                if file in {"pyproject.toml", "requirements.txt", "requirements-test.txt"}
+            ),
+        },
+        "output_candidates": ["outputs/", "logs/", "mlruns/", "checkpoints/", "models/"],
+        "verification_results": [
+            {
+                "check_name": "training_project_detected",
+                "evidence_type": "observed",
+                "source_step": "detect_training_project",
+                "passed": status == "supported",
+                "evidence": (
+                    f"status={status}; framework_family={framework_family}; "
+                    f"model_library={model_library}; config_system={config_system}; "
+                    f"data_versioning={data_versioning}; entrypoint={training_entrypoint}; "
+                    f"missing_required_pieces={', '.join(missing_required_pieces) or 'none'}"
+                ),
+            }
+        ],
+    }
+
+
+def run_bounded_training(
+    project_path: str,
+    training_entrypoint: str | None = None,
+    timeout_seconds: int = 30,
+    max_epochs: int = 1,
+    device: str = "cpu",
+    target_metric: str = "val_accuracy",
+    hydra_overrides: list[str] | tuple[str, ...] = (),
+    config_files: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    """Run the detected training entrypoint with explicit bounded controls."""
+    path = Path(project_path)
+    if timeout_seconds <= 0 or max_epochs <= 0 or not device:
+        return _blocked_training_result(
+            "bounded_training_controls",
+            "Provide positive timeout_seconds, positive max_epochs, and an explicit device.",
+        )
+    if not path.exists() or not path.is_dir():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    detected = detect_training_project(project_path)
+    if training_entrypoint is None:
+        training_entrypoint = detected.get("training_entrypoint")
+    if not training_entrypoint or not (path / training_entrypoint).exists():
+        return _blocked_training_result(
+            "training_entrypoint",
+            "Run detect_training_project and provide the detected training_entrypoint.",
+        )
+
+    log_path = path / "logs" / "train_and_track.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        sys.executable,
+        training_entrypoint,
+        *_bounded_hydra_overrides(hydra_overrides, max_epochs, device),
+    ]
+
+    started = time.time()
+    timed_out = False
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=path,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+        exit_code = completed.returncode
+        stdout = completed.stdout
+        stderr = completed.stderr
+    except subprocess.TimeoutExpired as exc:
+        timed_out = True
+        exit_code = -1
+        stdout = exc.stdout or ""
+        stderr = exc.stderr or f"Training command timed out after {timeout_seconds}s"
+
+    duration_seconds = time.time() - started
+    log_path.write_text(
+        "\n".join(
+            (
+                f"command={_format_command(command)}",
+                f"timeout_seconds={timeout_seconds}",
+                f"max_epochs={max_epochs}",
+                f"device={device}",
+                f"exit_code={exit_code}",
+                f"duration_seconds={duration_seconds:.3f}",
+                "[stdout]",
+                stdout,
+                "[stderr]",
+                stderr,
+            )
+        )
+    )
+
+    metrics = _collect_training_metrics(path)
+    metric_files = _metric_files(path)
+    model_artifact_paths = _collect_training_artifacts(path)
+    artifact_paths = [
+        relative_to_project(project_path, log_path),
+        *(relative_to_project(project_path, metric_file) for metric_file in metric_files),
+        *model_artifact_paths,
+    ]
+    metric_value = metrics.get(target_metric)
+    checkpoint_paths = [
+        artifact_path for artifact_path in model_artifact_paths if artifact_path.endswith(".ckpt")
+    ]
+    command_passed = exit_code == 0 and not timed_out
+    metric_passed = command_passed and isinstance(metric_value, int | float)
+    artifact_passed = command_passed and bool(checkpoint_paths)
+    next_actions = []
+    if not command_passed:
+        next_actions.append(
+            f"Inspect {relative_to_project(project_path, log_path)} and fix the training command."
+        )
+    if command_passed and not metric_passed:
+        next_actions.append(f"Write target metric '{target_metric}' to metrics.json.")
+    if command_passed and not artifact_passed:
+        next_actions.append("Write a checkpoint artifact such as outputs/checkpoints/epoch=1.ckpt.")
+
+    artifact_entries = [
+        {
+            "artifact_type": "training_log",
+            "producing_step": "run_bounded_training",
+            "state": "generated",
+            "path": relative_to_project(project_path, log_path),
+        }
+    ]
+    artifact_entries.extend(
+        {
+            "artifact_type": "training_metrics",
+            "producing_step": "run_bounded_training",
+            "state": "generated",
+            "path": relative_to_project(project_path, metric_file),
+        }
+        for metric_file in metric_files
+    )
+    artifact_entries.extend(
+        {
+            "artifact_type": (
+                "model_checkpoint" if artifact_path.endswith(".ckpt") else "model_artifact"
+            ),
+            "producing_step": "run_bounded_training",
+            "state": "generated",
+            "path": artifact_path,
+        }
+        for artifact_path in model_artifact_paths
+    )
+
+    return {
+        "success": True,
+        "status": "succeeded" if command_passed and metric_passed and artifact_passed else "failed",
+        "command": command,
+        "command_display": _format_command(command),
+        "timeout_seconds": timeout_seconds,
+        "max_epochs": max_epochs,
+        "device": device,
+        "config_files": list(config_files or ()),
+        "stdout": stdout,
+        "stderr": stderr,
+        "log_path": relative_to_project(project_path, log_path),
+        "duration_seconds": duration_seconds,
+        "exit_code": exit_code,
+        "metrics": metrics,
+        "target_metric": target_metric,
+        "target_metric_value": metric_value,
+        "artifacts": artifact_paths,
+        "next_actions": next_actions,
+        "verification_results": [
+            {
+                "check_name": "training_command_completed",
+                "evidence_type": "observed",
+                "source_step": "run_bounded_training",
+                "passed": command_passed,
+                "evidence": (
+                    f"command={_format_command(command)}; exit_code={exit_code}; "
+                    f"duration_seconds={duration_seconds:.3f}; "
+                    f"log_path={relative_to_project(project_path, log_path)}"
+                ),
+            },
+            {
+                "check_name": "training_metrics_captured",
+                "evidence_type": "observed",
+                "source_step": "run_bounded_training",
+                "passed": metric_passed,
+                "evidence": (
+                    f"{target_metric}={metric_value}; metric_files="
+                    f"{', '.join(relative_to_project(project_path, file) for file in metric_files) or 'none'}"
+                ),
+            },
+            {
+                "check_name": "training_artifacts_captured",
+                "evidence_type": "observed",
+                "source_step": "run_bounded_training",
+                "passed": artifact_passed,
+                "evidence": (
+                    f"checkpoints={', '.join(checkpoint_paths) or 'none'}; "
+                    f"artifacts={', '.join(artifact_paths) or 'none'}"
+                ),
+            },
+        ],
+        "artifact_manifest": {"entries": artifact_entries},
+    }
+
+
+def _blocked_training_result(missing_input: str, next_action: str) -> dict[str, Any]:
+    return {
+        "success": True,
+        "status": "blocked",
+        "missing_inputs": [missing_input],
+        "next_actions": [next_action],
+        "verification_results": [
+            {
+                "check_name": "training_command_completed",
+                "evidence_type": "observed",
+                "source_step": "run_bounded_training",
+                "passed": False,
+                "evidence": f"blocked_missing_input={missing_input}; next_action={next_action}",
+            }
+        ],
+    }
+
+
+def _bounded_hydra_overrides(
+    hydra_overrides: list[str] | tuple[str, ...],
+    max_epochs: int,
+    device: str,
+) -> list[str]:
+    overrides = [str(override) for override in hydra_overrides]
+    if not any(override.startswith("trainer.max_epochs=") for override in overrides):
+        overrides.append(f"trainer.max_epochs={max_epochs}")
+    if not any(override.startswith("device=") for override in overrides):
+        overrides.append(f"device={device}")
+    return overrides
+
+
+def _collect_training_metrics(path: Path) -> dict[str, float]:
+    metrics: dict[str, float] = {}
+    for metric_file in _metric_files(path):
+        try:
+            raw_metrics = json.loads(metric_file.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(raw_metrics, dict):
+            continue
+        for key, value in raw_metrics.items():
+            if isinstance(value, int | float):
+                metrics[key] = float(value)
+    return metrics
+
+
+def _metric_files(path: Path) -> tuple[Path, ...]:
+    candidates = []
+    for candidate in (
+        path / "metrics.json",
+        path / "outputs" / "metrics.json",
+        path / "logs" / "metrics.json",
+    ):
+        if candidate.exists():
+            candidates.append(candidate)
+    candidates.extend(file for file in path.glob("outputs/**/metrics.json") if file.exists())
+    return tuple(dict.fromkeys(candidates))
+
+
+def _collect_training_artifacts(path: Path) -> list[str]:
+    artifact_paths: list[str] = []
+    for root_name in ("outputs", "checkpoints", "models"):
+        root = path / root_name
+        if not root.exists():
+            continue
+        for pattern in ("**/*.ckpt", "**/*.pt", "**/*.pth", "**/*.pkl"):
+            artifact_paths.extend(
+                relative_to_project(str(path), artifact_path)
+                for artifact_path in root.glob(pattern)
+                if artifact_path.is_file()
+            )
+    return sorted(dict.fromkeys(artifact_paths))
+
+
+def _format_command(command: list[str]) -> str:
+    return " ".join(command)
+
+
+def _relative_files(path: Path) -> tuple[str, ...]:
+    return tuple(sorted(str(file.relative_to(path)) for file in path.rglob("*") if file.is_file()))
+
+
+def _first_existing(path: Path, candidates: tuple[str, ...]) -> str | None:
+    for candidate in candidates:
+        if (path / candidate).exists():
+            return candidate
+    return None
+
+
+def _dependency_signal_text(path: Path) -> str:
+    dependency_files = ("pyproject.toml", "requirements.txt", "requirements-test.txt")
+    return "\n".join(_safe_read_text(path / file).lower() for file in dependency_files)
+
+
+def _joined_file_text(path: Path, relative_files: list[str] | tuple[str, ...]) -> str:
+    return "\n".join(_safe_read_text(path / file).lower() for file in relative_files)
+
+
+def _safe_read_text(path: Path) -> str:
+    try:
+        return path.read_text(errors="ignore")
+    except OSError:
+        return ""
 
 
 def analyze_training_results(
@@ -6951,6 +7599,16 @@ async def list_tools() -> list[Tool]:
         ),
         # Training Control Tools
         Tool(
+            name="detect_training_project",
+            description="Detect a supported Hydra/PyTorch/TIMM training project without running training",
+            inputSchema=DetectTrainingProjectInput.model_json_schema(),
+        ),
+        Tool(
+            name="run_bounded_training",
+            description="Run detected training entrypoint with explicit timeout, epoch, device, and Hydra controls",
+            inputSchema=RunBoundedTrainingInput.model_json_schema(),
+        ),
+        Tool(
             name="analyze_training_results",
             description="Analyze training results and suggest improvements",
             inputSchema=AnalyzeTrainingResultsInput.model_json_schema(),
@@ -7407,6 +8065,23 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             )
 
         # Training Control Tools
+        elif name == "detect_training_project":
+            input_data = DetectTrainingProjectInput(**arguments)
+            result = detect_training_project(input_data.project_path)
+
+        elif name == "run_bounded_training":
+            input_data = RunBoundedTrainingInput(**arguments)
+            result = run_bounded_training(
+                input_data.project_path,
+                input_data.training_entrypoint,
+                input_data.timeout_seconds,
+                input_data.max_epochs,
+                input_data.device,
+                input_data.target_metric,
+                input_data.hydra_overrides,
+                input_data.config_files,
+            )
+
         elif name == "analyze_training_results":
             input_data = AnalyzeTrainingResultsInput(**arguments)
             result = analyze_training_results(

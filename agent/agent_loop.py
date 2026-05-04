@@ -370,7 +370,7 @@ class AgentLoop:
         return setup_requested and additional_phase_requested and not explicit_litserve_gpu
 
     def _is_executable_registry_workflow(self, workflow_id: str | None) -> bool:
-        return workflow_id in {"setup_pipeline", "deploy_litserve_gpu"}
+        return workflow_id in {"setup_pipeline", "train_and_track", "deploy_litserve_gpu"}
 
     def _first_blocking_registry_approval(self):
         """Return the first selected registry approval gate that lacks approval."""
@@ -1082,6 +1082,34 @@ class AgentLoop:
                 self.ctx.globals["litserve_process_id"] = payload["process_id"]
             if payload.get("port"):
                 self.ctx.globals["litserve_port"] = payload["port"]
+        elif step_id == "detect_training_project":
+            if payload.get("training_entrypoint"):
+                self.ctx.globals["training_entrypoint"] = payload["training_entrypoint"]
+            if payload.get("likely_config_files"):
+                self.ctx.globals["training_config_files"] = tuple(payload["likely_config_files"])
+        elif step_id == "run_bounded_training":
+            if payload.get("metrics"):
+                self.ctx.globals["training_metrics"] = payload["metrics"]
+            if payload.get("artifacts"):
+                self.ctx.globals["training_artifacts"] = tuple(payload["artifacts"])
+            if payload.get("log_path"):
+                existing_artifacts = tuple(self.ctx.globals.get("training_artifacts", ()))
+                self.ctx.globals["training_artifacts"] = (
+                    payload["log_path"],
+                    *existing_artifacts,
+                )
+            if payload.get("target_metric"):
+                self.ctx.globals["training_target_metric"] = payload["target_metric"]
+            checkpoint_path = self._checkpoint_path_from_payload(payload)
+            if checkpoint_path:
+                self.ctx.globals["training_checkpoint_path"] = checkpoint_path
+            self.ctx.globals["training_params"] = {
+                "command": payload.get("command_display") or payload.get("command"),
+                "timeout_seconds": payload.get("timeout_seconds"),
+                "max_epochs": payload.get("max_epochs"),
+                "device": payload.get("device"),
+                "config_files": payload.get("config_files", ()),
+            }
 
     def _runtime_args_for_registry_step(
         self,
@@ -1126,6 +1154,34 @@ class AgentLoop:
             )
             if port:
                 runtime_args["port"] = port
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "train_and_track"
+            and step_id == "run_bounded_training"
+        ):
+            training_entrypoint = self.ctx.globals.get("training_entrypoint")
+            if training_entrypoint:
+                runtime_args["training_entrypoint"] = training_entrypoint
+            training_config_files = self.ctx.globals.get("training_config_files")
+            if training_config_files:
+                runtime_args["config_files"] = training_config_files
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "train_and_track"
+            and step_id == "track_training_in_mlflow"
+        ):
+            metrics = self.ctx.globals.get("training_metrics")
+            if metrics:
+                runtime_args["metrics"] = metrics
+            params = self.ctx.globals.get("training_params")
+            if params:
+                runtime_args["params"] = params
+            artifacts = self.ctx.globals.get("training_artifacts")
+            if artifacts:
+                runtime_args["artifacts"] = list(dict.fromkeys(artifacts))
+            checkpoint_path = self.ctx.globals.get("training_checkpoint_path")
+            if checkpoint_path:
+                runtime_args["checkpoint_path"] = checkpoint_path
         return runtime_args
 
     def _port_from_endpoint_url(self, endpoint_url: Any) -> int | None:
@@ -1149,6 +1205,24 @@ class AgentLoop:
                     return entry.path or entry.uri
                 continue
             if isinstance(entry, dict) and entry.get("artifact_type") == "model_artifact":
+                return entry.get("path") or entry.get("uri")
+        return None
+
+    def _checkpoint_path_from_payload(self, payload: dict[str, Any]) -> str | None:
+        raw_manifest = payload.get("artifact_manifest")
+        if isinstance(raw_manifest, ArtifactManifest):
+            entries = raw_manifest.entries
+        elif isinstance(raw_manifest, dict):
+            entries = raw_manifest.get("entries", ())
+        else:
+            entries = ()
+
+        for entry in entries:
+            if isinstance(entry, ArtifactManifestEntry):
+                if entry.artifact_type == "model_checkpoint":
+                    return entry.path or entry.uri
+                continue
+            if isinstance(entry, dict) and entry.get("artifact_type") == "model_checkpoint":
                 return entry.get("path") or entry.get("uri")
         return None
 

@@ -30,11 +30,12 @@ def test_registry_returns_setup_pipeline_by_id():
     assert template.name == "Setup Pipeline"
 
 
-def test_registry_contains_exactly_phase_0_templates():
+def test_registry_contains_phase_3_train_and_track_template():
     registry = get_workflow_registry()
 
     assert registry.workflow_ids == (
         "setup_pipeline",
+        "train_and_track",
         "deploy_litserve_preflight",
         "deploy_litserve_gpu",
         "deploy_gpu_inference",
@@ -44,11 +45,25 @@ def test_registry_contains_exactly_phase_0_templates():
     for excluded_workflow_id in (
         "rollback",
         "monitor_and_alert",
-        "train_and_track",
         "train_until_better",
     ):
         with pytest.raises(KeyError):
             registry.get(excluded_workflow_id)
+
+    template = registry.get("train_and_track")
+    assert [step.step_id for step in template.steps] == [
+        "detect_training_project",
+        "run_bounded_training",
+        "track_training_in_mlflow",
+    ]
+    assert [check.name for check in template.success_contract.checks] == [
+        "training_project_detected",
+        "training_command_completed",
+        "training_metrics_captured",
+        "training_artifacts_captured",
+        "mlflow_run_exists",
+        "mlflow_artifacts_logged",
+    ]
 
 
 def test_setup_pipeline_declares_ordered_workflow_steps():

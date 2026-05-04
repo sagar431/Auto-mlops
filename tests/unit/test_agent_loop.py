@@ -154,6 +154,49 @@ def test_find_available_port_skips_bound_requested_port(monkeypatch):
     selected_port = _find_available_port("127.0.0.1", 8000, attempts=2)
     assert selected_port == 8001
 
+
+def _write_bounded_training_project(project_path):
+    configs = project_path / "configs"
+    (configs / "model").mkdir(parents=True)
+    (configs / "data").mkdir()
+    (project_path / "src").mkdir()
+    (project_path / ".dvc").mkdir()
+
+    (configs / "train.yaml").write_text(
+        "defaults:\n"
+        "  - model: timm_classify\n"
+        "  - data: cat_dog\n"
+        "trainer:\n"
+        "  max_epochs: 5\n"
+    )
+    (configs / "model" / "timm_classify.yaml").write_text(
+        "model_name: resnet18\n"
+        "library: timm\n"
+    )
+    (configs / "data" / "cat_dog.yaml").write_text("data_dir: data/catdog_test\n")
+    (project_path / "src" / "train.py").write_text(
+        "import json\n"
+        "from pathlib import Path\n\n"
+        "Path('outputs/checkpoints').mkdir(parents=True, exist_ok=True)\n"
+        "Path('outputs/metrics.json').write_text(json.dumps({\n"
+        "    'train_loss': 0.12,\n"
+        "    'val_accuracy': 0.91,\n"
+        "}))\n"
+        "Path('outputs/checkpoints/epoch=1.ckpt').write_bytes(b'checkpoint')\n"
+        "print('val_accuracy=0.91')\n"
+    )
+    (project_path / "pyproject.toml").write_text(
+        "[project]\n"
+        "dependencies = [\n"
+        "  'hydra-core==1.3.2',\n"
+        "  'lightning==2.5.0',\n"
+        "  'timm==1.0.14',\n"
+        "  'torch==2.6.0',\n"
+        "]\n"
+    )
+    (project_path / ".dvc" / "config").write_text("[core]\n")
+
+
 # ============================================================================
 # Route Constants Tests
 # ============================================================================
@@ -822,6 +865,56 @@ class TestAgentLoopRun:
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
         mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_train_and_track_runs_bounded_training_and_captures_outputs(
+        self, mock_agent, tmp_path
+    ):
+        """Test train_and_track runs a bounded entrypoint and captures metrics/artifacts."""
+        _write_bounded_training_project(tmp_path)
+
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("registry training runtime must skip perception"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+        ):
+            result = await mock_agent.run("Train and track this model", str(tmp_path))
+
+        completed_tool_steps = [
+            step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
+        ]
+        artifact_paths = {
+            entry.path for entry in mock_agent.ctx.globals["artifact_manifest"].entries
+        }
+        evidence = mock_agent.ctx.globals["verification_results"]
+
+        assert mock_agent.workflow_selection.workflow_id == "train_and_track"
+        assert completed_tool_steps == [
+            "detect_training_project",
+            "run_bounded_training",
+            "track_training_in_mlflow",
+        ]
+        assert mock_agent.status == "success"
+        assert "contract_status: succeeded" in result
+        assert "val_accuracy=0.91" in result
+        assert "exit_code=0" in result
+        assert "MLflow run" in result
+        assert "tracking_uri=" in result
+        assert any("duration_seconds=" in item.evidence for item in evidence)
+        assert "logs/train_and_track.log" in artifact_paths
+        assert "outputs/metrics.json" in artifact_paths
+        assert "outputs/checkpoints/epoch=1.ckpt" in artifact_paths
+        assert any(
+            entry.producing_step == "track_training_in_mlflow"
+            and entry.artifact_type == "mlflow_artifact"
+            for entry in mock_agent.ctx.globals["artifact_manifest"].entries
+        )
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_run_litserve_gpu_succeeds_from_observed_runtime_evidence(

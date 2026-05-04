@@ -710,12 +710,134 @@ def get_workflow_registry() -> WorkflowRegistry:
     return WorkflowRegistry(
         (
             _setup_pipeline_template(),
+            _train_and_track_template(),
             _deploy_litserve_preflight_template(),
             _deploy_litserve_gpu_template(),
             _deploy_gpu_inference_template(),
             _deploy_gradio_demo_template(),
             _deploy_kserve_production_template(),
         )
+    )
+
+
+def _train_and_track_template() -> WorkflowTemplate:
+    return WorkflowTemplate(
+        workflow_id="train_and_track",
+        name="Train And Track",
+        description=(
+            "Detect a supported Hydra/PyTorch/TIMM training project, then run one bounded "
+            "training command and log captured metrics, logs, duration, and artifacts to MLflow."
+        ),
+        required_inputs=(
+            WorkflowInput(
+                name="project_path",
+                description="Path to the training project to inspect and run.",
+            ),
+        ),
+        steps=(
+            WorkflowStep(
+                step_id="detect_training_project",
+                name="Detect Training Project",
+                description=(
+                    "Inspect project files for supported framework, Hydra configs, DVC signals, "
+                    "tests, and a training entrypoint without running training."
+                ),
+                order=1,
+                tool_functions=("detect_training_project",),
+            ),
+            WorkflowStep(
+                step_id="run_bounded_training",
+                name="Run Bounded Training",
+                description=(
+                    "Run the detected training entrypoint with explicit timeout, epoch, device, "
+                    "and Hydra override controls."
+                ),
+                order=2,
+                tool_functions=("run_bounded_training",),
+                default_args={
+                    "timeout_seconds": 30,
+                    "max_epochs": 1,
+                    "device": "cpu",
+                    "target_metric": "val_accuracy",
+                    "hydra_overrides": ("trainer.max_epochs=1", "device=cpu"),
+                },
+            ),
+            WorkflowStep(
+                step_id="track_training_in_mlflow",
+                name="Track Training In MLflow",
+                description="Log captured training params, metrics, logs, and artifacts to MLflow.",
+                order=3,
+                tool_functions=("track_training_in_mlflow",),
+                default_args={"experiment_name": "train_and_track"},
+            ),
+        ),
+        success_contract=SuccessContract(
+            checks=(
+                SuccessContractCheck(
+                    name="training_project_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="training_command_completed",
+                    evidence_type="observed",
+                    source_step="run_bounded_training",
+                ),
+                SuccessContractCheck(
+                    name="training_metrics_captured",
+                    evidence_type="observed",
+                    source_step="run_bounded_training",
+                ),
+                SuccessContractCheck(
+                    name="training_artifacts_captured",
+                    evidence_type="declared_or_observed",
+                    source_step="run_bounded_training",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_run_exists",
+                    evidence_type="observed",
+                    source_step="track_training_in_mlflow",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_artifacts_logged",
+                    evidence_type="declared_or_observed",
+                    source_step="track_training_in_mlflow",
+                ),
+            ),
+        ),
+        artifact_requirements=(
+            ArtifactRequirement(
+                name="training_log",
+                artifact_type="training_log",
+                source_step="run_bounded_training",
+                contract_check_name="training_artifacts_captured",
+            ),
+            ArtifactRequirement(
+                name="training_metrics",
+                artifact_type="training_metrics",
+                source_step="run_bounded_training",
+                contract_check_name="training_artifacts_captured",
+            ),
+            ArtifactRequirement(
+                name="training_checkpoint",
+                artifact_type="model_checkpoint",
+                source_step="run_bounded_training",
+                contract_check_name="training_artifacts_captured",
+            ),
+            ArtifactRequirement(
+                name="mlflow_training_artifact",
+                artifact_type="mlflow_artifact",
+                source_step="track_training_in_mlflow",
+                state="validated",
+                contract_check_name="mlflow_artifacts_logged",
+            ),
+        ),
+        routing_aliases=(
+            "Train and track",
+            "Train and track this model",
+            "train this model",
+            "track this model",
+        ),
     )
 
 
