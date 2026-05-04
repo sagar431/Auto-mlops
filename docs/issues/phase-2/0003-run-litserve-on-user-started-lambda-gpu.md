@@ -1,5 +1,9 @@
 # Issue 0003: Run LitServe On User-Started Lambda GPU
 
+## Status
+
+Complete. The `deploy_litserve_gpu` workflow reached `contract_status: succeeded` on a user-started Lambda Cloud GPU instance with observed GPU, server start, `/health`, `/predict`, endpoint URL, and rollback readiness evidence.
+
 ## Title
 
 Execute the narrow `deploy_litserve_gpu` workflow on an already-running Lambda Cloud GPU instance.

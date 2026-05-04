@@ -1,5 +1,9 @@
 # Phase 2 Implementation Issues
 
+## Status
+
+Complete. Issues 0001, 0002, and 0003 have landed on `main`; the first real `deploy_litserve_gpu` path succeeded on a user-started Lambda Cloud GPU instance with observed live deployment evidence.
+
 Phase 2 targets the first real Lambda Cloud GPU LitServe capstone, but starts by hardening the registry runtime so deterministic workflow execution is fast and reliable before GPU time is spent.
 
 Important constraint: the user has a Lambda Cloud GPU plan/budget around $1000. Phase 2 should target real Lambda Cloud GPU deployment with LitServe, but must avoid wasting GPU time. Local generation and validation happen first, cloud/GPU actions require explicit approval, and cleanup or stop-instance instructions are required.
@@ -8,9 +12,9 @@ Important constraint: the user has a Lambda Cloud GPU plan/budget around $1000. 
 
 ## Issues
 
-1. [Harden Registry-Executed Workflow Runtime](./0001-harden-registry-executed-workflow-runtime.md)
-2. [Add Local LitServe Deployment Preflight Workflow](./0002-add-local-litserve-deployment-preflight-workflow.md)
-3. [Run LitServe On User-Started Lambda GPU](./0003-run-litserve-on-user-started-lambda-gpu.md)
+1. [Complete] [Harden Registry-Executed Workflow Runtime](./0001-harden-registry-executed-workflow-runtime.md)
+2. [Complete] [Add Local LitServe Deployment Preflight Workflow](./0002-add-local-litserve-deployment-preflight-workflow.md)
+3. [Complete] [Run LitServe On User-Started Lambda GPU](./0003-run-litserve-on-user-started-lambda-gpu.md)
 
 ## Dependency Order
 
