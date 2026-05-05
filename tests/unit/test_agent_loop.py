@@ -52,6 +52,167 @@ def test_select_best_model_artifact_finds_training_output_pickle(tmp_path):
     assert result["artifact_manifest"]["entries"][0]["path"] == "outputs/model.pkl"
 
 
+def test_select_best_model_artifact_selects_latest_run_that_beats_baseline(tmp_path):
+    checkpoints_dir = tmp_path / "checkpoints"
+    checkpoints_dir.mkdir()
+    (checkpoints_dir / "baseline.ckpt").write_text("baseline")
+    (checkpoints_dir / "latest.ckpt").write_text("latest")
+
+    result = select_best_model_artifact(
+        project_path=str(tmp_path),
+        latest_run={
+            "run_id": "latest-run",
+            "metrics": {"accuracy": 0.91},
+            "artifact_path": "checkpoints/latest.ckpt",
+        },
+        baseline={
+            "run_id": "baseline-run",
+            "metric_value": 0.87,
+            "artifact_path": "checkpoints/baseline.ckpt",
+        },
+        metric_name="accuracy",
+        metric_direction="maximize",
+        threshold=0.01,
+        tie_policy="keep_baseline",
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "selected_latest"
+    assert result["decision"] == "select_latest"
+    assert result["model_path"] == "checkpoints/latest.ckpt"
+    assert result["source_run_id"] == "latest-run"
+    assert result["comparison_result"] == {
+        "metric_name": "accuracy",
+        "metric_direction": "maximize",
+        "baseline_value": 0.87,
+        "latest_value": 0.91,
+        "threshold": 0.01,
+        "improvement": pytest.approx(0.04),
+        "tie_policy": "keep_baseline",
+    }
+    manifest_entry = result["artifact_manifest"]["entries"][0]
+    assert manifest_entry["artifact_type"] == "model_artifact"
+    assert manifest_entry["state"] == "selected"
+    assert manifest_entry["path"] == "checkpoints/latest.ckpt"
+    assert manifest_entry["checksum"]
+    assert manifest_entry["metadata"] == {
+        "source_run_id": "latest-run",
+        "metric_name": "accuracy",
+        "metric_value": 0.91,
+        "comparison_result": result["comparison_result"],
+        "decision": "select_latest",
+    }
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["model_selection_inputs_present"]["passed"] is True
+    assert verification_by_name["model_selection_metric_compared"]["passed"] is True
+    assert verification_by_name["model_selection_candidate_artifact_verified"]["passed"] is True
+    assert verification_by_name["model_artifact_selected"]["passed"] is True
+
+
+def test_select_best_model_artifact_keeps_baseline_when_latest_is_worse(tmp_path):
+    checkpoints_dir = tmp_path / "checkpoints"
+    checkpoints_dir.mkdir()
+    (checkpoints_dir / "baseline.ckpt").write_text("baseline")
+    (checkpoints_dir / "latest.ckpt").write_text("latest")
+
+    result = select_best_model_artifact(
+        project_path=str(tmp_path),
+        latest_run={
+            "run_id": "latest-run",
+            "metrics": {"accuracy": 0.84},
+            "artifact_path": "checkpoints/latest.ckpt",
+        },
+        baseline={
+            "run_id": "baseline-run",
+            "metric_value": 0.87,
+            "artifact_path": "checkpoints/baseline.ckpt",
+        },
+        metric_name="accuracy",
+        metric_direction="maximize",
+        threshold=0.01,
+        tie_policy="keep_baseline",
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "kept_baseline"
+    assert result["decision"] == "keep_baseline"
+    assert result["model_path"] == "checkpoints/baseline.ckpt"
+    assert result["source_run_id"] == "baseline-run"
+    assert result["discard_reason"]
+    assert result["keep_baseline_reason"]
+    manifest_entry = result["artifact_manifest"]["entries"][0]
+    assert manifest_entry["state"] == "selected"
+    assert manifest_entry["path"] == "checkpoints/baseline.ckpt"
+    assert manifest_entry["metadata"]["decision"] == "keep_baseline"
+    assert manifest_entry["metadata"]["source_run_id"] == "baseline-run"
+    assert manifest_entry["metadata"]["comparison_result"]["improvement"] == pytest.approx(-0.03)
+
+
+def test_select_best_model_artifact_blocks_without_explicit_comparison_inputs(tmp_path):
+    checkpoints_dir = tmp_path / "checkpoints"
+    checkpoints_dir.mkdir()
+    (checkpoints_dir / "latest.ckpt").write_text("latest")
+
+    result = select_best_model_artifact(
+        project_path=str(tmp_path),
+        latest_run={
+            "run_id": "latest-run",
+            "metrics": {"accuracy": 0.91},
+            "artifact_path": "checkpoints/latest.ckpt",
+        },
+        metric_name="accuracy",
+        threshold=0.01,
+        tie_policy="keep_baseline",
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert result["decision"] == "blocked"
+    assert set(result["missing_required_pieces"]) == {"baseline", "metric_direction"}
+    assert "Missing model selection inputs" in result["failure_reason"]
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["model_selection_inputs_present"]["passed"] is False
+    assert verification_by_name["model_artifact_selected"]["passed"] is False
+    assert result["artifact_manifest"]["entries"] == []
+
+
+def test_select_best_model_artifact_blocks_without_candidate_artifact(tmp_path):
+    checkpoints_dir = tmp_path / "checkpoints"
+    checkpoints_dir.mkdir()
+    (checkpoints_dir / "baseline.ckpt").write_text("baseline")
+
+    result = select_best_model_artifact(
+        project_path=str(tmp_path),
+        latest_run={
+            "run_id": "latest-run",
+            "metrics": {"accuracy": 0.91},
+        },
+        baseline={
+            "run_id": "baseline-run",
+            "metric_value": 0.87,
+            "artifact_path": "checkpoints/baseline.ckpt",
+        },
+        metric_name="accuracy",
+        metric_direction="maximize",
+        threshold=0.01,
+        tie_policy="keep_baseline",
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert result["missing_required_pieces"] == ["candidate_artifact"]
+    assert "checkpoint/model artifact" in result["failure_reason"]
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["model_selection_candidate_artifact_verified"]["passed"] is False
+    assert verification_by_name["model_artifact_selected"]["passed"] is False
+
+
 def test_create_litserve_api_generates_tabular_server_for_pickle_artifact(tmp_path):
     outputs_dir = tmp_path / "outputs"
     outputs_dir.mkdir()
@@ -1291,6 +1452,12 @@ class TestAgentLoopRun:
             "max_epochs",
             "device",
             "data_subset",
+            "metric_name",
+            "metric_direction",
+            "threshold",
+            "tie_policy",
+            "baseline_metric",
+            "baseline_artifact_path",
         }
         assert "missing_inputs" in result
         assert "timeout_seconds" in result
@@ -1336,7 +1503,9 @@ class TestAgentLoopRun:
             ),
         ):
             result = await mock_agent.run(
-                "Train this project timeout 30 max epochs 1 device cpu subset 8",
+                "Train this project timeout 30 max epochs 1 device cpu subset 8 "
+                "metric accuracy maximize threshold 0.01 tie keep_baseline "
+                "baseline metric 0.80 baseline artifact checkpoints/baseline.ckpt",
                 str(project_path),
             )
 
@@ -1362,6 +1531,7 @@ class TestAgentLoopRun:
             "Path('checkpoints/model.ckpt').write_text('checkpoint')\n"
             "print(json.dumps({'metrics': {'accuracy': 0.93}}))\n",
         )
+        (tmp_path / "checkpoints" / "baseline.ckpt").write_text("baseline")
 
         with (
             patch.object(
@@ -1373,7 +1543,9 @@ class TestAgentLoopRun:
             patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
         ):
             result = await mock_agent.run(
-                "Train this project timeout 30 max epochs 1 device cpu subset 8",
+                "Train this project timeout 30 max epochs 1 device cpu subset 8 "
+                "metric accuracy maximize threshold 0.01 tie keep_baseline "
+                "baseline metric 0.80 baseline artifact checkpoints/baseline.ckpt",
                 str(tmp_path),
             )
 
@@ -1385,13 +1557,23 @@ class TestAgentLoopRun:
             "detect_training_project",
             "run_bounded_training",
             "track_training_in_mlflow",
+            "select_best_model_artifact",
         ]
         assert mock_agent.status == "success"
         assert "contract_status: succeeded" in result
         assert "accuracy" in result
         assert "checkpoints/model.ckpt" in result
         assert "mlflow_run_exists" in result
+        assert "model_artifact_selected" in result
         assert "run_id" in result
+        selected_entries = [
+            entry
+            for entry in mock_agent.ctx.globals["artifact_manifest"].entries
+            if entry.producing_step == "select_best_model_artifact"
+        ]
+        assert selected_entries[0].state.value == "selected"
+        assert selected_entries[0].metadata["decision"] == "select_latest"
+        assert selected_entries[0].metadata["source_run_id"]
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
 
@@ -1410,6 +1592,7 @@ class TestAgentLoopRun:
             "print(json.dumps({'metrics': {'accuracy': 0.31}}))\n"
             "raise SystemExit(3)\n",
         )
+        (tmp_path / "checkpoints" / "baseline.ckpt").write_text("baseline")
 
         with (
             patch.object(
@@ -1421,7 +1604,9 @@ class TestAgentLoopRun:
             patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
         ):
             result = await mock_agent.run(
-                "Train this project timeout 30 max epochs 1 device cpu subset 8",
+                "Train this project timeout 30 max epochs 1 device cpu subset 8 "
+                "metric accuracy maximize threshold 0.01 tie keep_baseline "
+                "baseline metric 0.80 baseline artifact checkpoints/baseline.ckpt",
                 str(tmp_path),
             )
 
@@ -1432,12 +1617,14 @@ class TestAgentLoopRun:
             "detect_training_project",
             "run_bounded_training",
             "track_training_in_mlflow",
+            "select_best_model_artifact",
         ]
         assert mock_agent.status == "failed"
         assert "contract_status: failed" in result
         assert "bounded_training_command_completed" in result
         assert "run_status" in result
         assert "FAILED" in result
+        assert "keep_baseline" in result
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
 

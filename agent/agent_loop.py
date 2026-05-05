@@ -516,6 +516,61 @@ class AgentLoop:
         if subset_match:
             controls["data_subset"] = int(subset_match.group(1))
 
+        metric_name_match = re.search(
+            r"(?:metric_name|metric)\s*[=:]?\s*([a-zA-Z_][\w.-]*)",
+            normalized_query,
+        )
+        if metric_name_match:
+            controls["metric_name"] = metric_name_match.group(1)
+
+        direction_match = re.search(
+            r"(?:metric[_\s-]?direction|direction)\s*[=:]?\s*(maximize|minimize)",
+            normalized_query,
+        )
+        if direction_match:
+            controls["metric_direction"] = direction_match.group(1)
+        elif re.search(r"\bmaximize\b", normalized_query):
+            controls["metric_direction"] = "maximize"
+        elif re.search(r"\bminimize\b", normalized_query):
+            controls["metric_direction"] = "minimize"
+
+        threshold_match = re.search(
+            r"(?:threshold|minimum[_\s-]?improvement)\s*[=:]?\s*(-?\d+(?:\.\d+)?)",
+            normalized_query,
+        )
+        if threshold_match:
+            controls["threshold"] = float(threshold_match.group(1))
+
+        tie_policy_match = re.search(
+            r"(?:tie[_\s-]?policy|tie)\s*[=:]?\s*(keep[_\s-]?baseline|select[_\s-]?latest)",
+            normalized_query,
+        )
+        if tie_policy_match:
+            controls["tie_policy"] = tie_policy_match.group(1).replace(" ", "_")
+
+        baseline_metric_match = re.search(
+            r"(?:baseline[_\s-]?metric|baseline[_\s-]?value|baseline\s+accuracy)\s*[=:]?\s*(-?\d+(?:\.\d+)?)",
+            normalized_query,
+        )
+        if baseline_metric_match:
+            controls["baseline_metric"] = float(baseline_metric_match.group(1))
+
+        baseline_artifact_match = re.search(
+            r"(?:baseline[_\s-]?artifact|baseline[_\s-]?artifact[_\s-]?path)\s*[=:]?\s*(\S+)",
+            self.query,
+            flags=re.IGNORECASE,
+        )
+        if baseline_artifact_match:
+            controls["baseline_artifact_path"] = baseline_artifact_match.group(1)
+
+        baseline_run_match = re.search(
+            r"(?:baseline[_\s-]?run|baseline[_\s-]?run[_\s-]?id)\s*[=:]?\s*(\S+)",
+            self.query,
+            flags=re.IGNORECASE,
+        )
+        if baseline_run_match:
+            controls["baseline_run_id"] = baseline_run_match.group(1)
+
         return controls
 
     def _should_block_for_workflow_selection(self, selection: WorkflowSelection) -> bool:
@@ -1151,6 +1206,11 @@ class AgentLoop:
             and step_id == "run_bounded_training"
         ):
             self.ctx.globals["bounded_training_result"] = payload
+        elif (
+            self.workflow_selection.workflow_id == "train_and_track"
+            and step_id == "track_training_in_mlflow"
+        ):
+            self.ctx.globals["mlflow_tracking_result"] = payload
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1220,6 +1280,33 @@ class AgentLoop:
                 )
             if params:
                 runtime_args["params"] = params
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "train_and_track"
+            and step_id == "select_best_model_artifact"
+        ):
+            tracking_result = self.ctx.globals.get("mlflow_tracking_result", {})
+            workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+            if isinstance(tracking_result, dict):
+                runtime_args["latest_run"] = {
+                    "run_id": tracking_result.get("run_id"),
+                    "run_status": tracking_result.get("run_status"),
+                    "metrics": tracking_result.get("metrics", {}),
+                    "checkpoint_artifact_uri": tracking_result.get("checkpoint_artifact_uri"),
+                    "artifact_manifest": tracking_result.get("artifact_manifest"),
+                }
+            if isinstance(workflow_inputs, dict):
+                for key in ("metric_name", "metric_direction", "threshold", "tie_policy"):
+                    if key in workflow_inputs:
+                        runtime_args[key] = workflow_inputs[key]
+                baseline = {
+                    "run_id": workflow_inputs.get("baseline_run_id"),
+                    "metric_value": workflow_inputs.get("baseline_metric"),
+                    "artifact_path": workflow_inputs.get("baseline_artifact_path"),
+                }
+                runtime_args["baseline"] = {
+                    key: value for key, value in baseline.items() if value is not None
+                }
         elif (
             self.workflow_selection is not None
             and self.workflow_selection.workflow_id == "deploy_litserve_gpu"
@@ -1426,6 +1513,7 @@ class AgentLoop:
                         path=raw_entry.get("path"),
                         uri=raw_entry.get("uri"),
                         checksum=raw_entry.get("checksum"),
+                        metadata=raw_entry.get("metadata"),
                     )
                 )
             except (KeyError, ValueError):

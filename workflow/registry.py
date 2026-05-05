@@ -239,6 +239,7 @@ class ArtifactManifestEntry:
     path: str | None = None
     uri: str | None = None
     checksum: str | None = None
+    metadata: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.path and not self.uri:
@@ -750,6 +751,30 @@ def _train_and_track_template() -> WorkflowTemplate:
                 name="data_subset",
                 description="Dataset subset or size control for bounded training.",
             ),
+            WorkflowInput(
+                name="metric_name",
+                description="Metric name used to compare latest run against baseline.",
+            ),
+            WorkflowInput(
+                name="metric_direction",
+                description="Whether the comparison metric should be maximized or minimized.",
+            ),
+            WorkflowInput(
+                name="threshold",
+                description="Minimum required improvement threshold for selecting the latest run.",
+            ),
+            WorkflowInput(
+                name="tie_policy",
+                description="Tie policy for exact threshold comparisons.",
+            ),
+            WorkflowInput(
+                name="baseline_metric",
+                description="Baseline metric value for the currently selected artifact.",
+            ),
+            WorkflowInput(
+                name="baseline_artifact_path",
+                description="Current baseline checkpoint or model artifact path.",
+            ),
         ),
         steps=(
             WorkflowStep(
@@ -783,6 +808,16 @@ def _train_and_track_template() -> WorkflowTemplate:
                 order=3,
                 tool_functions=("track_training_in_mlflow",),
                 default_args={"experiment_name": "mlops-training"},
+            ),
+            WorkflowStep(
+                step_id="select_best_model_artifact",
+                name="Select Best Model Artifact",
+                description=(
+                    "Compare the verified latest MLflow run against a baseline and select "
+                    "the deployable checkpoint/model artifact deterministically."
+                ),
+                order=4,
+                tool_functions=("select_best_model_artifact",),
             ),
         ),
         success_contract=SuccessContract(
@@ -871,6 +906,31 @@ def _train_and_track_template() -> WorkflowTemplate:
                     name="mlflow_run_status_recorded",
                     evidence_type="observed",
                     source_step="track_training_in_mlflow",
+                ),
+                SuccessContractCheck(
+                    name="model_selection_inputs_present",
+                    evidence_type="observed",
+                    source_step="select_best_model_artifact",
+                ),
+                SuccessContractCheck(
+                    name="model_selection_baseline_recorded",
+                    evidence_type="observed",
+                    source_step="select_best_model_artifact",
+                ),
+                SuccessContractCheck(
+                    name="model_selection_metric_compared",
+                    evidence_type="observed",
+                    source_step="select_best_model_artifact",
+                ),
+                SuccessContractCheck(
+                    name="model_selection_candidate_artifact_verified",
+                    evidence_type="observed",
+                    source_step="select_best_model_artifact",
+                ),
+                SuccessContractCheck(
+                    name="model_artifact_selected",
+                    evidence_type="observed",
+                    source_step="select_best_model_artifact",
                 ),
             ),
         ),
