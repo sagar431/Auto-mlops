@@ -902,6 +902,7 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
                 name="Record Container CI Evidence Handoff",
                 description="Write durable container CI evidence for orchestrator handoff.",
                 order=7,
+                tool_functions=("record_capstone_container_ci_evidence_handoff",),
             ),
         ),
         success_contract=SuccessContract(
@@ -1459,6 +1460,7 @@ def _build_capstone_pipeline_template() -> WorkflowTemplate:
                         "setup",
                         "data",
                         "train",
+                        "container_ci",
                         "deploy",
                         "monitor",
                         "report",
@@ -1468,6 +1470,7 @@ def _build_capstone_pipeline_template() -> WorkflowTemplate:
                         "prepare_capstone_data",
                         "detect_training_project",
                         "train_and_track",
+                        "prepare_capstone_container_ci",
                         "deploy_litserve_preflight",
                         "deploy_litserve_gpu",
                     ),

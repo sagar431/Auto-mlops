@@ -195,6 +195,7 @@ AVAILABLE_TOOLS = [
     "build_smoke_check_capstone_container_image",
     "configure_validate_capstone_registry_target",
     "approval_gated_capstone_registry_login_push",
+    "record_capstone_container_ci_evidence_handoff",
     "run_bounded_training",
     "track_training_in_mlflow",
     "record_capstone_orchestrator_skeleton",

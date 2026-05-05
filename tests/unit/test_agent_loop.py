@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import yaml
 
 import mcp_mlops_tools
 from agent.agent_loop import (
@@ -1374,6 +1375,7 @@ def test_record_capstone_orchestrator_skeleton_records_deferred_capabilities(tmp
         "setup",
         "data",
         "train",
+        "container_ci",
         "deploy",
         "monitor",
         "report",
@@ -1383,6 +1385,7 @@ def test_record_capstone_orchestrator_skeleton_records_deferred_capabilities(tmp
         "setup_pipeline",
         "detect_training_project",
         "train_and_track",
+        "prepare_capstone_container_ci",
         "deploy_litserve_preflight",
         "deploy_litserve_gpu",
     }.issubset({item["workflow_id"] for item in result["implemented_subworkflows"]})
@@ -1398,6 +1401,7 @@ def test_record_capstone_orchestrator_skeleton_records_deferred_capabilities(tmp
         "final report",
         "video",
     }.issubset(deferred_names)
+    assert result["container_ci_stage"]["stage_status"] == "deferred"
     assert result["selected_model_artifact"] == {
         "path": "models/model.pt",
         "state": "available",
@@ -1419,6 +1423,107 @@ def test_record_capstone_orchestrator_skeleton_records_deferred_capabilities(tmp
     assert manifest_entry["state"] == "generated"
     assert manifest_entry["path"] == ".auto_mlops/capstone/orchestrator_plan.json"
     assert (tmp_path / manifest_entry["path"]).exists()
+
+
+def test_record_capstone_orchestrator_blocks_missing_container_ci_when_upstream_ready(tmp_path):
+    _write_capstone_data_stage_evidence(tmp_path)
+
+    result = mcp_mlops_tools.record_capstone_orchestrator_skeleton(
+        project_path=str(tmp_path),
+        selected_model_artifact_path="models/model.pt",
+    )
+
+    assert result["container_ci_stage"]["stage_status"] == "blocked"
+    assert result["container_ci_stage"]["evidence_artifact"] == (
+        ".auto_mlops/capstone/container_ci_evidence.json"
+    )
+    assert any(
+        item["capability"] == "container_ci_evidence_artifact_reported"
+        for item in result["blocked_stages"]
+    )
+    assert "container_ci" not in result["completed_stages"]
+
+
+def test_record_capstone_orchestrator_references_completed_container_ci_handoff(tmp_path):
+    _write_capstone_data_stage_evidence(tmp_path)
+    evidence_dir = tmp_path / ".auto_mlops" / "capstone"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    evidence_path = evidence_dir / "container_ci_evidence.json"
+    evidence_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "phase5.container_ci_evidence.v1",
+                "workflow_id": "prepare_capstone_container_ci",
+                "status": "succeeded",
+                "completion_mode": "container_local_ready",
+                "verification_results": [
+                    {"check_name": "container_ci_evidence_artifact_reported", "passed": True},
+                    {"check_name": "capstone_ci_workflow_validated", "passed": True},
+                ],
+                "artifact_manifest": {
+                    "entries": [
+                        {
+                            "artifact_type": "container_ci_evidence",
+                            "producing_step": "record_container_ci_evidence_handoff",
+                            "state": "generated",
+                            "path": ".auto_mlops/capstone/container_ci_evidence.json",
+                        },
+                        {
+                            "artifact_type": "github_actions_workflow",
+                            "producing_step": "record_container_ci_evidence_handoff",
+                            "state": "generated",
+                            "path": ".github/workflows/capstone-ci.yml",
+                        },
+                        {
+                            "artifact_type": "container_build_spec",
+                            "producing_step": "generate_validate_runtime_image_spec",
+                            "state": "validated",
+                            "path": "Dockerfile",
+                        },
+                    ]
+                },
+                "next_phase_readiness": {
+                    "image": {"reference": "ghcr.io/octo-org/capstone-runtime:local"},
+                    "registry_push_status": "deferred",
+                    "ci_validation_status": "validated",
+                    "deferred_capabilities": [
+                        "kserve_deployment",
+                        "helm_packaging",
+                        "argocd_gitops",
+                        "eks_provisioning",
+                    ],
+                },
+                "blocked_capabilities": [],
+                "deferred_capabilities": [],
+            },
+            sort_keys=True,
+        )
+    )
+
+    result = mcp_mlops_tools.record_capstone_orchestrator_skeleton(
+        project_path=str(tmp_path),
+        selected_model_artifact_path="models/model.pt",
+    )
+    manifest_keys = {
+        (entry["artifact_type"], entry.get("path") or entry.get("uri"))
+        for entry in result["artifact_manifest"]["entries"]
+    }
+
+    assert result["container_ci_stage"]["stage_status"] == "completed"
+    assert result["container_ci_stage"]["completion_mode"] == "container_local_ready"
+    assert "container_ci" in result["completed_stages"]
+    assert (
+        "container_ci_evidence",
+        ".auto_mlops/capstone/container_ci_evidence.json",
+    ) in manifest_keys
+    assert "kserve_deployment" in result["container_ci_stage"]["next_phase_readiness"][
+        "deferred_capabilities"
+    ]
+    assert not any(
+        item.get("capability") in {"kserve_deployment", "helm_packaging", "argocd_gitops"}
+        and item.get("status") == "completed"
+        for item in result["deferred_capabilities"]
+    )
 
 
 def test_record_capstone_data_stage_evidence_writes_durable_redacted_artifact(tmp_path):
@@ -1836,6 +1941,126 @@ def _evidence_by_check(result: dict, check_name: str) -> dict:
         if item["check_name"] == check_name
     )
     return json.loads(raw_evidence)
+
+
+def _approved_container_ci_handoff_record() -> dict:
+    return {
+        "workflow_run_id": "test-run",
+        "step_id": "record_container_ci_evidence_handoff",
+        "risk_categories": ["writes_project_files"],
+        "status": "approved",
+        "approver": "pytest",
+        "timestamp": "2026-05-05T00:00:00Z",
+    }
+
+
+def test_record_container_ci_evidence_handoff_writes_durable_artifact_and_ci_workflow(
+    tmp_path, monkeypatch
+):
+    model_path = tmp_path / "models" / "best.pt"
+    model_path.parent.mkdir()
+    model_path.write_text("model")
+    (tmp_path / "Dockerfile").write_text("FROM python:3.11-slim\n")
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "config").write_text(
+        "[remote \"origin\"]\n\turl = https://github.com/octo-org/capstone-model.git\n"
+    )
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda name: None)
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_detect_container_registry_auth_capability",
+        lambda provider: {"available": False, "source": None, "checked": []},
+    )
+    workflow_inputs = {
+        "completion_mode": "container_local_ready",
+        "local_model_artifact_path": "models/best.pt",
+    }
+    upstream = mcp_mlops_tools.resolve_capstone_container_upstream_evidence(
+        project_path=str(tmp_path), workflow_inputs=workflow_inputs
+    )
+    image_spec = mcp_mlops_tools.generate_validate_capstone_runtime_image_spec(
+        project_path=str(tmp_path), workflow_inputs=workflow_inputs
+    )
+    build = mcp_mlops_tools.build_smoke_check_capstone_container_image(
+        project_path=str(tmp_path),
+        workflow_inputs=workflow_inputs,
+        capstone_runtime_image_spec_result=image_spec,
+    )
+    registry = mcp_mlops_tools.configure_validate_capstone_registry_target(
+        project_path=str(tmp_path),
+        workflow_inputs=workflow_inputs,
+        capstone_container_build_result=build,
+    )
+    registry_push = mcp_mlops_tools.approval_gated_capstone_registry_login_push(
+        project_path=str(tmp_path),
+        workflow_inputs=workflow_inputs,
+        capstone_registry_target_result=registry,
+        capstone_container_build_result=build,
+    )
+
+    result = mcp_mlops_tools.record_capstone_container_ci_evidence_handoff(
+        project_path=str(tmp_path),
+        workflow_inputs=workflow_inputs,
+        capstone_container_upstream_evidence=upstream,
+        capstone_runtime_image_spec_result=image_spec,
+        capstone_container_build_result=build,
+        capstone_registry_target_result=registry,
+        capstone_registry_push_result=registry_push,
+        approval_record=_approved_container_ci_handoff_record(),
+    )
+
+    evidence_path = tmp_path / ".auto_mlops" / "capstone" / "container_ci_evidence.json"
+    workflow_path = tmp_path / ".github" / "workflows" / "capstone-ci.yml"
+    evidence = json.loads(evidence_path.read_text())
+    workflow = yaml.safe_load(workflow_path.read_text())
+    manifest_keys = {
+        (entry["artifact_type"], entry.get("path") or entry.get("uri"))
+        for entry in evidence["artifact_manifest"]["entries"]
+    }
+    verification_by_name = {
+        item["check_name"]: item for item in evidence["verification_results"]
+    }
+    serialized = json.dumps(evidence, sort_keys=True) + workflow_path.read_text()
+
+    assert result["status"] == "succeeded"
+    assert evidence["schema_version"] == "phase5.container_ci_evidence.v1"
+    assert evidence["workflow_id"] == "prepare_capstone_container_ci"
+    assert evidence["completion_mode"] == "container_local_ready"
+    assert evidence["approval_records"][0]["step_id"] == "record_container_ci_evidence_handoff"
+    assert workflow["jobs"]["capstone-ci"]["steps"]
+    assert ("container_ci_evidence", ".auto_mlops/capstone/container_ci_evidence.json") in manifest_keys
+    assert ("container_build_spec", "Dockerfile") in manifest_keys
+    assert ("github_actions_workflow", ".github/workflows/capstone-ci.yml") in manifest_keys
+    assert ("container_image_reference", "registry://ghcr.io/octo-org/capstone-runtime:local") in manifest_keys
+    assert ("model_artifact", "models/best.pt") in manifest_keys
+    assert verification_by_name["container_ci_evidence_artifact_reported"]["passed"] is True
+    assert verification_by_name["capstone_ci_workflow_reported"]["passed"] is True
+    assert verification_by_name["capstone_ci_workflow_validated"]["passed"] is True
+    assert verification_by_name["secret_safety_validated"]["passed"] is True
+    assert evidence["ci"]["remote_run"]["status"] in {"blocked", "deferred"}
+    assert evidence["next_phase_readiness"]["deferred_capabilities"] == [
+        "kserve_deployment",
+        "helm_packaging",
+        "argocd_gitops",
+        "eks_provisioning",
+    ]
+    assert "kubernetes_manifest" not in manifest_keys
+    assert "ghp_" not in serialized
+    assert "password:" not in serialized
+
+
+def test_record_container_ci_evidence_handoff_blocks_without_write_approval(tmp_path):
+    result = mcp_mlops_tools.record_capstone_container_ci_evidence_handoff(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_local_ready"},
+        approval_record=None,
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blocked_capabilities"][0]["capability"] == "capstone_ci_workflow_write_approved"
+    assert not (tmp_path / ".github" / "workflows" / "capstone-ci.yml").exists()
+    assert not (tmp_path / ".auto_mlops" / "capstone" / "container_ci_evidence.json").exists()
 
 
 def test_generate_validate_capstone_runtime_image_spec_detects_dependency_priority(
@@ -3978,9 +4203,11 @@ class TestAgentLoopRun:
             "generate_validate_runtime_image_spec",
             "build_smoke_check_container_image",
             "configure_validate_registry_target",
+            "approval_gated_registry_login_push",
         ]
         assert mock_agent.status == "paused"
-        assert "contract_status: blocked" in result
+        assert "Approval required before executing workflow step" in result
+        assert "record_container_ci_evidence_handoff" in result
         assert "upstream_evidence_resolved:observed:passed" in result
         assert "local_model_artifact_resolved:observed:passed" in result
         assert "container_build_spec_reported:declared:failed" in result
@@ -4006,7 +4233,6 @@ class TestAgentLoopRun:
             ][0]["capability"]
             == "container_build_spec_reported"
         )
-        assert "container_ci_evidence.json writing is deferred to Phase 5 Issue 7" in result
         assert "build_ml_docker_image" not in [
             step["tool"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
         ]
@@ -4076,6 +4302,71 @@ class TestAgentLoopRun:
             step["tool"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
         ]
         assert not (tmp_path / ".auto_mlops" / "capstone" / "container_ci_evidence.json").exists()
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_prepare_capstone_container_ci_writes_container_ci_handoff_when_approved(
+        self, mock_agent, tmp_path, monkeypatch
+    ):
+        """Test Issue 7 runtime writes durable local container/CI handoff evidence."""
+        mock_agent.auto_approve = True
+        model_path = tmp_path / "models" / "best.pt"
+        model_path.parent.mkdir()
+        model_path.write_text("model")
+        (tmp_path / "Dockerfile").write_text("FROM python:3.11-slim\n")
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+        (git_dir / "config").write_text(
+            "[remote \"origin\"]\n"
+            "\turl = https://github.com/octo-org/capstone-model.git\n"
+        )
+        monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda name: None)
+        monkeypatch.setattr(
+            mcp_mlops_tools,
+            "_detect_container_registry_auth_capability",
+            lambda provider: {"available": False, "source": None, "checked": []},
+        )
+
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("registry container CI prep must skip perception"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+        ):
+            result = await mock_agent.run(
+                "prepare capstone container CI completion_mode=container_local_ready "
+                "local_model_artifact_path=models/best.pt",
+                str(tmp_path),
+            )
+
+        evidence_path = tmp_path / ".auto_mlops" / "capstone" / "container_ci_evidence.json"
+        workflow_path = tmp_path / ".github" / "workflows" / "capstone-ci.yml"
+        evidence = json.loads(evidence_path.read_text())
+        completed_tool_steps = [
+            step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
+        ]
+
+        assert completed_tool_steps == [
+            "prepare_capstone_container_ci_contract",
+            "resolve_upstream_container_evidence",
+            "generate_validate_runtime_image_spec",
+            "build_smoke_check_container_image",
+            "configure_validate_registry_target",
+            "approval_gated_registry_login_push",
+            "record_container_ci_evidence_handoff",
+        ]
+        assert mock_agent.status == "success"
+        assert "contract_status: succeeded" in result
+        assert workflow_path.exists()
+        assert evidence["schema_version"] == "phase5.container_ci_evidence.v1"
+        assert evidence["status"] == "succeeded"
+        assert evidence["ci"]["remote_run"]["status"] == "deferred"
+        assert "kserve_deployment" in evidence["next_phase_readiness"]["deferred_capabilities"]
+        assert "record_container_ci_evidence_handoff:approved:writes_project_files" in result
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
 

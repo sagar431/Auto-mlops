@@ -691,6 +691,52 @@ class ApprovalGatedCapstoneRegistryLoginPushInput(BaseModel):
     )
 
 
+class RecordCapstoneContainerCIEvidenceInput(BaseModel):
+    """Write Phase 5 Issue 7 CI workflow and durable container/CI evidence."""
+
+    project_path: str = Field(..., description="Path to the project")
+    workflow_inputs: dict[str, Any] | None = Field(
+        default=None,
+        description="Resolved prepare_capstone_container_ci workflow inputs",
+    )
+    capstone_container_upstream_evidence: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from resolve_capstone_container_upstream_evidence",
+    )
+    capstone_runtime_image_spec_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from generate_validate_capstone_runtime_image_spec",
+    )
+    capstone_container_build_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from build_smoke_check_capstone_container_image",
+    )
+    capstone_registry_target_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from configure_validate_capstone_registry_target",
+    )
+    capstone_registry_push_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from approval_gated_capstone_registry_login_push",
+    )
+    verification_results: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Verification results captured before writing container/CI evidence",
+    )
+    artifact_manifest: dict[str, Any] | None = Field(
+        default=None,
+        description="Artifact manifest captured before writing container/CI evidence",
+    )
+    approval_record: dict[str, Any] | None = Field(
+        default=None,
+        description="Approval record required before writing capstone CI workflow/evidence",
+    )
+    remote_ci_evidence: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional remote GitHub Actions evidence when authenticated inspection is available",
+    )
+
+
 # --- Data Quality Tools ---
 
 
@@ -8421,12 +8467,21 @@ def _model_selection_verification_results(
     ]
 
 
-DEFAULT_CAPSTONE_STAGES = ("setup", "data", "train", "deploy", "monitor", "report")
+DEFAULT_CAPSTONE_STAGES = (
+    "setup",
+    "data",
+    "train",
+    "container_ci",
+    "deploy",
+    "monitor",
+    "report",
+)
 DEFAULT_CAPSTONE_IMPLEMENTED_SUBWORKFLOWS = (
     "setup_pipeline",
     "prepare_capstone_data",
     "detect_training_project",
     "train_and_track",
+    "prepare_capstone_container_ci",
     "deploy_litserve_preflight",
     "deploy_litserve_gpu",
 )
@@ -8921,6 +8976,150 @@ def _load_capstone_data_stage_evidence(project_path: Path) -> dict[str, Any]:
             },
         },
     }
+
+
+def _load_capstone_container_ci_evidence(
+    project_path: Path,
+    *,
+    upstream_ready: bool,
+) -> dict[str, Any]:
+    evidence_path = project_path / CONTAINER_CI_EVIDENCE_PATH
+    missing_capability = {
+        "stage": "container_ci",
+        "capability": "container_ci_evidence_artifact_reported",
+        "reason": "Run prepare_capstone_container_ci to produce durable container/CI evidence.",
+        "later_phase_pointer": "Phase 5 prepare_capstone_container_ci Issue 7",
+    }
+    if not evidence_path.exists():
+        if upstream_ready:
+            return {
+                "status": "missing",
+                "stage_status": "blocked",
+                "completed": False,
+                "evidence_artifact": CONTAINER_CI_EVIDENCE_PATH,
+                "blocked_capabilities": [missing_capability],
+                "deferred_capabilities": [],
+                "artifact_entry": None,
+            }
+        return {
+            "status": "missing",
+            "stage_status": "deferred",
+            "completed": False,
+            "evidence_artifact": CONTAINER_CI_EVIDENCE_PATH,
+            "blocked_capabilities": [],
+            "deferred_capabilities": [
+                {
+                    **missing_capability,
+                    "reason": (
+                        "Container/CI evidence is deferred until data and selected model "
+                        "artifact evidence are ready."
+                    ),
+                }
+            ],
+            "artifact_entry": None,
+        }
+    try:
+        evidence = json.loads(evidence_path.read_text())
+    except json.JSONDecodeError:
+        return {
+            "status": "blocked",
+            "stage_status": "blocked",
+            "completed": False,
+            "evidence_artifact": CONTAINER_CI_EVIDENCE_PATH,
+            "blocked_capabilities": [
+                {
+                    "stage": "container_ci",
+                    "capability": "container_ci_evidence_parseable",
+                    "reason": "Container/CI evidence artifact exists but is not valid JSON.",
+                    "later_phase_pointer": "Phase 5 container/CI evidence rerun",
+                }
+            ],
+            "deferred_capabilities": [],
+            "artifact_entry": None,
+        }
+
+    schema_ok = (
+        evidence.get("schema_version") == "phase5.container_ci_evidence.v1"
+        and evidence.get("workflow_id") == "prepare_capstone_container_ci"
+        and isinstance(evidence.get("artifact_manifest"), dict)
+        and isinstance(evidence.get("verification_results"), list)
+    )
+    checks_ok = _container_ci_handoff_checks_passed(evidence)
+    status = evidence.get("status", "blocked")
+    completion_mode = evidence.get("completion_mode")
+    completed = schema_ok and status == "succeeded" and checks_ok
+    blocked_capabilities = evidence.get("blocked_capabilities", [])
+    deferred_capabilities = evidence.get("deferred_capabilities", [])
+    if not isinstance(blocked_capabilities, list):
+        blocked_capabilities = []
+    if not isinstance(deferred_capabilities, list):
+        deferred_capabilities = []
+    if not completed:
+        blocked_capabilities = [
+            *blocked_capabilities,
+            {
+                "stage": "container_ci",
+                "capability": "container_ci_success_contract_satisfied",
+                "reason": (
+                    "Container/CI evidence exists but required structured verification "
+                    "or artifact manifest evidence is incomplete."
+                ),
+                "later_phase_pointer": "Phase 5 prepare_capstone_container_ci rerun",
+            },
+        ]
+    return {
+        "status": "completed" if completed else "blocked",
+        "raw_status": status,
+        "stage_status": "completed" if completed else "blocked",
+        "completed": completed,
+        "completion_mode": completion_mode,
+        "evidence_artifact": CONTAINER_CI_EVIDENCE_PATH,
+        "next_phase_readiness": evidence.get("next_phase_readiness", {}),
+        "blocked_capabilities": blocked_capabilities,
+        "deferred_capabilities": deferred_capabilities,
+        "artifact_entry": {
+            "artifact_type": "container_ci_evidence",
+            "producing_step": "record_capstone_orchestrator_skeleton",
+            "state": "validated" if completed else "blocked",
+            "path": CONTAINER_CI_EVIDENCE_PATH,
+            "checksum": _sha256_file(evidence_path),
+            "metadata": {
+                "source_workflow_id": "prepare_capstone_container_ci",
+                "container_ci_status": status,
+                "completion_mode": completion_mode,
+            },
+        },
+    }
+
+
+def _container_ci_handoff_checks_passed(evidence: dict[str, Any]) -> bool:
+    results = evidence.get("verification_results", [])
+    if not isinstance(results, list):
+        return False
+    checks = {
+        result.get("check_name"): result.get("passed")
+        for result in results
+        if isinstance(result, dict)
+    }
+    entries = evidence.get("artifact_manifest", {}).get("entries", [])
+    if not isinstance(entries, list):
+        return False
+    artifact_types = {entry.get("artifact_type") for entry in entries if isinstance(entry, dict)}
+    common = (
+        checks.get("container_ci_evidence_artifact_reported") is True
+        and checks.get("capstone_ci_workflow_validated") is True
+        and {"container_ci_evidence", "github_actions_workflow", "container_build_spec"}.issubset(
+            artifact_types
+        )
+    )
+    if evidence.get("completion_mode") != "container_capstone_complete":
+        return common
+    capstone_checks = (
+        "registry_push_succeeded",
+        "pushed_image_reference_reported",
+        "capstone_ci_registry_usage_validated",
+    )
+    return common and all(checks.get(check) is True for check in capstone_checks)
 
 
 def prepare_capstone_container_ci_contract(
@@ -11291,6 +11490,781 @@ def _container_registry_push_result(
     }
 
 
+CONTAINER_CI_RECORD_STEP = "record_container_ci_evidence_handoff"
+CONTAINER_CI_EVIDENCE_PATH = ".auto_mlops/capstone/container_ci_evidence.json"
+CAPSTONE_CI_WORKFLOW_PATH = ".github/workflows/capstone-ci.yml"
+PHASE6_DEFERRED_CAPABILITIES = (
+    "kserve_deployment",
+    "helm_packaging",
+    "argocd_gitops",
+    "eks_provisioning",
+)
+
+
+def record_capstone_container_ci_evidence_handoff(
+    project_path: str,
+    workflow_inputs: dict[str, Any] | None = None,
+    capstone_container_upstream_evidence: dict[str, Any] | None = None,
+    capstone_runtime_image_spec_result: dict[str, Any] | None = None,
+    capstone_container_build_result: dict[str, Any] | None = None,
+    capstone_registry_target_result: dict[str, Any] | None = None,
+    capstone_registry_push_result: dict[str, Any] | None = None,
+    verification_results: list[dict[str, Any]] | None = None,
+    artifact_manifest: dict[str, Any] | None = None,
+    approval_record: dict[str, Any] | None = None,
+    remote_ci_evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Write Phase 5 Capstone CI Evidence and durable container/CI handoff."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+    if not _container_ci_write_approved(approval_record):
+        blocked = [
+            {
+                "capability": "capstone_ci_workflow_write_approved",
+                "reason": "Writing capstone CI workflow and evidence requires an Approval Gate.",
+                "required_risk_categories": ["writes_project_files"],
+                "next_action": (
+                    "Record approval for record_container_ci_evidence_handoff before "
+                    "writing .github/workflows/capstone-ci.yml."
+                ),
+            }
+        ]
+        return {
+            "success": True,
+            "status": "blocked",
+            "workflow_id": "prepare_capstone_container_ci",
+            "completion_mode": (workflow_inputs or {}).get(
+                "completion_mode",
+                "container_local_ready",
+            ),
+            "blocked_capabilities": blocked,
+            "deferred_capabilities": [],
+            "verification_results": [
+                _container_ci_verification_result(
+                    "capstone_ci_workflow_reported",
+                    False,
+                    {"reason": "missing_writes_project_files_approval"},
+                    evidence_type="declared",
+                ),
+                _container_ci_verification_result(
+                    "container_ci_evidence_artifact_reported",
+                    False,
+                    {"reason": "missing_writes_project_files_approval"},
+                ),
+            ],
+            "artifact_manifest": {"entries": []},
+            "next_actions": [blocked[0]["next_action"]],
+        }
+
+    inputs = workflow_inputs or {}
+    completion_mode = inputs.get("completion_mode", "container_local_ready")
+    existing_results = list(verification_results or [])
+    existing_entries = _artifact_entries_from_manifest_payload(artifact_manifest)
+    step_results = [
+        capstone_container_upstream_evidence,
+        capstone_runtime_image_spec_result,
+        capstone_container_build_result,
+        capstone_registry_target_result,
+        capstone_registry_push_result,
+    ]
+    for step_result in step_results:
+        existing_results.extend(_verification_results_from_tool_payload(step_result))
+        existing_entries.extend(_artifact_entries_from_manifest_payload(_manifest_from_result(step_result)))
+
+    workflow_path = path / CAPSTONE_CI_WORKFLOW_PATH
+    workflow_text = _generate_capstone_ci_workflow_yaml(
+        completion_mode=completion_mode,
+        registry_result=capstone_registry_target_result,
+        registry_push_result=capstone_registry_push_result,
+    )
+    workflow_path.parent.mkdir(parents=True, exist_ok=True)
+    workflow_path.write_text(workflow_text)
+
+    ci_validation = _validate_capstone_ci_workflow(workflow_text, completion_mode)
+    remote_run = _container_ci_remote_run_evidence(remote_ci_evidence)
+    if remote_run["status"] != "succeeded":
+        remote_deferred = [
+            {
+                "capability": "remote_github_actions_run_evidence",
+                "reason": "Remote GitHub Actions run evidence is unavailable in Phase 5.",
+                "next_action": (
+                    "Inspect GitHub Actions after pushing the generated workflow, if remote "
+                    "CI evidence is required."
+                ),
+            }
+        ]
+    else:
+        remote_deferred = []
+
+    container = _container_ci_container_section(
+        capstone_runtime_image_spec_result,
+        capstone_container_build_result,
+    )
+    registry = _container_ci_registry_section(
+        capstone_registry_target_result,
+        capstone_registry_push_result,
+    )
+    upstream = _container_ci_upstream_section(capstone_container_upstream_evidence)
+    ci = {
+        "workflow_path": CAPSTONE_CI_WORKFLOW_PATH,
+        "workflow_generated": True,
+        "yaml_parse": ci_validation["yaml_parse"],
+        "bounded_repo_local_commands": ci_validation["bounded_repo_local_commands"],
+        "required_checks": ci_validation["required_checks"],
+        "registry_usage": ci_validation["registry_usage"],
+        "remote_run": remote_run,
+        "act_simulation": {"status": "deferred", "reason": "act simulation is not required."},
+    }
+
+    artifact_entries = _dedupe_artifact_entries(
+        [
+            *existing_entries,
+            {
+                "artifact_type": "github_actions_workflow",
+                "producing_step": CONTAINER_CI_RECORD_STEP,
+                "state": "generated",
+                "path": CAPSTONE_CI_WORKFLOW_PATH,
+                "checksum": _sha256_file(workflow_path),
+                "metadata": {"workflow_name": "Capstone CI"},
+            },
+            *_container_ci_image_artifact_entries(registry, container),
+            {
+                "artifact_type": "container_ci_evidence",
+                "producing_step": CONTAINER_CI_RECORD_STEP,
+                "state": "generated",
+                "path": CONTAINER_CI_EVIDENCE_PATH,
+                "metadata": {
+                    "schema_version": "phase5.container_ci_evidence.v1",
+                    "completion_mode": completion_mode,
+                },
+            },
+        ]
+    )
+    handoff_results = [
+        _container_ci_verification_result(
+            "container_ci_evidence_artifact_reported",
+            True,
+            {"path": CONTAINER_CI_EVIDENCE_PATH},
+        ),
+        _container_ci_verification_result(
+            "container_artifact_manifest_reported",
+            bool(artifact_entries),
+            {"artifact_count": len(artifact_entries)},
+        ),
+        _container_ci_verification_result(
+            "capstone_ci_workflow_reported",
+            True,
+            {"path": CAPSTONE_CI_WORKFLOW_PATH},
+            evidence_type="declared",
+        ),
+        _container_ci_verification_result(
+            "capstone_ci_workflow_validated",
+            ci_validation["passed"],
+            ci_validation,
+        ),
+        _container_ci_verification_result(
+            "secret_safety_validated",
+            ci_validation["secret_safety"]["passed"],
+            ci_validation["secret_safety"],
+        ),
+    ]
+    if completion_mode == "container_capstone_complete":
+        handoff_results.append(
+            _container_ci_verification_result(
+                "capstone_ci_registry_usage_validated",
+                ci_validation["registry_usage"]["secret_backed"],
+                ci_validation["registry_usage"],
+            )
+        )
+
+    all_results = [*existing_results, *handoff_results]
+    blocked_capabilities = _dedupe_capabilities(
+        [
+            *_capabilities_from_result(capstone_container_upstream_evidence, "blocked_capabilities"),
+            *_capabilities_from_result(capstone_runtime_image_spec_result, "blocked_capabilities"),
+            *_capabilities_from_result(capstone_container_build_result, "blocked_capabilities"),
+            *_capabilities_from_result(capstone_registry_target_result, "blocked_capabilities"),
+            *_capabilities_from_result(capstone_registry_push_result, "blocked_capabilities"),
+        ]
+    )
+    deferred_capabilities = _dedupe_capabilities(
+        [
+            *_capabilities_from_result(capstone_container_upstream_evidence, "deferred_capabilities"),
+            *_capabilities_from_result(capstone_runtime_image_spec_result, "deferred_capabilities"),
+            *_capabilities_from_result(capstone_container_build_result, "deferred_capabilities"),
+            *_capabilities_from_result(capstone_registry_target_result, "deferred_capabilities"),
+            *_capabilities_from_result(capstone_registry_push_result, "deferred_capabilities"),
+            *remote_deferred,
+        ]
+    )
+    next_phase_readiness = _container_ci_next_phase_readiness(
+        completion_mode=completion_mode,
+        registry=registry,
+        container=container,
+        ci=ci,
+        blocked_capabilities=blocked_capabilities,
+        deferred_capabilities=deferred_capabilities,
+    )
+    status = _container_ci_status_from_evidence(
+        completion_mode=completion_mode,
+        verification_results=all_results,
+        artifact_entries=artifact_entries,
+    )
+
+    evidence_path = path / CONTAINER_CI_EVIDENCE_PATH
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    evidence = {
+        "schema_version": "phase5.container_ci_evidence.v1",
+        "created_at": _utc_now_iso(),
+        "workflow_id": "prepare_capstone_container_ci",
+        "status": status,
+        "completion_mode": completion_mode,
+        "upstream_evidence": upstream,
+        "container": container,
+        "registry": registry,
+        "ci": ci,
+        "approval_records": [_container_ci_approval_record(approval_record)],
+        "blocked_capabilities": blocked_capabilities,
+        "deferred_capabilities": deferred_capabilities,
+        "verification_results": all_results,
+        "artifact_manifest": {"entries": artifact_entries},
+        "next_phase_readiness": next_phase_readiness,
+    }
+    redacted = _redacted_evidence(evidence)
+    evidence_path.write_text(json.dumps(redacted, indent=2, sort_keys=True) + "\n")
+
+    return {
+        "success": True,
+        "status": status,
+        "workflow_id": "prepare_capstone_container_ci",
+        "completion_mode": completion_mode,
+        "evidence_path": CONTAINER_CI_EVIDENCE_PATH,
+        "container_ci_evidence": redacted,
+        "upstream_evidence": upstream,
+        "container": container,
+        "registry": registry,
+        "ci": ci,
+        "approval_records": [_container_ci_approval_record(approval_record)],
+        "blocked_capabilities": blocked_capabilities,
+        "deferred_capabilities": deferred_capabilities,
+        "next_phase_readiness": next_phase_readiness,
+        "verification_results": handoff_results,
+        "artifact_manifest": {
+            "entries": [
+                entry for entry in artifact_entries if entry.get("producing_step") == CONTAINER_CI_RECORD_STEP
+            ]
+        },
+        "next_actions": next_phase_readiness["missing_blockers"],
+    }
+
+
+def _container_ci_write_approved(approval_record: dict[str, Any] | None) -> bool:
+    return bool(
+        isinstance(approval_record, dict)
+        and approval_record.get("step_id") == CONTAINER_CI_RECORD_STEP
+        and approval_record.get("status") == "approved"
+        and approval_record.get("risk_categories") == ["writes_project_files"]
+    )
+
+
+def _manifest_from_result(result: dict[str, Any] | None) -> dict[str, Any] | None:
+    return result.get("artifact_manifest") if isinstance(result, dict) else None
+
+
+def _verification_results_from_tool_payload(
+    result: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    if not isinstance(result, dict):
+        return []
+    raw_results = result.get("verification_results", [])
+    if isinstance(raw_results, dict):
+        raw_results = [raw_results]
+    return [item for item in raw_results if isinstance(item, dict)]
+
+
+def _generate_capstone_ci_workflow_yaml(
+    *,
+    completion_mode: str,
+    registry_result: dict[str, Any] | None,
+    registry_push_result: dict[str, Any] | None,
+) -> str:
+    image_reference = _container_ci_image_reference(registry_result, registry_push_result)
+    push_enabled = "true" if completion_mode == "container_capstone_complete" else "false"
+    return (
+        "name: Capstone CI\n"
+        "\n"
+        "on:\n"
+        "  workflow_dispatch:\n"
+        "  pull_request:\n"
+        "    branches: [main]\n"
+        "\n"
+        "permissions:\n"
+        "  contents: read\n"
+        "  packages: write\n"
+        "\n"
+        "env:\n"
+        "  COMPLETION_MODE: " + str(completion_mode) + "\n"
+        "  IMAGE_REF: " + str(image_reference or "ghcr.io/${{ github.repository }}:capstone") + "\n"
+        "  RUN_IMAGE_BUILD: \"false\"\n"
+        "  PUSH_IMAGE: \"" + push_enabled + "\"\n"
+        "\n"
+        "jobs:\n"
+        "  capstone-ci:\n"
+        "    runs-on: ubuntu-latest\n"
+        "    timeout-minutes: 20\n"
+        "    steps:\n"
+        "      - uses: actions/checkout@v4\n"
+        "      - uses: actions/setup-python@v5\n"
+        "        with:\n"
+        "          python-version: \"3.11\"\n"
+        "      - name: Install bounded dependencies\n"
+        "        run: |\n"
+        "          python -m pip install --upgrade pip\n"
+        "          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; "
+        "elif [ -f pyproject.toml ]; then python -m pip install -e .; fi\n"
+        "      - name: Run selected tests\n"
+        "        run: python -m pytest tests/unit/test_workflow_registry.py "
+        "tests/unit/test_agent_loop.py tests/unit/test_execute_step.py -q\n"
+        "      - name: Validate data-stage evidence\n"
+        "        run: |\n"
+        "          python - <<'PY'\n"
+        "          import json\n"
+        "          from pathlib import Path\n"
+        "          path = Path('.auto_mlops/capstone/data_stage_evidence.json')\n"
+        "          if path.exists():\n"
+        "              data = json.loads(path.read_text())\n"
+        "              assert data.get('schema_version') == 'phase4.data_stage_evidence.v1'\n"
+        "          PY\n"
+        "      - name: Validate training or best artifact evidence\n"
+        "        run: |\n"
+        "          python - <<'PY'\n"
+        "          import json\n"
+        "          from pathlib import Path\n"
+        "          candidates = [\n"
+        "              Path('.auto_mlops/capstone/training_evidence.json'),\n"
+        "              Path('.auto_mlops/capstone/training_mlflow_evidence.json'),\n"
+        "              Path('outputs/model_selection_result.json'),\n"
+        "          ]\n"
+        "          for candidate in candidates:\n"
+        "              if candidate.exists():\n"
+        "                  json.loads(candidate.read_text())\n"
+        "                  break\n"
+        "          PY\n"
+        "      - name: Optional image build\n"
+        "        if: env.RUN_IMAGE_BUILD == 'true'\n"
+        "        run: docker build --pull=false -t \"$IMAGE_REF\" .\n"
+        "      - name: Optional registry login\n"
+        "        if: env.PUSH_IMAGE == 'true'\n"
+        "        run: echo \"${{ secrets.GITHUB_TOKEN }}\" | docker login ghcr.io "
+        "-u \"${{ github.actor }}\" --password-stdin\n"
+        "      - name: Optional registry push\n"
+        "        if: env.PUSH_IMAGE == 'true'\n"
+        "        run: docker push \"$IMAGE_REF\"\n"
+    )
+
+
+def _container_ci_image_reference(
+    registry_result: dict[str, Any] | None,
+    registry_push_result: dict[str, Any] | None,
+) -> str | None:
+    for result in (registry_push_result, registry_result):
+        if not isinstance(result, dict):
+            continue
+        registry = result.get("registry")
+        if not isinstance(registry, dict):
+            continue
+        reference = registry.get("pushed_image_reference") or registry.get(
+            "redacted_image_reference"
+        )
+        if isinstance(reference, str) and reference:
+            return reference
+    return None
+
+
+def _validate_capstone_ci_workflow(workflow_text: str, completion_mode: str) -> dict[str, Any]:
+    try:
+        parsed = yaml.safe_load(workflow_text)
+        yaml_ok = isinstance(parsed, dict) and "jobs" in parsed
+        yaml_error = None
+    except yaml.YAMLError as exc:
+        parsed = {}
+        yaml_ok = False
+        yaml_error = str(exc)
+    commands = _capstone_ci_run_commands(parsed if isinstance(parsed, dict) else {})
+    bounded = _capstone_ci_bounded_commands(commands)
+    required_checks = {
+        "tests": any("pytest" in command for command in commands),
+        "data_stage_evidence_validation": any(
+            "data_stage_evidence.json" in command for command in commands
+        ),
+        "training_or_best_artifact_validation": any(
+            "training_evidence" in command or "model_selection_result" in command
+            for command in commands
+        ),
+        "optional_image_build": any("docker build" in command for command in commands),
+        "full_training_deferred": not any(
+            forbidden in command.casefold()
+            for command in commands
+            for forbidden in ("max_epochs", "hpo", "learning-rate finder", "dvc repro train")
+        ),
+    }
+    registry_usage = _capstone_ci_registry_usage(workflow_text, completion_mode)
+    secret_safety = _capstone_ci_secret_safety(workflow_text)
+    return {
+        "passed": yaml_ok
+        and bounded["passed"]
+        and all(required_checks.values())
+        and secret_safety["passed"]
+        and (completion_mode != "container_capstone_complete" or registry_usage["secret_backed"]),
+        "yaml_parse": {"passed": yaml_ok, "error": yaml_error},
+        "bounded_repo_local_commands": bounded,
+        "required_checks": required_checks,
+        "registry_usage": registry_usage,
+        "secret_safety": secret_safety,
+    }
+
+
+def _capstone_ci_run_commands(parsed_workflow: dict[str, Any]) -> list[str]:
+    commands: list[str] = []
+    jobs = parsed_workflow.get("jobs", {})
+    if not isinstance(jobs, dict):
+        return commands
+    for job in jobs.values():
+        if not isinstance(job, dict):
+            continue
+        steps = job.get("steps", [])
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if isinstance(step, dict) and isinstance(step.get("run"), str):
+                commands.append(step["run"])
+    return commands
+
+
+def _capstone_ci_bounded_commands(commands: list[str]) -> dict[str, Any]:
+    forbidden_patterns = (
+        r"\bcurl\b",
+        r"\bwget\b",
+        r"\bsudo\b",
+        r"\bkubectl\b",
+        r"\bhelm\b",
+        r"\bargocd\b",
+        r"\beksctl\b",
+        r"\bterraform\b",
+        r"\brm\s+-rf\s+/",
+    )
+    violations = []
+    for command in commands:
+        for pattern in forbidden_patterns:
+            if re.search(pattern, command, flags=re.IGNORECASE):
+                violations.append({"command": command, "rule": pattern})
+    return {
+        "passed": not violations and bool(commands),
+        "command_count": len(commands),
+        "violations": violations,
+        "policy": "Commands must be bounded CI checks against repository files.",
+    }
+
+
+def _capstone_ci_registry_usage(workflow_text: str, completion_mode: str) -> dict[str, Any]:
+    includes_push = "docker push" in workflow_text
+    uses_github_secrets = "secrets.GITHUB_TOKEN" in workflow_text
+    plaintext_credential = bool(
+        re.search(
+            r"(?i)(ghp_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|password\s*[:=]\s*[^\s$])",
+            workflow_text,
+        )
+    )
+    return {
+        "includes_registry_push": includes_push,
+        "uses_github_secrets": uses_github_secrets,
+        "plaintext_credentials_detected": plaintext_credential,
+        "secret_backed": (
+            includes_push
+            and uses_github_secrets
+            and not plaintext_credential
+            and completion_mode == "container_capstone_complete"
+        )
+        or completion_mode != "container_capstone_complete",
+    }
+
+
+def _capstone_ci_secret_safety(workflow_text: str) -> dict[str, Any]:
+    secret_patterns = (
+        r"ghp_[A-Za-z0-9_]+",
+        r"github_pat_[A-Za-z0-9_]+",
+        r"AKIA[0-9A-Z]{16}",
+        r"(?i)(password|token|secret)\s*[:=]\s*(?!\$\{\{\s*secrets\.)[A-Za-z0-9._-]+",
+    )
+    violations = [
+        {"rule": "plaintext_secret", "match": "<redacted-secret>"}
+        for pattern in secret_patterns
+        if re.search(pattern, workflow_text)
+    ]
+    return {
+        "passed": not violations,
+        "checked_fields": ["capstone-ci.yml"],
+        "violations": violations,
+    }
+
+
+def _container_ci_remote_run_evidence(remote_ci_evidence: dict[str, Any] | None) -> dict[str, Any]:
+    if isinstance(remote_ci_evidence, dict) and remote_ci_evidence.get("status"):
+        return _redacted_evidence(remote_ci_evidence)
+    return {
+        "status": "deferred",
+        "required": False,
+        "reason": "Remote GitHub Actions run evidence was not inspected in Phase 5.",
+    }
+
+
+def _container_ci_container_section(
+    image_spec_result: dict[str, Any] | None,
+    build_result: dict[str, Any] | None,
+) -> dict[str, Any]:
+    image_spec_container = (
+        image_spec_result.get("container", {}) if isinstance(image_spec_result, dict) else {}
+    )
+    build_container = build_result.get("container", {}) if isinstance(build_result, dict) else {}
+    return _redacted_evidence(
+        {
+            "runtime_image": image_spec_container.get("runtime_image", {}),
+            "dependency_context": image_spec_container.get("dependency_context", {}),
+            "secret_safety": image_spec_container.get("secret_safety", {}),
+            "build": build_container,
+            "status": build_result.get("status") if isinstance(build_result, dict) else "missing",
+        }
+    )
+
+
+def _container_ci_registry_section(
+    registry_result: dict[str, Any] | None,
+    registry_push_result: dict[str, Any] | None,
+) -> dict[str, Any]:
+    target = registry_result.get("registry", {}) if isinstance(registry_result, dict) else {}
+    push = registry_push_result.get("registry", {}) if isinstance(registry_push_result, dict) else {}
+    return _redacted_evidence(
+        {
+            "target": target,
+            "push": push,
+            "target_status": registry_result.get("status")
+            if isinstance(registry_result, dict)
+            else "missing",
+            "push_status": registry_push_result.get("status")
+            if isinstance(registry_push_result, dict)
+            else "deferred",
+        }
+    )
+
+
+def _container_ci_upstream_section(upstream_result: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(upstream_result, dict):
+        return {"status": "missing", "upstream_evidence": {}}
+    return _redacted_evidence(
+        {
+            "status": upstream_result.get("status"),
+            "upstream_evidence": upstream_result.get("upstream_evidence", {}),
+            "blocked_capabilities": upstream_result.get("blocked_capabilities", []),
+            "deferred_capabilities": upstream_result.get("deferred_capabilities", []),
+        }
+    )
+
+
+def _container_ci_image_artifact_entries(
+    registry: dict[str, Any],
+    container: dict[str, Any],
+) -> list[dict[str, Any]]:
+    entries = []
+    image_reference = registry.get("push", {}).get("pushed_image_reference") or registry.get(
+        "target", {}
+    ).get("redacted_image_reference")
+    digest = registry.get("push", {}).get("digest") or registry.get("target", {}).get("digest")
+    local_image = container.get("build", {}).get("image_build", {}).get("image_id")
+    if image_reference:
+        entries.append(
+            {
+                "artifact_type": "container_image_reference",
+                "producing_step": CONTAINER_CI_RECORD_STEP,
+                "state": "selected",
+                "uri": f"registry://{image_reference}",
+                "checksum": digest,
+                "metadata": {"local_image_id": local_image},
+            }
+        )
+    return entries
+
+
+def _container_ci_verification_result(
+    check_name: str,
+    passed: bool,
+    evidence: dict[str, Any],
+    *,
+    evidence_type: str = "observed",
+) -> dict[str, Any]:
+    return {
+        "check_name": check_name,
+        "evidence_type": evidence_type,
+        "source_step": CONTAINER_CI_RECORD_STEP,
+        "passed": passed,
+        "evidence": json.dumps(_redacted_evidence(evidence), sort_keys=True),
+    }
+
+
+def _capabilities_from_result(
+    result: dict[str, Any] | None,
+    key: str,
+) -> list[dict[str, Any]]:
+    if not isinstance(result, dict):
+        return []
+    capabilities = result.get(key, [])
+    return [item for item in capabilities if isinstance(item, dict)]
+
+
+def _dedupe_capabilities(capabilities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[tuple[Any, Any]] = set()
+    for capability in capabilities:
+        key = (capability.get("stage"), capability.get("capability"))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(capability)
+    return deduped
+
+
+def _container_ci_next_phase_readiness(
+    *,
+    completion_mode: str,
+    registry: dict[str, Any],
+    container: dict[str, Any],
+    ci: dict[str, Any],
+    blocked_capabilities: list[dict[str, Any]],
+    deferred_capabilities: list[dict[str, Any]],
+) -> dict[str, Any]:
+    image_reference = registry.get("push", {}).get("pushed_image_reference") or registry.get(
+        "target", {}
+    ).get("redacted_image_reference")
+    digest = registry.get("push", {}).get("digest") or registry.get("target", {}).get("digest")
+    missing_blockers = [
+        item.get("capability")
+        for item in (*blocked_capabilities, *deferred_capabilities)
+        if item.get("capability")
+    ]
+    return {
+        "completion_mode": completion_mode,
+        "image": {
+            "reference": image_reference,
+            "digest": digest,
+            "local_image_id": container.get("build", {}).get("image_build", {}).get("image_id"),
+            "ready_for_phase6": bool(image_reference or digest),
+        },
+        "registry_push_status": registry.get("push_status"),
+        "ci_validation_status": "validated"
+        if ci.get("yaml_parse", {}).get("passed")
+        else "blocked",
+        "missing_blockers": missing_blockers,
+        "deferred_capabilities": list(PHASE6_DEFERRED_CAPABILITIES),
+        "phase6_claims": {
+            "kserve_deployment_complete": False,
+            "helm_packaging_complete": False,
+            "argocd_gitops_complete": False,
+            "eks_provisioning_complete": False,
+        },
+    }
+
+
+def _container_ci_status_from_evidence(
+    *,
+    completion_mode: str,
+    verification_results: list[dict[str, Any]],
+    artifact_entries: list[dict[str, Any]],
+) -> str:
+    checks = {
+        result.get("check_name"): result.get("passed")
+        for result in verification_results
+        if isinstance(result, dict)
+    }
+    artifact_types = {
+        entry.get("artifact_type") for entry in artifact_entries if isinstance(entry, dict)
+    }
+    common_passed = all(
+        checks.get(check_name) is True
+        for check_name in (
+            "upstream_evidence_resolved",
+            "container_build_spec_reported",
+            "dependency_context_reported",
+            "container_ci_evidence_artifact_reported",
+            "container_artifact_manifest_reported",
+            "capstone_ci_workflow_reported",
+            "capstone_ci_workflow_validated",
+            "secret_safety_validated",
+            "docker_availability_reported",
+        )
+    )
+    has_model = checks.get("local_model_artifact_resolved") is True or checks.get(
+        "mlflow_best_artifact_resolved"
+    ) is True
+    has_evidence_artifacts = {
+        "container_ci_evidence",
+        "github_actions_workflow",
+        "container_build_spec",
+    }.issubset(artifact_types)
+    if completion_mode == "container_local_ready":
+        build_reported = (
+            checks.get("image_build_attempt_reported") is True
+            or checks.get("image_build_deferred_reported") is True
+        )
+        return (
+            "succeeded"
+            if common_passed and has_model and build_reported and has_evidence_artifacts
+            else "blocked"
+        )
+
+    capstone_required = all(
+        checks.get(check_name) is True
+        for check_name in (
+            "data_stage_capstone_complete_verified",
+            "mlflow_best_artifact_verified",
+            "training_lineage_verified",
+            "docker_available",
+            "image_build_succeeded",
+            "container_smoke_check_passed",
+            "registry_target_validated",
+            "registry_auth_capability_verified",
+            "registry_push_approved",
+            "registry_push_succeeded",
+            "pushed_image_reference_reported",
+            "capstone_ci_registry_usage_validated",
+        )
+    )
+    failed_runtime = any(
+        result.get("passed") is False
+        and result.get("check_name")
+        in {"image_build_succeeded", "container_smoke_check_passed"}
+        for result in verification_results
+        if isinstance(result, dict)
+    )
+    if failed_runtime:
+        return "failed"
+    return "succeeded" if common_passed and capstone_required and has_evidence_artifacts else "blocked"
+
+
+def _container_ci_approval_record(approval_record: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(approval_record, dict):
+        return {}
+    return _redacted_evidence(
+        {
+            "workflow_run_id": approval_record.get("workflow_run_id"),
+            "step_id": approval_record.get("step_id"),
+            "risk_categories": approval_record.get("risk_categories", []),
+            "status": approval_record.get("status"),
+            "approver": approval_record.get("approver"),
+            "timestamp": approval_record.get("timestamp"),
+        }
+    )
+
+
 def _resolve_container_data_stage_evidence(
     project_path: Path,
     workflow_inputs: dict[str, Any],
@@ -11796,6 +12770,15 @@ def record_capstone_orchestrator_skeleton(
     implemented = list(implemented_subworkflows or DEFAULT_CAPSTONE_IMPLEMENTED_SUBWORKFLOWS)
     blocked_workflows = list(blocked_subworkflows or DEFAULT_CAPSTONE_BLOCKED_SUBWORKFLOWS)
     data_stage = _load_capstone_data_stage_evidence(path)
+    selected_model_artifact = (
+        {"path": selected_model_artifact_path, "state": "available"}
+        if selected_model_artifact_path
+        else None
+    )
+    container_ci_stage = _load_capstone_container_ci_evidence(
+        path,
+        upstream_ready=bool(data_stage["completed"] and selected_model_artifact),
+    )
     blocked_stages = [
         {
             "stage": "train",
@@ -11809,6 +12792,9 @@ def record_capstone_orchestrator_skeleton(
         for workflow_id in blocked_workflows
     ]
     blocked_stages.extend(data_stage["blocked_capabilities"])
+    blocked_stages.extend(container_ci_stage["blocked_capabilities"])
+    deferred_capabilities = list(DEFAULT_CAPSTONE_DEFERRED_CAPABILITIES)
+    deferred_capabilities.extend(container_ci_stage["deferred_capabilities"])
     implemented_records = [
         {
             "workflow_id": workflow_id,
@@ -11822,6 +12808,8 @@ def record_capstone_orchestrator_skeleton(
             "stage": stage,
             "status": data_stage["stage_status"]
             if stage == "data"
+            else container_ci_stage["stage_status"]
+            if stage == "container_ci"
             else "available"
             if stage in {"setup", "train", "deploy"}
             else "deferred",
@@ -11830,11 +12818,8 @@ def record_capstone_orchestrator_skeleton(
         for stage in declared
     ]
     completed_stages = ["data"] if data_stage["completed"] else []
-    selected_model_artifact = (
-        {"path": selected_model_artifact_path, "state": "available"}
-        if selected_model_artifact_path
-        else None
-    )
+    if container_ci_stage["completed"]:
+        completed_stages.append("container_ci")
     endpoint_evidence = (
         {"endpoint_url": endpoint_url, "state": "available"} if endpoint_url else None
     )
@@ -11863,6 +12848,8 @@ def record_capstone_orchestrator_skeleton(
     artifact_entries = [artifact_entry]
     if data_stage["artifact_entry"] is not None:
         artifact_entries.append(data_stage["artifact_entry"])
+    if container_ci_stage["artifact_entry"] is not None:
+        artifact_entries.append(container_ci_stage["artifact_entry"])
     plan = {
         "workflow_id": "build_capstone_pipeline",
         "name": "Capstone Orchestrator",
@@ -11876,8 +12863,18 @@ def record_capstone_orchestrator_skeleton(
             for key, value in data_stage.items()
             if key not in {"artifact_entry", "blocked_capabilities"}
         },
-        "deferred_capabilities": list(DEFAULT_CAPSTONE_DEFERRED_CAPABILITIES),
-        "deferred_stages": list(DEFAULT_CAPSTONE_DEFERRED_CAPABILITIES),
+        "container_ci_stage": {
+            key: value
+            for key, value in container_ci_stage.items()
+            if key
+            not in {
+                "artifact_entry",
+                "blocked_capabilities",
+                "deferred_capabilities",
+            }
+        },
+        "deferred_capabilities": deferred_capabilities,
+        "deferred_stages": deferred_capabilities,
         "implemented_subworkflows": implemented_records,
         "selected_model_artifact": selected_model_artifact,
         "endpoint_evidence": endpoint_evidence,
@@ -14078,6 +15075,14 @@ async def list_tools() -> list[Tool]:
             inputSchema=ApprovalGatedCapstoneRegistryLoginPushInput.model_json_schema(),
         ),
         Tool(
+            name="record_capstone_container_ci_evidence_handoff",
+            description=(
+                "Generate or validate Phase 5 Capstone CI evidence and write durable "
+                "container_ci_evidence.json for orchestrator handoff"
+            ),
+            inputSchema=RecordCapstoneContainerCIEvidenceInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -14593,6 +15598,26 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 capstone_container_build_result=input_data.capstone_container_build_result,
                 approval_record=input_data.approval_record,
                 push_timeout_seconds=input_data.push_timeout_seconds,
+            )
+
+        elif name == "record_capstone_container_ci_evidence_handoff":
+            input_data = RecordCapstoneContainerCIEvidenceInput(**arguments)
+            result = record_capstone_container_ci_evidence_handoff(
+                project_path=input_data.project_path,
+                workflow_inputs=input_data.workflow_inputs,
+                capstone_container_upstream_evidence=(
+                    input_data.capstone_container_upstream_evidence
+                ),
+                capstone_runtime_image_spec_result=(
+                    input_data.capstone_runtime_image_spec_result
+                ),
+                capstone_container_build_result=input_data.capstone_container_build_result,
+                capstone_registry_target_result=input_data.capstone_registry_target_result,
+                capstone_registry_push_result=input_data.capstone_registry_push_result,
+                verification_results=input_data.verification_results,
+                artifact_manifest=input_data.artifact_manifest,
+                approval_record=input_data.approval_record,
+                remote_ci_evidence=input_data.remote_ci_evidence,
             )
 
         # Docker Tools
