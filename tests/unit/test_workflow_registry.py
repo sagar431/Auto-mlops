@@ -83,11 +83,18 @@ def test_train_and_track_declares_bounded_training_template():
         "max_epochs",
         "device",
         "data_subset",
+        "metric_name",
+        "metric_direction",
+        "threshold",
+        "tie_policy",
+        "baseline_metric",
+        "baseline_artifact_path",
     ]
     assert [step.step_id for step in template.steps] == [
         "detect_training_project",
         "run_bounded_training",
         "track_training_in_mlflow",
+        "select_best_model_artifact",
     ]
     assert template.step_by_id("detect_training_project").tool_functions == (
         "detect_training_project",
@@ -97,6 +104,9 @@ def test_train_and_track_declares_bounded_training_template():
     )
     assert template.step_by_id("track_training_in_mlflow").tool_functions == (
         "track_training_in_mlflow",
+    )
+    assert template.step_by_id("select_best_model_artifact").tool_functions == (
+        "select_best_model_artifact",
     )
     assert [check.name for check in template.success_contract.checks] == [
         "training_project_detected",
@@ -116,6 +126,11 @@ def test_train_and_track_declares_bounded_training_template():
         "mlflow_artifacts_logged",
         "mlflow_checkpoint_artifact_logged",
         "mlflow_run_status_recorded",
+        "model_selection_inputs_present",
+        "model_selection_baseline_recorded",
+        "model_selection_metric_compared",
+        "model_selection_candidate_artifact_verified",
+        "model_artifact_selected",
     ]
     assert all(check.evidence_type == "observed" for check in template.success_contract.checks)
 
@@ -144,6 +159,33 @@ def test_train_and_track_requires_verified_mlflow_run_for_success():
     assert validation.status is WorkflowStatus.BLOCKED
     assert [failure.check_name for failure in validation.missing_evidence] == [
         "mlflow_run_exists"
+    ]
+
+
+def test_train_and_track_requires_selected_model_artifact_for_success():
+    registry = get_workflow_registry()
+    template = registry.get("train_and_track")
+    verification_results = tuple(
+        VerificationResult(
+            check_name=check.name,
+            evidence_type="observed",
+            source_step=check.source_step,
+            passed=True,
+            evidence=f"{check.name}=ok",
+        )
+        for check in template.success_contract.checks
+        if check.name != "model_artifact_selected"
+    )
+
+    validation = registry.validate_success_contract(
+        "train_and_track",
+        verification_results=verification_results,
+        artifact_manifest=ArtifactManifest(entries=()),
+    )
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert [failure.check_name for failure in validation.missing_evidence] == [
+        "model_artifact_selected"
     ]
 
 

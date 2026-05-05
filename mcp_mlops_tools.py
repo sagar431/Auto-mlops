@@ -14,6 +14,7 @@ Version: 1.0.0
 
 import asyncio
 import base64
+import hashlib
 import json
 import os
 import pickle
@@ -734,12 +735,30 @@ class DetectGpuCudaInput(BaseModel):
 
 
 class SelectBestModelArtifactInput(BaseModel):
-    """Select an existing model artifact for LitServe GPU deployment."""
+    """Select a model artifact for deployment or deterministic training comparison."""
 
     project_path: str = Field(..., description="Path to the project")
     model_path: str | None = Field(
         default=None,
         description="Optional model artifact path relative to the project.",
+    )
+    latest_run: dict[str, Any] | None = Field(
+        default=None,
+        description="Latest run metadata with run_id, metrics, and candidate artifact evidence.",
+    )
+    baseline: dict[str, Any] | None = Field(
+        default=None,
+        description="Baseline metadata with metric value and selected artifact evidence.",
+    )
+    metric_name: str | None = Field(default=None, description="Metric used for comparison")
+    metric_direction: str | None = Field(
+        default=None,
+        description="Metric direction: maximize or minimize",
+    )
+    threshold: float | None = Field(default=None, description="Required improvement threshold")
+    tie_policy: str | None = Field(
+        default=None,
+        description="Tie policy: keep_baseline or select_latest",
     )
 
 
@@ -5959,11 +5978,36 @@ def _default_litserve_prediction_payload(project_path: str) -> dict[str, Any]:
 def select_best_model_artifact(
     project_path: str,
     model_path: str | None = None,
+    latest_run: dict[str, Any] | None = None,
+    baseline: dict[str, Any] | None = None,
+    metric_name: str | None = None,
+    metric_direction: str | None = None,
+    threshold: float | None = None,
+    tie_policy: str | None = None,
 ) -> dict[str, Any]:
-    """Select an existing model artifact or preflight artifact for LitServe deployment."""
+    """Select a model artifact for deterministic training comparison or LitServe deployment."""
     path = Path(project_path)
     if not path.exists():
         return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    deterministic_inputs = (
+        latest_run,
+        baseline,
+        metric_name,
+        metric_direction,
+        threshold,
+        tie_policy,
+    )
+    if any(value is not None for value in deterministic_inputs):
+        return _select_model_artifact_from_metric_comparison(
+            project_path=path,
+            latest_run=latest_run,
+            baseline=baseline,
+            metric_name=metric_name,
+            metric_direction=metric_direction,
+            threshold=threshold,
+            tie_policy=tie_policy,
+        )
 
     candidates = []
     if model_path:
@@ -6024,6 +6068,291 @@ def select_best_model_artifact(
         },
         "message": f"Model artifact selected for LitServe GPU deployment: {relative_path}",
     }
+
+
+def _select_model_artifact_from_metric_comparison(
+    *,
+    project_path: Path,
+    latest_run: dict[str, Any] | None,
+    baseline: dict[str, Any] | None,
+    metric_name: str | None,
+    metric_direction: str | None,
+    threshold: float | None,
+    tie_policy: str | None,
+) -> dict[str, Any]:
+    missing_inputs = [
+        name
+        for name, value in (
+            ("latest_run", latest_run),
+            ("baseline", baseline),
+            ("metric_name", metric_name),
+            ("metric_direction", metric_direction),
+            ("threshold", threshold),
+            ("tie_policy", tie_policy),
+        )
+        if value in (None, "")
+    ]
+    if missing_inputs:
+        return _model_selection_blocked_result(
+            missing_inputs=missing_inputs,
+            reason=f"Missing model selection inputs: {', '.join(missing_inputs)}",
+        )
+    if metric_direction not in {"maximize", "minimize"}:
+        return _model_selection_blocked_result(
+            missing_inputs=["metric_direction"],
+            reason="metric_direction must be 'maximize' or 'minimize'.",
+        )
+    if tie_policy not in {"keep_baseline", "select_latest"}:
+        return _model_selection_blocked_result(
+            missing_inputs=["tie_policy"],
+            reason="tie_policy must be 'keep_baseline' or 'select_latest'.",
+        )
+
+    assert latest_run is not None
+    assert baseline is not None
+    assert metric_name is not None
+    assert metric_direction is not None
+    assert threshold is not None
+    assert tie_policy is not None
+
+    latest_value = _metric_value_from_run(latest_run, metric_name)
+    baseline_value = _baseline_metric_value(baseline, metric_name)
+    if latest_value is None:
+        return _model_selection_blocked_result(
+            missing_inputs=["latest_metric"],
+            reason=f"Latest run is missing metric '{metric_name}'.",
+        )
+    if baseline_value is None:
+        return _model_selection_blocked_result(
+            missing_inputs=["baseline_metric"],
+            reason=f"Baseline is missing metric '{metric_name}'.",
+        )
+
+    latest_artifact = _artifact_reference_from_run(latest_run)
+    baseline_artifact = _artifact_reference_from_run(baseline)
+    if latest_artifact is None:
+        return _model_selection_blocked_result(
+            missing_inputs=["candidate_artifact"],
+            reason="Latest run is missing checkpoint/model artifact evidence.",
+        )
+    if baseline_artifact is None:
+        return _model_selection_blocked_result(
+            missing_inputs=["baseline_artifact"],
+            reason="Baseline is missing selected checkpoint/model artifact evidence.",
+        )
+
+    latest_run_status = latest_run.get("run_status")
+    latest_run_complete = latest_run_status in (None, "", "FINISHED")
+    improvement = (
+        latest_value - baseline_value
+        if metric_direction == "maximize"
+        else baseline_value - latest_value
+    )
+    comparison_result = {
+        "metric_name": metric_name,
+        "metric_direction": metric_direction,
+        "baseline_value": baseline_value,
+        "latest_value": latest_value,
+        "threshold": threshold,
+        "improvement": improvement,
+        "tie_policy": tie_policy,
+    }
+    beats_baseline = latest_run_complete and (
+        improvement > threshold or (improvement == threshold and tie_policy == "select_latest")
+    )
+    selected_source = "latest" if beats_baseline else "baseline"
+    selected_run = latest_run if beats_baseline else baseline
+    selected_artifact = latest_artifact if beats_baseline else baseline_artifact
+    selected_value = latest_value if beats_baseline else baseline_value
+    selected_path = selected_artifact.get("path")
+    selected_uri = selected_artifact.get("uri")
+    checksum = _artifact_checksum(project_path, selected_path)
+    decision = "select_latest" if beats_baseline else "keep_baseline"
+
+    evidence_summary = (
+        f"decision={decision}; metric_name={metric_name}; direction={metric_direction}; "
+        f"baseline_value={baseline_value}; latest_value={latest_value}; "
+        f"threshold={threshold}; improvement={improvement}; "
+        f"selected_artifact={selected_path or selected_uri}; "
+        f"source_run_id={selected_run.get('run_id')}"
+    )
+    artifact_entry = {
+        "artifact_type": "model_artifact",
+        "producing_step": "select_best_model_artifact",
+        "state": "selected",
+        "path": selected_path,
+        "uri": selected_uri,
+        "checksum": checksum,
+        "metadata": {
+            "source_run_id": selected_run.get("run_id"),
+            "metric_name": metric_name,
+            "metric_value": selected_value,
+            "comparison_result": comparison_result,
+            "decision": decision,
+        },
+    }
+
+    return {
+        "success": True,
+        "status": "selected_latest" if beats_baseline else "kept_baseline",
+        "decision": decision,
+        "selected_source": selected_source,
+        "model_path": selected_path,
+        "model_uri": selected_uri,
+        "model_type": _model_type_from_artifact(selected_path or selected_uri),
+        "source_run_id": selected_run.get("run_id"),
+        "metric": {
+            "name": metric_name,
+            "direction": metric_direction,
+            "value": selected_value,
+        },
+        "comparison_result": comparison_result,
+        "discard_reason": None if beats_baseline else _model_selection_discard_reason(
+            latest_run_complete=latest_run_complete,
+            latest_run_status=latest_run_status,
+        ),
+        "keep_baseline_reason": None
+        if beats_baseline
+        else "Baseline artifact remains selected.",
+        "verification_results": _model_selection_verification_results(
+            inputs_present=True,
+            baseline_recorded=True,
+            metric_compared=True,
+            candidate_artifact_verified=True,
+            artifact_selected=True,
+            evidence_summary=evidence_summary,
+        ),
+        "artifact_manifest": {"entries": [artifact_entry]},
+    }
+
+
+def _model_selection_blocked_result(
+    missing_inputs: list[str],
+    reason: str,
+) -> dict[str, Any]:
+    return {
+        "success": True,
+        "status": "blocked",
+        "decision": "blocked",
+        "missing_required_pieces": missing_inputs,
+        "failure_reason": reason,
+        "next_actions": [
+            "Provide metric_name, metric_direction, threshold, tie_policy, baseline, and candidate artifact evidence."
+        ],
+        "verification_results": _model_selection_verification_results(
+            inputs_present=False,
+            baseline_recorded=False,
+            metric_compared=False,
+            candidate_artifact_verified=False,
+            artifact_selected=False,
+            evidence_summary=reason,
+        ),
+        "artifact_manifest": {"entries": []},
+    }
+
+
+def _model_selection_discard_reason(
+    *,
+    latest_run_complete: bool,
+    latest_run_status: Any,
+) -> str:
+    if not latest_run_complete:
+        return f"Latest run status is {latest_run_status}; keeping baseline artifact."
+    return "Latest run did not beat baseline under the configured threshold and tie policy."
+
+
+def _metric_value_from_run(run: dict[str, Any], metric_name: str) -> float | None:
+    metrics = run.get("metrics")
+    if isinstance(metrics, dict) and isinstance(metrics.get(metric_name), int | float):
+        return float(metrics[metric_name])
+    if isinstance(run.get("metric_value"), int | float):
+        return float(run["metric_value"])
+    return None
+
+
+def _baseline_metric_value(baseline: dict[str, Any], metric_name: str) -> float | None:
+    if isinstance(baseline.get("metric_value"), int | float):
+        return float(baseline["metric_value"])
+    return _metric_value_from_run(baseline, metric_name)
+
+
+def _artifact_reference_from_run(run: dict[str, Any]) -> dict[str, str] | None:
+    for path_key in ("artifact_path", "model_path", "checkpoint_artifact_path"):
+        if run.get(path_key):
+            return {"path": str(run[path_key])}
+    for uri_key in ("checkpoint_artifact_uri", "model_uri", "artifact_uri"):
+        if run.get(uri_key):
+            return {"uri": str(run[uri_key])}
+    raw_manifest = run.get("artifact_manifest")
+    entries = raw_manifest.get("entries", ()) if isinstance(raw_manifest, dict) else ()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("artifact_type") in {
+            "model_artifact",
+            "checkpoint_or_model_artifact",
+            "mlflow_checkpoint_or_model_artifact",
+        }:
+            reference: dict[str, str] = {}
+            if entry.get("path"):
+                reference["path"] = str(entry["path"])
+            if entry.get("uri"):
+                reference["uri"] = str(entry["uri"])
+            if reference:
+                return reference
+    return None
+
+
+def _artifact_checksum(project_path: Path, artifact_path: str | None) -> str | None:
+    if not artifact_path:
+        return None
+    path = Path(artifact_path)
+    if not path.is_absolute():
+        path = project_path / path
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as artifact_file:
+        for chunk in iter(lambda: artifact_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
+
+
+def _model_type_from_artifact(artifact: str | None) -> str:
+    if artifact is None:
+        return "unknown"
+    suffix = Path(artifact).suffix.lower()
+    if suffix in {".pkl", ".joblib"}:
+        return "tabular_regressor"
+    return "torch"
+
+
+def _model_selection_verification_results(
+    *,
+    inputs_present: bool,
+    baseline_recorded: bool,
+    metric_compared: bool,
+    candidate_artifact_verified: bool,
+    artifact_selected: bool,
+    evidence_summary: str,
+) -> list[dict[str, Any]]:
+    checks = (
+        ("model_selection_inputs_present", inputs_present),
+        ("model_selection_baseline_recorded", baseline_recorded),
+        ("model_selection_metric_compared", metric_compared),
+        ("model_selection_candidate_artifact_verified", candidate_artifact_verified),
+        ("model_artifact_selected", artifact_selected),
+    )
+    return [
+        {
+            "check_name": check_name,
+            "evidence_type": "observed",
+            "source_step": "select_best_model_artifact",
+            "passed": passed,
+            "evidence": evidence_summary,
+        }
+        for check_name, passed in checks
+    ]
 
 
 def record_litserve_image_build_skipped(project_path: str) -> dict[str, Any]:
@@ -8768,7 +9097,16 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
 
         elif name == "select_best_model_artifact":
             input_data = SelectBestModelArtifactInput(**arguments)
-            result = select_best_model_artifact(input_data.project_path, input_data.model_path)
+            result = select_best_model_artifact(
+                project_path=input_data.project_path,
+                model_path=input_data.model_path,
+                latest_run=input_data.latest_run,
+                baseline=input_data.baseline,
+                metric_name=input_data.metric_name,
+                metric_direction=input_data.metric_direction,
+                threshold=input_data.threshold,
+                tie_policy=input_data.tie_policy,
+            )
 
         elif name == "record_litserve_image_build_skipped":
             input_data = RecordLitserveImageBuildSkippedInput(**arguments)
