@@ -160,6 +160,8 @@ def _write_session_06_training_project(project_path):
     (configs / "model").mkdir(parents=True)
     (configs / "data").mkdir()
     (project_path / "src" / "models").mkdir(parents=True)
+    (project_path / "outputs").mkdir()
+    (project_path / "checkpoints").mkdir()
     (project_path / "tests" / "test_train").mkdir(parents=True)
     (project_path / ".dvc").mkdir()
 
@@ -226,6 +228,48 @@ def test_detect_training_project_recognizes_session_06_shape(tmp_path):
     assert "tests/test_train/test_training.py" in result["test_files"]
     assert result["missing_required_pieces"] == []
     assert result["next_actions"] == []
+    assert result["test_command"] == "python -m pytest tests -q"
+    assert {
+        "training_entrypoint_detected",
+        "hydra_config_detected",
+        "dvc_or_data_evidence_detected",
+        "pytorch_timm_signals_detected",
+        "test_command_detected",
+        "output_artifact_candidates_detected",
+    }.issubset({item["check_name"] for item in result["verification_results"]})
+    manifest_entries = result["artifact_manifest"]["entries"]
+    assert {
+        (entry["artifact_type"], entry["state"], entry["path"])
+        for entry in manifest_entries
+    }.issuperset(
+        {
+            ("training_entrypoint", "external", "src/train.py"),
+            ("configuration", "external", "configs/train.yaml"),
+            ("test_suite", "external", "tests/test_train/test_training.py"),
+        }
+    )
+
+
+def test_detect_training_project_blocks_ambiguous_entrypoints(tmp_path):
+    _write_session_06_training_project(tmp_path)
+    (tmp_path / "train.py").write_text(
+        "import hydra\n"
+        "@hydra.main(version_base='1.3', config_path='configs', config_name='train')\n"
+        "def main(cfg):\n"
+        "    return None\n"
+    )
+
+    result = mcp_mlops_tools.detect_training_project(str(tmp_path))
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert set(result["training_entrypoint_candidates"]) == {"src/train.py", "train.py"}
+    assert "training_entrypoint" in result["missing_required_pieces"]
+    assert "multiple candidates" in " ".join(result["next_actions"])
+    assert "training_entrypoint_detected" not in {
+        item["check_name"] for item in result["verification_results"]
+    }
+
 
 # ============================================================================
 # Route Constants Tests
@@ -897,7 +941,7 @@ class TestAgentLoopRun:
         mock_execute_step.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_run_train_and_track_fails_missing_entrypoint_or_config_before_training(
+    async def test_run_detect_training_project_blocks_missing_entrypoint_or_config_before_training(
         self, mock_agent, tmp_path
     ):
         """Test training requests use registry detection and block unsupported project shape."""
@@ -915,25 +959,25 @@ class TestAgentLoopRun:
             patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
         ):
             result = await mock_agent.run(
-                "Train and track this model",
+                "Train this project",
                 str(project_path),
             )
 
         completed_tool_steps = [
             step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
         ]
-        assert mock_agent.workflow_selection.workflow_id == "train_and_track"
+        assert mock_agent.workflow_selection.workflow_id == "detect_training_project"
         assert mock_agent.workflow_selection.status is WorkflowStatus.PENDING
         assert completed_tool_steps == ["detect_training_project"]
-        assert mock_agent.status == "failed"
-        assert "contract_status: failed" in result
+        assert mock_agent.status == "paused"
+        assert "contract_status: blocked" in result
         assert "training_entrypoint" in result
         assert "hydra_config" in result
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_run_train_and_track_succeeds_from_supported_detection(
+    async def test_run_detect_training_project_succeeds_from_supported_detection(
         self, mock_agent, tmp_path
     ):
         """Test supported Phase 3 training projects complete the detection contract."""
@@ -948,12 +992,12 @@ class TestAgentLoopRun:
             ) as mock_perception,
             patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
         ):
-            result = await mock_agent.run("Train and track this model", str(tmp_path))
+            result = await mock_agent.run("Detect this training project", str(tmp_path))
 
         completed_tool_steps = [
             step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
         ]
-        assert mock_agent.workflow_selection.workflow_id == "train_and_track"
+        assert mock_agent.workflow_selection.workflow_id == "detect_training_project"
         assert completed_tool_steps == ["detect_training_project"]
         assert mock_agent.status == "success"
         assert "contract_status: succeeded" in result
@@ -961,6 +1005,29 @@ class TestAgentLoopRun:
         assert "entrypoint=src/train.py" in result
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_detect_training_project_blocks_missing_project_path(self, mock_agent):
+        """Test detection workflow blocks before tools when project_path is missing."""
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("perception should not run while detection is blocked"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+        ):
+            result = await mock_agent.run("Detect this training project")
+
+        assert mock_agent.workflow_selection.workflow_id == "detect_training_project"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.BLOCKED
+        assert mock_agent.workflow_selection.missing_inputs == ("project_path",)
+        assert "project_path" in result
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+        mock_execute_step.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_run_litserve_gpu_succeeds_from_observed_runtime_evidence(

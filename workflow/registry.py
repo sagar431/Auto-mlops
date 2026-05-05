@@ -705,12 +705,12 @@ def _artifact_matches_requirement(
 
 
 def get_workflow_registry() -> WorkflowRegistry:
-    """Return the Phase 0 workflow registry."""
+    """Return the workflow registry."""
 
     return WorkflowRegistry(
         (
             _setup_pipeline_template(),
-            _train_and_track_template(),
+            _detect_training_project_template(),
             _deploy_litserve_preflight_template(),
             _deploy_litserve_gpu_template(),
             _deploy_gpu_inference_template(),
@@ -720,13 +720,13 @@ def get_workflow_registry() -> WorkflowRegistry:
     )
 
 
-def _train_and_track_template() -> WorkflowTemplate:
+def _detect_training_project_template() -> WorkflowTemplate:
     return WorkflowTemplate(
-        workflow_id="train_and_track",
-        name="Train And Track",
+        workflow_id="detect_training_project",
+        name="Detect Training Project",
         description=(
             "Detect a supported Hydra/PyTorch/TIMM training project and entrypoint "
-            "before any training or tracking work is allowed."
+            "without running training or tracking."
         ),
         required_inputs=(
             WorkflowInput(
@@ -753,13 +753,43 @@ def _train_and_track_template() -> WorkflowTemplate:
                     evidence_type="observed",
                     source_step="detect_training_project",
                 ),
+                SuccessContractCheck(
+                    name="training_entrypoint_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="hydra_config_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="dvc_or_data_evidence_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="pytorch_timm_signals_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="test_command_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="output_artifact_candidates_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
             ),
         ),
         routing_aliases=(
-            "Train and track",
-            "Train and track this model",
+            "detect this training project",
+            "detect training project",
+            "train this project",
             "train this model",
-            "track this model",
         ),
     )
 

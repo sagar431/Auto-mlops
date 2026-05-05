@@ -35,7 +35,7 @@ def test_registry_contains_phase_3_training_detection_template():
 
     assert registry.workflow_ids == (
         "setup_pipeline",
-        "train_and_track",
+        "detect_training_project",
         "deploy_litserve_preflight",
         "deploy_litserve_gpu",
         "deploy_gpu_inference",
@@ -45,25 +45,32 @@ def test_registry_contains_phase_3_training_detection_template():
     for excluded_workflow_id in (
         "rollback",
         "monitor_and_alert",
+        "train_and_track",
         "train_until_better",
     ):
         with pytest.raises(KeyError):
             registry.get(excluded_workflow_id)
 
 
-def test_train_and_track_declares_detection_only_template():
-    template = get_workflow_registry().get("train_and_track")
+def test_detect_training_project_declares_detection_only_template():
+    template = get_workflow_registry().get("detect_training_project")
 
-    assert template.workflow_id == "train_and_track"
+    assert template.workflow_id == "detect_training_project"
     assert [workflow_input.name for workflow_input in template.required_inputs] == [
         "project_path"
     ]
     assert [step.step_id for step in template.steps] == ["detect_training_project"]
     assert template.steps[0].tool_functions == ("detect_training_project",)
     assert [check.name for check in template.success_contract.checks] == [
-        "training_project_detected"
+        "training_project_detected",
+        "training_entrypoint_detected",
+        "hydra_config_detected",
+        "dvc_or_data_evidence_detected",
+        "pytorch_timm_signals_detected",
+        "test_command_detected",
+        "output_artifact_candidates_detected",
     ]
-    assert template.success_contract.checks[0].evidence_type == "observed"
+    assert all(check.evidence_type == "observed" for check in template.success_contract.checks)
 
 
 def test_setup_pipeline_declares_ordered_workflow_steps():
@@ -428,13 +435,13 @@ def test_select_workflow_blocks_ambiguous_request_instead_of_setup_fallback():
 def test_select_workflow_routes_natural_language_training_request():
     registry = get_workflow_registry()
 
-    selection = registry.select_workflow("Train and track this model")
+    selection = registry.select_workflow("Train this project")
 
-    assert selection.workflow_id == "train_and_track"
+    assert selection.workflow_id == "detect_training_project"
     assert selection.status is WorkflowStatus.PENDING
-    assert selection.matched_aliases == ("Train and track",)
+    assert selection.matched_aliases == ("train this project",)
     assert selection.missing_inputs == ()
-    assert "train_and_track" in selection.selection_reason
+    assert "detect_training_project" in selection.selection_reason
 
 
 def test_select_workflow_blocks_conflicting_alias_matches():
@@ -509,12 +516,14 @@ def test_select_workflow_blocks_conflicting_alias_matches():
             ),
         ),
         (
-            "Train and track this model",
-            "train_and_track",
-            "Train and track",
+            "Detect this training project",
+            "detect_training_project",
+            "detect this training project",
             (),
             (
                 "training_project_detected",
+                "training_entrypoint_detected",
+                "hydra_config_detected",
             ),
         ),
         (
