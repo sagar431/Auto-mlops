@@ -773,6 +773,17 @@ def _train_and_track_template() -> WorkflowTemplate:
                 tool_functions=("run_bounded_training",),
                 default_args={"target_metric": "accuracy"},
             ),
+            WorkflowStep(
+                step_id="track_training_in_mlflow",
+                name="Track Training In MLflow",
+                description=(
+                    "Log bounded training params, metrics, logs, and checkpoint artifacts "
+                    "to a verified local MLflow run."
+                ),
+                order=3,
+                tool_functions=("track_training_in_mlflow",),
+                default_args={"experiment_name": "mlops-training"},
+            ),
         ),
         success_contract=SuccessContract(
             checks=(
@@ -815,6 +826,51 @@ def _train_and_track_template() -> WorkflowTemplate:
                     name="training_run_evidence_captured",
                     evidence_type="observed",
                     source_step="run_bounded_training",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_experiment_exists",
+                    evidence_type="observed",
+                    source_step="track_training_in_mlflow",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_run_exists",
+                    evidence_type="observed",
+                    source_step="track_training_in_mlflow",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_tracking_uri_recorded",
+                    evidence_type="observed",
+                    source_step="track_training_in_mlflow",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_artifact_uri_recorded",
+                    evidence_type="observed",
+                    source_step="track_training_in_mlflow",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_params_logged",
+                    evidence_type="observed",
+                    source_step="track_training_in_mlflow",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_metrics_logged",
+                    evidence_type="observed",
+                    source_step="track_training_in_mlflow",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_artifacts_logged",
+                    evidence_type="observed",
+                    source_step="track_training_in_mlflow",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_checkpoint_artifact_logged",
+                    evidence_type="observed",
+                    source_step="track_training_in_mlflow",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_run_status_recorded",
+                    evidence_type="observed",
+                    source_step="track_training_in_mlflow",
                 ),
             ),
         ),

@@ -398,6 +398,115 @@ def test_run_bounded_training_zero_exit_without_metric_or_artifact_does_not_succ
     assert verification_by_name["training_artifact_captured"]["passed"] is False
 
 
+def test_track_training_in_mlflow_logs_bounded_training_evidence_to_local_run(tmp_path):
+    _write_bounded_training_fixture(
+        tmp_path,
+        "import json\n"
+        "from pathlib import Path\n"
+        "Path('checkpoints').mkdir(exist_ok=True)\n"
+        "Path('checkpoints/model.ckpt').write_text('checkpoint')\n"
+        "print(json.dumps({'metrics': {'accuracy': 0.94, 'loss': 0.08}}))\n",
+    )
+    training_result = mcp_mlops_tools.run_bounded_training(
+        project_path=str(tmp_path),
+        training_entrypoint="src/train.py",
+        hydra_config_path="configs",
+        hydra_config_name="train",
+        timeout_seconds=10,
+        max_epochs=1,
+        device="cpu",
+        data_subset=4,
+        hydra_overrides=["trainer.fast_dev_run=true"],
+        target_metric="accuracy",
+    )
+
+    result = mcp_mlops_tools.track_training_in_mlflow(
+        project_path=str(tmp_path),
+        training_result=training_result,
+        experiment_name="issue-0003",
+        params={
+            "timeout_seconds": 10,
+            "max_epochs": 1,
+            "device": "cpu",
+            "data_subset": 4,
+        },
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "succeeded"
+    assert result["experiment_id"]
+    assert result["run_id"]
+    assert result["tracking_uri"].startswith("file:")
+    assert result["artifact_uri"].startswith("file:")
+    assert result["run_status"] == "FINISHED"
+    assert "trainer.fast_dev_run=true" in result["params"]["effective_overrides"]
+    assert "trainer.max_epochs=1" in result["params"]["effective_overrides"]
+    assert result["params"]["timeout_seconds"] == "10"
+    assert result["metrics"]["accuracy"] == 0.94
+    assert "training.log" in result["logged_artifacts"]
+    assert result["checkpoint_artifact_uri"].endswith("checkpoints/model.ckpt")
+
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    for check_name in (
+        "mlflow_experiment_exists",
+        "mlflow_run_exists",
+        "mlflow_tracking_uri_recorded",
+        "mlflow_artifact_uri_recorded",
+        "mlflow_params_logged",
+        "mlflow_metrics_logged",
+        "mlflow_artifacts_logged",
+        "mlflow_checkpoint_artifact_logged",
+        "mlflow_run_status_recorded",
+    ):
+        assert verification_by_name[check_name]["passed"] is True
+    assert {
+        (entry["artifact_type"], entry["state"], entry.get("uri"))
+        for entry in result["artifact_manifest"]["entries"]
+    }.issuperset(
+        {
+            ("mlflow_run", "generated", result["artifact_uri"]),
+            (
+                "mlflow_checkpoint_or_model_artifact",
+                "generated",
+                result["checkpoint_artifact_uri"],
+            ),
+        }
+    )
+
+
+def test_track_training_in_mlflow_blocks_remote_tracking_uri(tmp_path):
+    _write_session_06_training_project(tmp_path)
+
+    result = mcp_mlops_tools.track_training_in_mlflow(
+        project_path=str(tmp_path),
+        training_result={
+            "status": "succeeded",
+            "metrics": {"accuracy": 0.9},
+            "target_metric": "accuracy",
+            "checkpoint_artifact_paths": ["checkpoints/model.ckpt"],
+        },
+        experiment_name="issue-0003",
+        tracking_uri="https://mlflow.example.com",
+        params={
+            "timeout_seconds": 10,
+            "max_epochs": 1,
+            "device": "cpu",
+            "data_subset": 4,
+        },
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert "Remote MLflow tracking URI is not allowed" in result["failure_reason"]
+    assert "local path or file://" in " ".join(result["next_actions"])
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["mlflow_run_exists"]["passed"] is False
+
+
 # ============================================================================
 # Route Constants Tests
 # ============================================================================
@@ -1272,11 +1381,63 @@ class TestAgentLoopRun:
             step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
         ]
         assert mock_agent.workflow_selection.workflow_id == "train_and_track"
-        assert completed_tool_steps == ["detect_training_project", "run_bounded_training"]
+        assert completed_tool_steps == [
+            "detect_training_project",
+            "run_bounded_training",
+            "track_training_in_mlflow",
+        ]
         assert mock_agent.status == "success"
         assert "contract_status: succeeded" in result
         assert "accuracy" in result
         assert "checkpoints/model.ckpt" in result
+        assert "mlflow_run_exists" in result
+        assert "run_id" in result
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_train_and_track_records_failed_training_in_mlflow(
+        self, mock_agent, tmp_path
+    ):
+        """Test failed bounded training still records a failed MLflow run."""
+        _write_bounded_training_fixture(
+            tmp_path,
+            "# config_path='../configs', config_name='train.yaml'\n"
+            "import json\n"
+            "from pathlib import Path\n"
+            "Path('checkpoints').mkdir(exist_ok=True)\n"
+            "Path('checkpoints/model.ckpt').write_text('checkpoint')\n"
+            "print(json.dumps({'metrics': {'accuracy': 0.31}}))\n"
+            "raise SystemExit(3)\n",
+        )
+
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("registry training must skip perception"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+        ):
+            result = await mock_agent.run(
+                "Train this project timeout 30 max epochs 1 device cpu subset 8",
+                str(tmp_path),
+            )
+
+        completed_tool_steps = [
+            step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
+        ]
+        assert completed_tool_steps == [
+            "detect_training_project",
+            "run_bounded_training",
+            "track_training_in_mlflow",
+        ]
+        assert mock_agent.status == "failed"
+        assert "contract_status: failed" in result
+        assert "bounded_training_command_completed" in result
+        assert "run_status" in result
+        assert "FAILED" in result
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
 

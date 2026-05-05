@@ -1146,6 +1146,11 @@ class AgentLoop:
             and step_id == "detect_training_project"
         ):
             self.ctx.globals["training_detection"] = payload
+        elif (
+            self.workflow_selection.workflow_id == "train_and_track"
+            and step_id == "run_bounded_training"
+        ):
+            self.ctx.globals["bounded_training_result"] = payload
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1179,6 +1184,42 @@ class AgentLoop:
                 for key in ("timeout_seconds", "max_epochs", "device", "data_subset"):
                     if key in workflow_inputs:
                         runtime_args[key] = workflow_inputs[key]
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "train_and_track"
+            and step_id == "track_training_in_mlflow"
+        ):
+            training_result = self.ctx.globals.get("bounded_training_result", {})
+            workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+            training_detection = self.ctx.globals.get("training_detection", {})
+            if isinstance(training_result, dict):
+                runtime_args["training_result"] = training_result
+            params: dict[str, Any] = {}
+            if isinstance(workflow_inputs, dict):
+                params.update(
+                    {
+                        key: workflow_inputs[key]
+                        for key in ("timeout_seconds", "max_epochs", "device", "data_subset")
+                        if key in workflow_inputs
+                    }
+                )
+            if isinstance(training_detection, dict):
+                params.update(
+                    {
+                        key: training_detection[key]
+                        for key in (
+                            "training_entrypoint",
+                            "hydra_config_path",
+                            "hydra_config_name",
+                            "framework_family",
+                            "model_library",
+                            "data_versioning",
+                        )
+                        if training_detection.get(key)
+                    }
+                )
+            if params:
+                runtime_args["params"] = params
         elif (
             self.workflow_selection is not None
             and self.workflow_selection.workflow_id == "deploy_litserve_gpu"
@@ -1263,6 +1304,12 @@ class AgentLoop:
 
     def _registry_step_blocks_remaining_execution(self, step_id: str) -> bool:
         """Return whether a step's own contract evidence blocks later workflow steps."""
+        if (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "train_and_track"
+            and step_id == "run_bounded_training"
+        ):
+            return False
         if self._registry_step_recorded_failed_contract_evidence(step_id):
             return True
         if (
