@@ -140,14 +140,21 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
     assert [step.step_id for step in template.steps] == [
         "prepare_capstone_data_contract",
         "generate_split_manifests",
+        "track_capstone_data_package",
     ]
     assert template.steps[0].tool_functions == ("detect_capstone_data_layouts",)
     assert template.steps[1].tool_functions == ("generate_capstone_split_manifests",)
+    assert template.steps[2].tool_functions == ("track_capstone_data_package",)
     assert {
         gate.step_id: gate.risk_categories for gate in template.approval_gates
-    } == {"generate_split_manifests": ("writes_project_files",)}
+    } == {
+        "generate_split_manifests": ("writes_project_files",),
+        "track_capstone_data_package": ("writes_project_files",),
+    }
     assert [requirement.artifact_type for requirement in template.artifact_requirements] == [
-        "split_manifest"
+        "split_manifest",
+        "capstone_data_package",
+        "dvc_tracking_file",
     ]
     assert [check.name for check in template.success_contract.checks] == [
         "two_dataset_paths_provided",

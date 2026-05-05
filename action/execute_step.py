@@ -184,6 +184,7 @@ AVAILABLE_TOOLS = [
     "detect_training_project",
     "detect_capstone_data_layouts",
     "generate_capstone_split_manifests",
+    "track_capstone_data_package",
     "run_bounded_training",
     "track_training_in_mlflow",
     "record_capstone_orchestrator_skeleton",

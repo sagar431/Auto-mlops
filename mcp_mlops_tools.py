@@ -469,6 +469,19 @@ class GenerateCapstoneSplitManifestsInput(BaseModel):
     )
 
 
+class TrackCapstoneDataPackageInput(BaseModel):
+    """Validate/init local DVC and track generated capstone package paths."""
+
+    project_path: str = Field(..., description="Path to the project")
+    capstone_split_manifest_result: dict[str, Any] = Field(
+        ..., description="Output from generate_capstone_split_manifests"
+    )
+    initialize_if_missing: bool = Field(
+        default=True,
+        description="Initialize local DVC metadata when .dvc/config is missing.",
+    )
+
+
 # --- Data Quality Tools ---
 
 
@@ -2707,6 +2720,338 @@ def generate_capstone_split_manifests(
                 evidence,
                 evidence_type="observed" if artifact_entries else "declared",
             ),
+        ],
+        "artifact_manifest": {"entries": artifact_entries},
+    }
+
+
+def track_capstone_data_package(
+    project_path: str,
+    capstone_split_manifest_result: dict[str, Any],
+    initialize_if_missing: bool = True,
+) -> dict[str, Any]:
+    """Validate/init local DVC and track generated capstone package paths."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+    if not path.is_dir():
+        return {"success": False, "error": f"Project path {project_path} is not a directory"}
+    if not isinstance(capstone_split_manifest_result, dict):
+        return {"success": False, "error": "capstone_split_manifest_result must be structured data"}
+
+    split_records = capstone_split_manifest_result.get("split_manifests", [])
+    if capstone_split_manifest_result.get("status") != "succeeded" or not split_records:
+        evidence = {
+            "blocked_reason": "missing_generated_split_manifest_evidence",
+            "split_status": capstone_split_manifest_result.get("status"),
+        }
+        return _capstone_dvc_tracking_result(
+            status="blocked",
+            dvc_repo={"status": "not_checked", "path": str(path)},
+            tracked_package_paths=[],
+            dvc_tracking_files=[],
+            artifact_entries=[],
+            next_actions=["Generate approved split manifests before DVC tracking."],
+            dvc_repo_passed=False,
+            package_tracking_passed=False,
+            evidence=evidence,
+        )
+
+    package_paths = _capstone_package_paths_from_split_records(path, split_records)
+    if not package_paths:
+        evidence = {
+            "blocked_reason": "no_generated_capstone_package_paths",
+            "split_records": split_records,
+        }
+        return _capstone_dvc_tracking_result(
+            status="blocked",
+            dvc_repo={"status": "not_checked", "path": str(path)},
+            tracked_package_paths=[],
+            dvc_tracking_files=[],
+            artifact_entries=[],
+            next_actions=[
+                "Generate split manifests under data/capstone/<dataset_id>/ before DVC tracking."
+            ],
+            dvc_repo_passed=False,
+            package_tracking_passed=False,
+            evidence=evidence,
+        )
+
+    if not check_tool_installed("dvc"):
+        evidence = {"blocked_reason": "missing_dvc_executable", "project_path": str(path)}
+        return _capstone_dvc_tracking_result(
+            status="blocked",
+            dvc_repo={"status": "missing_executable", "path": str(path)},
+            tracked_package_paths=[],
+            dvc_tracking_files=[],
+            artifact_entries=_capstone_lineage_artifacts(path, split_records, []),
+            next_actions=["Install DVC in the project environment before tracking data packages."],
+            dvc_repo_passed=False,
+            package_tracking_passed=False,
+            evidence=evidence,
+        )
+
+    dvc_repo, repo_failure = _ensure_local_dvc_repo(path, initialize_if_missing)
+    if repo_failure is not None:
+        artifact_entries = _capstone_lineage_artifacts(path, split_records, [])
+        return _capstone_dvc_tracking_result(
+            status="failed",
+            dvc_repo=dvc_repo,
+            tracked_package_paths=[],
+            dvc_tracking_files=[],
+            artifact_entries=artifact_entries,
+            next_actions=[repo_failure],
+            dvc_repo_passed=False,
+            package_tracking_passed=False,
+            evidence={"failure_reason": repo_failure, "dvc_repo": dvc_repo},
+        )
+
+    tracked_package_paths: list[str] = []
+    dvc_tracking_files: list[str] = []
+    add_failures: list[dict[str, Any]] = []
+    for package_path in package_paths:
+        add_result = run_command(["dvc", "add", package_path], cwd=str(path), timeout=300)
+        if not add_result.get("success"):
+            add_failures.append({"package_path": package_path, "result": add_result})
+            continue
+        tracked_package_paths.append(package_path)
+        dvc_file = f"{package_path}.dvc"
+        dvc_tracking_files.append(dvc_file)
+
+    artifact_entries = _capstone_lineage_artifacts(
+        path,
+        split_records,
+        tracked_package_paths,
+        dvc_tracking_files,
+        dvc_repo,
+    )
+    if add_failures:
+        return _capstone_dvc_tracking_result(
+            status="failed",
+            dvc_repo=dvc_repo,
+            tracked_package_paths=tracked_package_paths,
+            dvc_tracking_files=dvc_tracking_files,
+            artifact_entries=artifact_entries,
+            next_actions=["Resolve local DVC add failures before continuing."],
+            dvc_repo_passed=True,
+            package_tracking_passed=False,
+            evidence={"add_failures": add_failures, "dvc_repo": dvc_repo},
+        )
+
+    evidence = {
+        "dvc_repo": dvc_repo,
+        "tracked_package_paths": tracked_package_paths,
+        "dvc_tracking_files": dvc_tracking_files,
+    }
+    return _capstone_dvc_tracking_result(
+        status="succeeded",
+        dvc_repo=dvc_repo,
+        tracked_package_paths=tracked_package_paths,
+        dvc_tracking_files=dvc_tracking_files,
+        artifact_entries=artifact_entries,
+        next_actions=[],
+        dvc_repo_passed=True,
+        package_tracking_passed=bool(tracked_package_paths),
+        evidence=evidence,
+    )
+
+
+def _ensure_local_dvc_repo(
+    project_path: Path,
+    initialize_if_missing: bool,
+) -> tuple[dict[str, Any], str | None]:
+    dvc_config = project_path / ".dvc" / "config"
+    if dvc_config.exists():
+        return (
+            {
+                "status": "validated",
+                "project_path": str(project_path),
+                "dvc_dir": ".dvc",
+                "dvc_config_path": ".dvc/config",
+            },
+            None,
+        )
+    if not initialize_if_missing:
+        return (
+            {
+                "status": "missing",
+                "project_path": str(project_path),
+                "dvc_config_path": ".dvc/config",
+            },
+            "DVC metadata is missing; approve initialization or initialize DVC manually.",
+        )
+
+    init_result = run_command(["dvc", "init", "--no-scm"], cwd=str(project_path), timeout=60)
+    if not init_result.get("success"):
+        return (
+            {
+                "status": "init_failed",
+                "project_path": str(project_path),
+                "dvc_config_path": ".dvc/config",
+                "init_result": init_result,
+            },
+            "DVC initialization failed for the local project.",
+        )
+    return (
+        {
+            "status": "initialized",
+            "project_path": str(project_path),
+            "dvc_dir": ".dvc",
+            "dvc_config_path": ".dvc/config",
+            "init_stdout": init_result.get("stdout", ""),
+        },
+        None,
+    )
+
+
+def _capstone_package_paths_from_split_records(
+    project_path: Path,
+    split_records: list[dict[str, Any]],
+) -> list[str]:
+    package_paths: list[str] = []
+    for split_record in split_records:
+        manifest_path = split_record.get("split_manifest_path")
+        if not manifest_path:
+            continue
+        relative_manifest = Path(manifest_path)
+        if relative_manifest.is_absolute():
+            try:
+                relative_manifest = relative_manifest.relative_to(project_path)
+            except ValueError:
+                continue
+        parts = relative_manifest.parts
+        if len(parts) < 4 or parts[:2] != ("data", "capstone"):
+            continue
+        package_path = Path(*parts[:3]).as_posix()
+        if not (project_path / package_path).exists():
+            continue
+        if package_path not in package_paths:
+            package_paths.append(package_path)
+    return package_paths
+
+
+def _capstone_lineage_artifacts(
+    project_path: Path,
+    split_records: list[dict[str, Any]],
+    tracked_package_paths: list[str],
+    dvc_tracking_files: list[str] | None = None,
+    dvc_repo: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    artifact_entries: list[dict[str, Any]] = []
+    seen_sources: set[str] = set()
+    for split_record in split_records:
+        source_path = split_record.get("source_path")
+        if source_path and source_path not in seen_sources:
+            artifact_entries.append(
+                {
+                    "artifact_type": "capstone_source_dataset",
+                    "producing_step": "track_capstone_data_package",
+                    "state": "external",
+                    "path": source_path,
+                    "metadata": {
+                        "dataset_id": split_record.get("dataset_id"),
+                        "source_path_kind": "user_provided_local_or_mounted",
+                    },
+                }
+            )
+            seen_sources.add(source_path)
+        split_manifest_path = split_record.get("split_manifest_path")
+        if split_manifest_path:
+            manifest_file = project_path / split_manifest_path
+            artifact_entries.append(
+                {
+                    "artifact_type": "split_manifest",
+                    "producing_step": "track_capstone_data_package",
+                    "state": "generated",
+                    "path": split_manifest_path,
+                    "checksum": _sha256_file(manifest_file) if manifest_file.is_file() else None,
+                    "metadata": {
+                        "dataset_id": split_record.get("dataset_id"),
+                        "split_strategy": split_record.get("split_strategy"),
+                    },
+                }
+            )
+    for package_path in tracked_package_paths:
+        artifact_entries.append(
+            {
+                "artifact_type": "capstone_data_package",
+                "producing_step": "track_capstone_data_package",
+                "state": "generated",
+                "path": package_path,
+                "metadata": {"tracking": "dvc"},
+            }
+        )
+    for dvc_file in dvc_tracking_files or []:
+        dvc_file_path = project_path / dvc_file
+        artifact_entries.append(
+            {
+                "artifact_type": "dvc_tracking_file",
+                "producing_step": "track_capstone_data_package",
+                "state": "generated",
+                "path": dvc_file,
+                "checksum": _sha256_file(dvc_file_path) if dvc_file_path.is_file() else None,
+            }
+        )
+    if dvc_repo and dvc_repo.get("dvc_config_path"):
+        config_path = project_path / dvc_repo["dvc_config_path"]
+        artifact_entries.append(
+            {
+                "artifact_type": "dvc_repo_metadata",
+                "producing_step": "track_capstone_data_package",
+                "state": "validated" if dvc_repo.get("status") == "validated" else "generated",
+                "path": dvc_repo["dvc_config_path"],
+                "checksum": _sha256_file(config_path) if config_path.is_file() else None,
+                "metadata": {"dvc_repo_status": dvc_repo.get("status")},
+            }
+        )
+    return artifact_entries
+
+
+def _capstone_dvc_tracking_result(
+    status: str,
+    dvc_repo: dict[str, Any],
+    tracked_package_paths: list[str],
+    dvc_tracking_files: list[str],
+    artifact_entries: list[dict[str, Any]],
+    next_actions: list[str],
+    dvc_repo_passed: bool,
+    package_tracking_passed: bool,
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    lineage_passed = bool(artifact_entries)
+    return {
+        "success": True,
+        "status": status,
+        "dvc_repo": dvc_repo,
+        "tracked_package_paths": tracked_package_paths,
+        "dvc_tracking_files": dvc_tracking_files,
+        "missing_inputs": [] if status == "succeeded" else ["local_dvc_tracking_evidence"],
+        "next_actions": next_actions,
+        "verification_results": [
+            {
+                "check_name": "dvc_repo_validated",
+                "evidence_type": "observed",
+                "source_step": "track_capstone_data_package",
+                "passed": dvc_repo_passed,
+                "evidence": json.dumps(evidence, sort_keys=True),
+            },
+            {
+                "check_name": "capstone_data_package_tracked",
+                "evidence_type": "observed",
+                "source_step": "track_capstone_data_package",
+                "passed": package_tracking_passed,
+                "evidence": json.dumps(evidence, sort_keys=True),
+            },
+            {
+                "check_name": "dataset_lineage_artifacts_reported",
+                "evidence_type": "observed",
+                "source_step": "track_capstone_data_package",
+                "passed": lineage_passed,
+                "evidence": json.dumps(
+                    {"artifact_count": len(artifact_entries), **evidence},
+                    sort_keys=True,
+                ),
+            },
         ],
         "artifact_manifest": {"entries": artifact_entries},
     }
@@ -9308,6 +9653,11 @@ async def list_tools() -> list[Tool]:
             inputSchema=GenerateCapstoneSplitManifestsInput.model_json_schema(),
         ),
         Tool(
+            name="track_capstone_data_package",
+            description="Validate/init local DVC and track generated capstone package paths",
+            inputSchema=TrackCapstoneDataPackageInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -9802,6 +10152,14 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 test_size=input_data.test_size,
                 split_seed=input_data.split_seed,
                 materialize_splits=input_data.materialize_splits,
+            )
+
+        elif name == "track_capstone_data_package":
+            input_data = TrackCapstoneDataPackageInput(**arguments)
+            result = track_capstone_data_package(
+                project_path=input_data.project_path,
+                capstone_split_manifest_result=input_data.capstone_split_manifest_result,
+                initialize_if_missing=input_data.initialize_if_missing,
             )
 
         elif name == "run_bounded_training":

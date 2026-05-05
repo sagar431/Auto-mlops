@@ -150,6 +150,106 @@ def test_generate_capstone_split_manifests_writes_deterministic_manifest(tmp_pat
     assert not (project_path / "data" / "capstone" / "dataset_1" / "train").exists()
 
 
+def test_track_capstone_data_package_adds_split_manifests_to_dvc(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    dvc_config = project_path / ".dvc" / "config"
+    dvc_config.parent.mkdir()
+    dvc_config.write_text("[core]\n")
+    manifest_path = project_path / "data" / "capstone" / "dataset_1" / "split_manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text('{"dataset_id": "dataset_1"}\n')
+    source_dataset = tmp_path / "source_one"
+    _write_tiny_image(source_dataset / "cats" / "cat-1.jpg")
+    commands = []
+
+    def fake_run_command(cmd, cwd=None, timeout=60):
+        commands.append((cmd, cwd, timeout))
+        if cmd == ["dvc", "add", "data/capstone/dataset_1"]:
+            (project_path / "data" / "capstone" / "dataset_1.dvc").write_text(
+                "outs:\n- path: data/capstone/dataset_1\n"
+            )
+        return {"success": True, "stdout": "ok", "stderr": "", "returncode": 0}
+
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: tool == "dvc")
+    monkeypatch.setattr(mcp_mlops_tools, "run_command", fake_run_command)
+
+    result = mcp_mlops_tools.track_capstone_data_package(
+        project_path=str(project_path),
+        capstone_split_manifest_result={
+            "status": "succeeded",
+            "split_manifests": [
+                {
+                    "dataset_id": "dataset_1",
+                    "source_path": str(source_dataset),
+                    "split_strategy": "manifest",
+                    "split_manifest_path": "data/capstone/dataset_1/split_manifest.json",
+                    "materialized_train_path": None,
+                    "materialized_test_path": None,
+                }
+            ],
+        },
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "succeeded"
+    assert commands == [(["dvc", "add", "data/capstone/dataset_1"], str(project_path), 300)]
+    assert result["dvc_repo"]["status"] == "validated"
+    assert result["tracked_package_paths"] == ["data/capstone/dataset_1"]
+    assert result["dvc_tracking_files"] == ["data/capstone/dataset_1.dvc"]
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["dvc_repo_validated"]["passed"] is True
+    assert verification_by_name["capstone_data_package_tracked"]["passed"] is True
+    entries = result["artifact_manifest"]["entries"]
+    assert {
+        (entry["artifact_type"], entry["state"], entry["path"])
+        for entry in entries
+    } >= {
+        ("capstone_source_dataset", "external", str(source_dataset)),
+        ("split_manifest", "generated", "data/capstone/dataset_1/split_manifest.json"),
+        ("capstone_data_package", "generated", "data/capstone/dataset_1"),
+        ("dvc_tracking_file", "generated", "data/capstone/dataset_1.dvc"),
+    }
+
+
+def test_track_capstone_data_package_blocks_when_dvc_is_missing(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    manifest_path = project_path / "data" / "capstone" / "dataset_1" / "split_manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text('{"dataset_id": "dataset_1"}\n')
+
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: False)
+
+    result = mcp_mlops_tools.track_capstone_data_package(
+        project_path=str(project_path),
+        capstone_split_manifest_result={
+            "status": "succeeded",
+            "split_manifests": [
+                {
+                    "dataset_id": "dataset_1",
+                    "source_path": str(tmp_path / "source_one"),
+                    "split_strategy": "manifest",
+                    "split_manifest_path": "data/capstone/dataset_1/split_manifest.json",
+                }
+            ],
+        },
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert result["dvc_repo"]["status"] == "missing_executable"
+    assert "Install DVC" in " ".join(result["next_actions"])
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["dvc_repo_validated"]["passed"] is False
+    assert verification_by_name["capstone_data_package_tracked"]["passed"] is False
+    assert not (project_path / ".dvc").exists()
+
+
 def test_select_best_model_artifact_selects_latest_run_that_beats_baseline(tmp_path):
     checkpoints_dir = tmp_path / "checkpoints"
     checkpoints_dir.mkdir()

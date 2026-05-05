@@ -828,6 +828,16 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 order=2,
                 tool_functions=("generate_capstone_split_manifests",),
             ),
+            WorkflowStep(
+                step_id="track_capstone_data_package",
+                name="Track Capstone Data Package",
+                description=(
+                    "Validate or initialize local DVC metadata and DVC-track generated "
+                    "capstone data package paths without configuring remotes or transfers."
+                ),
+                order=3,
+                tool_functions=("track_capstone_data_package",),
+            ),
         ),
         success_contract=SuccessContract(
             checks=(
@@ -851,12 +861,14 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 SuccessContractCheck(
                     name="capstone_data_package_tracked",
                     evidence_type="observed",
-                    source_step="prepare_capstone_data_contract",
+                    source_step="track_capstone_data_package",
+                    unsatisfied_status="blocked",
                 ),
                 SuccessContractCheck(
                     name="dvc_repo_validated",
                     evidence_type="observed",
-                    source_step="prepare_capstone_data_contract",
+                    source_step="track_capstone_data_package",
+                    unsatisfied_status="blocked",
                 ),
                 SuccessContractCheck(
                     name="data_stage_evidence_artifact_reported",
@@ -912,10 +924,26 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 source_step="generate_split_manifests",
                 state="generated",
             ),
+            ArtifactRequirement(
+                name="capstone_data_package",
+                artifact_type="capstone_data_package",
+                source_step="track_capstone_data_package",
+                state="generated",
+            ),
+            ArtifactRequirement(
+                name="dvc_tracking_file",
+                artifact_type="dvc_tracking_file",
+                source_step="track_capstone_data_package",
+                state="generated",
+            ),
         ),
         approval_gates=(
             ApprovalGate(
                 step_id="generate_split_manifests",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="track_capstone_data_package",
                 risk_categories=("writes_project_files",),
             ),
         ),
