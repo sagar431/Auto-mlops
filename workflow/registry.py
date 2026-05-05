@@ -895,6 +895,7 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
                 name="Approval-Gated Registry Login Push",
                 description="Login and push only after explicit approval and safe credential use.",
                 order=6,
+                tool_functions=("approval_gated_capstone_registry_login_push",),
             ),
             WorkflowStep(
                 step_id="record_container_ci_evidence_handoff",

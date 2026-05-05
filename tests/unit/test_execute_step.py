@@ -516,6 +516,7 @@ class TestAvailableTools:
         assert "generate_validate_capstone_runtime_image_spec" in AVAILABLE_TOOLS
         assert "build_smoke_check_capstone_container_image" in AVAILABLE_TOOLS
         assert "configure_validate_capstone_registry_target" in AVAILABLE_TOOLS
+        assert "approval_gated_capstone_registry_login_push" in AVAILABLE_TOOLS
         assert "analyze_training_results" in AVAILABLE_TOOLS
         assert "suggest_improvements" in AVAILABLE_TOOLS
         assert "check_accuracy_threshold" in AVAILABLE_TOOLS

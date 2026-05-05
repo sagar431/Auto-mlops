@@ -665,6 +665,32 @@ class ConfigureValidateCapstoneRegistryTargetInput(BaseModel):
     )
 
 
+class ApprovalGatedCapstoneRegistryLoginPushInput(BaseModel):
+    """Run Phase 5 Issue 6 approval-gated registry login and image push."""
+
+    project_path: str = Field(..., description="Path to the project")
+    workflow_inputs: dict[str, Any] | None = Field(
+        default=None,
+        description="Resolved prepare_capstone_container_ci workflow inputs",
+    )
+    capstone_registry_target_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from configure_validate_capstone_registry_target",
+    )
+    capstone_container_build_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from build_smoke_check_capstone_container_image",
+    )
+    approval_record: dict[str, Any] | None = Field(
+        default=None,
+        description="Approval record required before registry login and push",
+    )
+    push_timeout_seconds: int = Field(
+        default=600,
+        description="Bounded timeout for docker push",
+    )
+
+
 # --- Data Quality Tools ---
 
 
@@ -10496,6 +10522,775 @@ def _container_registry_result(
     }
 
 
+REGISTRY_PUSH_STEP = "approval_gated_registry_login_push"
+
+
+def approval_gated_capstone_registry_login_push(
+    project_path: str,
+    workflow_inputs: dict[str, Any] | None = None,
+    capstone_registry_target_result: dict[str, Any] | None = None,
+    capstone_container_build_result: dict[str, Any] | None = None,
+    approval_record: dict[str, Any] | None = None,
+    push_timeout_seconds: int = 600,
+) -> dict[str, Any]:
+    """Run approval-gated registry login and image push without recording secrets."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    inputs = workflow_inputs or {}
+    completion_mode = inputs.get("completion_mode", "container_local_ready")
+    if completion_mode == "container_local_ready":
+        deferred = [
+            {
+                "capability": "approval_gated_registry_login_push",
+                "reason": "Registry push is deferred for container_local_ready.",
+                "next_action": (
+                    "Use completion_mode=container_capstone_complete with validated "
+                    "registry target, auth capability, approval, and local image evidence."
+                ),
+            }
+        ]
+        return _container_registry_push_result(
+            status="deferred",
+            completion_mode=completion_mode,
+            registry={"push_attempted": False, "login_attempted": False},
+            blocked_capabilities=[],
+            deferred_capabilities=deferred,
+            verification_results=[],
+            artifact_entries=[],
+        )
+
+    registry = _registry_payload_for_push(path, inputs, capstone_registry_target_result)
+    blocked_capabilities: list[dict[str, Any]] = []
+    deferred_capabilities: list[dict[str, Any]] = []
+    artifact_entries: list[dict[str, Any]] = []
+    verification_results: list[dict[str, Any]] = []
+
+    if registry.get("status") != "validated":
+        blocked_capabilities.append(
+            {
+                "capability": "registry_target_validated",
+                "reason": registry.get("validation_error")
+                or "Registry target is missing or has not been validated.",
+                "next_action": "Run configure_validate_capstone_registry_target successfully first.",
+            }
+        )
+        verification_results.extend(
+            _registry_push_verification_results(
+                registry=registry,
+                approval_evidence=None,
+                push_evidence={
+                    "blocked_reason": "registry_target_not_validated",
+                    "push_attempted": False,
+                },
+                push_succeeded=False,
+                pushed_reference_reported=False,
+            )
+        )
+        return _container_registry_push_result(
+            status="blocked",
+            completion_mode=completion_mode,
+            registry=registry,
+            blocked_capabilities=blocked_capabilities,
+            deferred_capabilities=deferred_capabilities,
+            verification_results=verification_results,
+            artifact_entries=artifact_entries,
+        )
+
+    required_risks = _registry_push_required_risk_categories(registry.get("provider"))
+    approval_evidence = _registry_push_approval_evidence(approval_record, required_risks)
+    if not approval_evidence["approved"]:
+        blocked_capabilities.append(
+            {
+                "capability": "registry_push_approved",
+                "reason": approval_evidence["reason"],
+                "required_risk_categories": list(required_risks),
+                "next_action": (
+                    "Record approval for approval_gated_registry_login_push before "
+                    "registry login or push may run."
+                ),
+            }
+        )
+        verification_results.extend(
+            _registry_push_verification_results(
+                registry=registry,
+                approval_evidence=approval_evidence,
+                push_evidence={
+                    "blocked_reason": "missing_or_denied_approval",
+                    "push_attempted": False,
+                    "login_attempted": False,
+                },
+                push_succeeded=False,
+                pushed_reference_reported=False,
+            )
+        )
+        return _container_registry_push_result(
+            status="blocked",
+            completion_mode=completion_mode,
+            registry=registry,
+            blocked_capabilities=blocked_capabilities,
+            deferred_capabilities=deferred_capabilities,
+            verification_results=verification_results,
+            artifact_entries=artifact_entries,
+        )
+
+    auth_capability = registry.get("auth_capability")
+    if not isinstance(auth_capability, dict) or not auth_capability.get("available"):
+        blocked_capabilities.append(
+            {
+                "capability": "registry_auth_capability_verified",
+                "reason": "Registry authentication capability was not available.",
+                "next_action": _container_registry_auth_next_action(registry.get("provider")),
+            }
+        )
+        verification_results.extend(
+            _registry_push_verification_results(
+                registry=registry,
+                approval_evidence=approval_evidence,
+                push_evidence={
+                    "blocked_reason": "missing_registry_auth_capability",
+                    "push_attempted": False,
+                    "login_attempted": False,
+                },
+                push_succeeded=False,
+                pushed_reference_reported=False,
+            )
+        )
+        return _container_registry_push_result(
+            status="blocked",
+            completion_mode=completion_mode,
+            registry=registry,
+            blocked_capabilities=blocked_capabilities,
+            deferred_capabilities=deferred_capabilities,
+            verification_results=verification_results,
+            artifact_entries=artifact_entries,
+        )
+
+    local_image = _registry_push_local_image_reference(inputs, capstone_container_build_result)
+    local_image_evidence = _inspect_local_container_image(local_image)
+    if not local_image_evidence["available"]:
+        blocked_capabilities.append(
+            {
+                "capability": "local_container_image_available",
+                "reason": "Local image required for registry push was not found.",
+                "next_action": "Run build_smoke_check_capstone_container_image successfully first.",
+            }
+        )
+        verification_results.extend(
+            _registry_push_verification_results(
+                registry=registry,
+                approval_evidence=approval_evidence,
+                push_evidence={
+                    "blocked_reason": "local_image_missing",
+                    "local_image": local_image,
+                    "local_image_inspect": local_image_evidence,
+                    "push_attempted": False,
+                },
+                push_succeeded=False,
+                pushed_reference_reported=False,
+            )
+        )
+        return _container_registry_push_result(
+            status="blocked",
+            completion_mode=completion_mode,
+            registry={**registry, "local_image": local_image},
+            blocked_capabilities=blocked_capabilities,
+            deferred_capabilities=deferred_capabilities,
+            verification_results=verification_results,
+            artifact_entries=artifact_entries,
+        )
+
+    image_reference = _registry_push_image_reference(registry, inputs)
+    login_evidence = _run_container_registry_login(registry, push_timeout_seconds)
+    registry["login_attempted"] = True
+    if login_evidence["return_code"] != 0:
+        blocked_capabilities.append(
+            {
+                "capability": "registry_auth_capability_verified",
+                "reason": "Registry login failed.",
+                "next_action": "Inspect registry login output and refresh credentials outside Auto-MLOps.",
+            }
+        )
+        verification_results.extend(
+            _registry_push_verification_results(
+                registry=registry,
+                approval_evidence=approval_evidence,
+                push_evidence={
+                    "blocked_reason": "registry_login_failed",
+                    "login": login_evidence,
+                    "push_attempted": False,
+                },
+                push_succeeded=False,
+                pushed_reference_reported=False,
+            )
+        )
+        return _container_registry_push_result(
+            status="failed",
+            completion_mode=completion_mode,
+            registry={**registry, "login": login_evidence},
+            blocked_capabilities=blocked_capabilities,
+            deferred_capabilities=deferred_capabilities,
+            verification_results=verification_results,
+            artifact_entries=artifact_entries,
+        )
+
+    tag_evidence = _run_registry_command(
+        ["docker", "tag", local_image, image_reference],
+        timeout_seconds=60,
+    )
+    if tag_evidence["return_code"] != 0:
+        push_evidence = {
+            "action": "docker tag",
+            "registry_type": registry.get("provider"),
+            "redacted_image_reference": registry.get("redacted_image_reference"),
+            "blocked_reason": "registry_image_tag_failed",
+            "tag": tag_evidence,
+            "push_attempted": False,
+        }
+        verification_results.extend(
+            _registry_push_verification_results(
+                registry=registry,
+                approval_evidence=approval_evidence,
+                push_evidence=push_evidence,
+                push_succeeded=False,
+                pushed_reference_reported=False,
+            )
+        )
+        return _container_registry_push_result(
+            status="failed",
+            completion_mode=completion_mode,
+            registry={**registry, "login": login_evidence, "tag": tag_evidence},
+            blocked_capabilities=[],
+            deferred_capabilities=deferred_capabilities,
+            verification_results=verification_results,
+            artifact_entries=artifact_entries,
+            next_actions=["Inspect docker tag output before retrying registry push."],
+        )
+
+    push_evidence = _run_registry_command(
+        ["docker", "push", image_reference],
+        timeout_seconds=push_timeout_seconds,
+    )
+    registry["push_attempted"] = True
+    digest = _inspect_pushed_container_digest(image_reference) or _digest_from_registry_push_output(
+        push_evidence
+    )
+    push_succeeded = push_evidence["return_code"] == 0
+    observed_push_evidence = {
+        "action": "docker push",
+        "command": f"docker push {registry.get('redacted_image_reference')}",
+        "registry_type": registry.get("provider"),
+        "redacted_image_reference": registry.get("redacted_image_reference"),
+        "return_code": push_evidence["return_code"],
+        "status": "succeeded" if push_succeeded else "failed",
+        "stdout_summary": push_evidence["stdout_summary"],
+        "stderr_summary": push_evidence["stderr_summary"],
+        "duration_seconds": push_evidence["duration_seconds"],
+        "pushed_image_reference": registry.get("redacted_image_reference")
+        if push_succeeded
+        else None,
+        "digest": digest if push_succeeded else None,
+        "login": login_evidence,
+        "tag": tag_evidence,
+    }
+    if not push_succeeded:
+        observed_push_evidence["blocked_reason"] = "registry_push_failed"
+
+    verification_results.extend(
+        _registry_push_verification_results(
+            registry=registry,
+            approval_evidence=approval_evidence,
+            push_evidence=observed_push_evidence,
+            push_succeeded=push_succeeded,
+            pushed_reference_reported=push_succeeded,
+        )
+    )
+    if push_succeeded:
+        artifact_entries.append(_container_registry_push_artifact_entry(registry, digest))
+        status = "succeeded"
+        next_actions: list[str] = []
+    else:
+        status = "failed"
+        next_actions = ["Inspect registry push output and retry after resolving the failure."]
+
+    return _container_registry_push_result(
+        status=status,
+        completion_mode=completion_mode,
+        registry={
+            **registry,
+            "login": login_evidence,
+            "tag": tag_evidence,
+            "push": observed_push_evidence,
+            "pushed_image_reference": registry.get("redacted_image_reference")
+            if push_succeeded
+            else None,
+            "digest": digest if push_succeeded else None,
+        },
+        blocked_capabilities=blocked_capabilities,
+        deferred_capabilities=deferred_capabilities,
+        verification_results=verification_results,
+        artifact_entries=artifact_entries,
+        next_actions=next_actions,
+    )
+
+
+def _registry_payload_for_push(
+    project_path: Path,
+    workflow_inputs: dict[str, Any],
+    capstone_registry_target_result: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if isinstance(capstone_registry_target_result, dict):
+        registry = capstone_registry_target_result.get("registry")
+        if isinstance(registry, dict):
+            return dict(registry)
+    target_result = _resolve_container_registry_target(project_path, workflow_inputs, None)
+    registry = dict(target_result["registry"])
+    if registry.get("status") == "validated":
+        registry["auth_capability"] = _detect_container_registry_auth_capability(
+            registry.get("provider")
+        )
+    return registry
+
+
+def _registry_push_required_risk_categories(provider: str | None) -> tuple[str, ...]:
+    risks = ["uses_remote_service_credentials", "pushes_registry"]
+    if provider == "ecr":
+        risks.append("uses_cloud_credentials")
+    return tuple(risks)
+
+
+def _registry_push_approval_evidence(
+    approval_record: dict[str, Any] | None,
+    required_risks: tuple[str, ...],
+) -> dict[str, Any]:
+    if not isinstance(approval_record, dict):
+        return {
+            "approved": False,
+            "reason": "missing_approval_record",
+            "required_risk_categories": list(required_risks),
+            "approval_record": None,
+        }
+    risk_categories = tuple(approval_record.get("risk_categories", ()))
+    required_present = all(risk in risk_categories for risk in required_risks)
+    approved = (
+        approval_record.get("step_id") == REGISTRY_PUSH_STEP
+        and approval_record.get("status") == "approved"
+        and required_present
+    )
+    reason = None
+    if approval_record.get("status") == "denied":
+        reason = "approval_denied"
+    elif not required_present:
+        reason = "approval_record_missing_required_risks"
+    elif approval_record.get("step_id") != REGISTRY_PUSH_STEP:
+        reason = "approval_record_wrong_step"
+    elif approval_record.get("status") != "approved":
+        reason = "approval_record_not_approved"
+    return {
+        "approved": approved,
+        "reason": reason,
+        "required_risk_categories": list(required_risks),
+        "approval_record": _redacted_evidence(
+            {
+                "workflow_run_id": approval_record.get("workflow_run_id"),
+                "step_id": approval_record.get("step_id"),
+                "risk_categories": list(risk_categories),
+                "status": approval_record.get("status"),
+                "approver": approval_record.get("approver"),
+                "timestamp": approval_record.get("timestamp"),
+            }
+        ),
+    }
+
+
+def _registry_push_local_image_reference(
+    workflow_inputs: dict[str, Any],
+    capstone_container_build_result: dict[str, Any] | None,
+) -> str:
+    if isinstance(capstone_container_build_result, dict):
+        image_tag = (
+            capstone_container_build_result.get("container", {})
+            .get("image_build", {})
+            .get("image_tag")
+        )
+        if isinstance(image_tag, str) and image_tag:
+            return image_tag
+    return _container_image_tag(workflow_inputs)
+
+
+def _inspect_local_container_image(image_reference: str) -> dict[str, Any]:
+    if not shutil.which("docker"):
+        return {
+            "available": False,
+            "image_reference": image_reference,
+            "return_code": None,
+            "reason": "docker_cli_not_found",
+        }
+    result = _run_registry_command(
+        ["docker", "image", "inspect", image_reference],
+        timeout_seconds=30,
+    )
+    return {
+        "available": result["return_code"] == 0,
+        "image_reference": image_reference,
+        "return_code": result["return_code"],
+        "stdout_summary": result["stdout_summary"],
+        "stderr_summary": result["stderr_summary"],
+        "duration_seconds": result["duration_seconds"],
+        "reason": None if result["return_code"] == 0 else "docker_image_inspect_failed",
+    }
+
+
+def _registry_push_image_reference(
+    registry: dict[str, Any],
+    workflow_inputs: dict[str, Any],
+) -> str:
+    image_reference = workflow_inputs.get("registry_target") or registry.get("image_reference")
+    image_reference = image_reference or registry.get("redacted_image_reference")
+    if not isinstance(image_reference, str) or not image_reference:
+        registry_url = registry.get("registry_url")
+        image_name = registry.get("image_name")
+        image_tag = registry.get("image_tag")
+        image_reference = f"{registry_url}/{image_name}:{image_tag}"
+    return image_reference
+
+
+def _run_container_registry_login(
+    registry: dict[str, Any],
+    timeout_seconds: int,
+) -> dict[str, Any]:
+    provider = registry.get("provider")
+    registry_url = registry.get("registry_url")
+    if provider == "ecr":
+        region = _ecr_region_from_registry_url(str(registry_url or ""))
+        password_result = _run_registry_command(
+            ["aws", "ecr", "get-login-password", "--region", region],
+            timeout_seconds=60,
+        )
+        if password_result["return_code"] != 0:
+            return {
+                **password_result,
+                "action": "aws ecr get-login-password",
+                "registry_type": "ecr",
+                "redacted_login_target": registry.get("redacted_registry_url"),
+            }
+        return _run_registry_command(
+            [
+                "docker",
+                "login",
+                str(registry_url),
+                "--username",
+                "AWS",
+                "--password-stdin",
+            ],
+            timeout_seconds=timeout_seconds,
+            input_text=password_result.get("stdout_summary", ""),
+            evidence_command=(
+                f"aws ecr get-login-password --region {region} | "
+                f"docker login {registry.get('redacted_registry_url')} "
+                "--username AWS --password-stdin"
+            ),
+            extra={
+                "action": "aws ecr login",
+                "registry_type": "ecr",
+                "redacted_login_target": registry.get("redacted_registry_url"),
+            },
+        )
+
+    username = "oauth2"
+    secret_value = None
+    if provider == "ghcr":
+        username = os.environ.get("GITHUB_ACTOR") or "oauth2"
+        secret_value = os.environ.get("GITHUB_TOKEN") or os.environ.get("GHCR_TOKEN")
+    elif provider == "dockerhub":
+        username = os.environ.get("DOCKER_USERNAME") or ""
+        secret_value = os.environ.get("DOCKER_PASSWORD") or os.environ.get("DOCKERHUB_TOKEN")
+    if not secret_value:
+        return {
+            "action": "docker login",
+            "registry_type": provider,
+            "redacted_login_target": registry.get("redacted_registry_url"),
+            "command": (
+                f"docker login {registry.get('redacted_registry_url')} "
+                "--username <redacted> --password-stdin"
+            ),
+            "return_code": 1,
+            "stdout_summary": "",
+            "stderr_summary": "registry credential material was not available",
+            "duration_seconds": 0,
+        }
+    return _run_registry_command(
+        [
+            "docker",
+            "login",
+            str(registry_url),
+            "--username",
+            username,
+            "--password-stdin",
+        ],
+        timeout_seconds=timeout_seconds,
+        input_text=secret_value,
+        evidence_command=(
+            f"docker login {registry.get('redacted_registry_url')} "
+            "--username <redacted> --password-stdin"
+        ),
+        extra={
+            "action": "docker login",
+            "registry_type": provider,
+            "redacted_login_target": registry.get("redacted_registry_url"),
+        },
+    )
+
+
+def _ecr_region_from_registry_url(registry_url: str) -> str:
+    match = re.search(r"\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com$", registry_url)
+    return match.group(1) if match else os.environ.get("AWS_REGION", "us-east-1")
+
+
+def _run_registry_command(
+    command: list[str],
+    *,
+    timeout_seconds: int,
+    input_text: str | None = None,
+    evidence_command: str | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    started_at = time.monotonic()
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            input=input_text,
+        )
+        return_code = result.returncode
+        stdout = result.stdout
+        stderr = result.stderr
+    except subprocess.TimeoutExpired:
+        return_code = 124
+        stdout = ""
+        stderr = f"command timed out after {timeout_seconds}s"
+    except FileNotFoundError:
+        return_code = 127
+        stdout = ""
+        stderr = f"command not found: {command[0]}"
+    duration_seconds = round(time.monotonic() - started_at, 3)
+    payload = {
+        "command": evidence_command or _registry_command_summary(command),
+        "return_code": return_code,
+        "stdout_summary": _redact_registry_command_output(stdout),
+        "stderr_summary": _redact_registry_command_output(stderr),
+        "duration_seconds": duration_seconds,
+    }
+    if extra:
+        payload.update(extra)
+    return payload
+
+
+def _registry_command_summary(command: list[str]) -> str:
+    redacted_parts = ["<redacted>" if "password" in part.casefold() else part for part in command]
+    return " ".join(redacted_parts)
+
+
+def _redact_registry_command_output(value: str | None) -> str:
+    text = _container_command_summary(value)
+    patterns = (
+        r"ghp_[A-Za-z0-9_]+",
+        r"github_pat_[A-Za-z0-9_]+",
+        r"AKIA[0-9A-Z]{16}",
+        r"(?i)(password|token|secret)=\S+",
+        r"(?i)(Bearer\s+)[A-Za-z0-9._-]+",
+    )
+    for pattern in patterns:
+        text = re.sub(pattern, "<redacted-secret>", text)
+    return _redact_container_image_reference(text) or ""
+
+
+def _inspect_pushed_container_digest(image_reference: str) -> str | None:
+    try:
+        result = subprocess.run(
+            [
+                "docker",
+                "image",
+                "inspect",
+                image_reference,
+                "--format",
+                "{{index .RepoDigests 0}}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+    if result.returncode != 0:
+        return None
+    output = (result.stdout or "").strip()
+    if "@sha256:" in output:
+        return output.rsplit("@", 1)[-1]
+    if output.startswith("sha256:"):
+        return output
+    return None
+
+
+def _digest_from_registry_push_output(push_evidence: dict[str, Any]) -> str | None:
+    combined = " ".join(
+        str(push_evidence.get(key, "")) for key in ("stdout_summary", "stderr_summary")
+    )
+    match = re.search(r"sha256:[a-fA-F0-9]{8,64}", combined)
+    return match.group(0) if match else None
+
+
+def _registry_push_verification_results(
+    *,
+    registry: dict[str, Any],
+    approval_evidence: dict[str, Any] | None,
+    push_evidence: dict[str, Any],
+    push_succeeded: bool,
+    pushed_reference_reported: bool,
+) -> list[dict[str, Any]]:
+    secret_safety = _container_registry_push_secret_safety(
+        registry=registry,
+        approval_evidence=approval_evidence,
+        push_evidence=push_evidence,
+    )
+    auth_capability = registry.get("auth_capability", {})
+    return [
+        _container_registry_push_verification_result(
+            "registry_auth_capability_verified",
+            bool(isinstance(auth_capability, dict) and auth_capability.get("available")),
+            auth_capability if isinstance(auth_capability, dict) else {},
+        ),
+        _container_registry_push_verification_result(
+            "registry_push_approved",
+            bool(approval_evidence and approval_evidence.get("approved")),
+            approval_evidence or {"approved": False, "reason": "missing_approval_record"},
+        ),
+        _container_registry_push_verification_result(
+            "registry_push_succeeded",
+            push_succeeded,
+            push_evidence,
+        ),
+        _container_registry_push_verification_result(
+            "pushed_image_reference_reported",
+            pushed_reference_reported,
+            {
+                "pushed_image_reference": push_evidence.get("pushed_image_reference"),
+                "digest": push_evidence.get("digest"),
+                "redacted_image_reference": registry.get("redacted_image_reference"),
+            },
+        ),
+        _container_registry_push_verification_result(
+            "secret_safety_validated",
+            secret_safety["passed"],
+            secret_safety,
+        ),
+    ]
+
+
+def _container_registry_push_secret_safety(
+    *,
+    registry: dict[str, Any],
+    approval_evidence: dict[str, Any] | None,
+    push_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    serialized = json.dumps(
+        _redacted_evidence(
+            {
+                "registry": registry,
+                "approval": approval_evidence or {},
+                "push": push_evidence,
+            }
+        ),
+        sort_keys=True,
+    )
+    secret_patterns = (
+        r"ghp_[A-Za-z0-9_]+",
+        r"github_pat_[A-Za-z0-9_]+",
+        r"AKIA[0-9A-Z]{16}",
+        r"(?i)(password|token|secret)=\S+",
+    )
+    violations = [
+        {"rule": "secret_like_value", "match": "<redacted-secret>"}
+        for pattern in secret_patterns
+        if re.search(pattern, serialized)
+    ]
+    return {
+        "passed": not violations,
+        "checked_fields": ["registry", "approval", "push"],
+        "violations": violations,
+    }
+
+
+def _container_registry_push_verification_result(
+    check_name: str,
+    passed: bool,
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "check_name": check_name,
+        "evidence_type": "observed",
+        "source_step": REGISTRY_PUSH_STEP,
+        "passed": passed,
+        "evidence": json.dumps(_redacted_evidence(evidence), sort_keys=True),
+    }
+
+
+def _container_registry_push_artifact_entry(
+    registry: dict[str, Any],
+    digest: str | None,
+) -> dict[str, Any]:
+    return {
+        "artifact_type": "container_registry_push",
+        "producing_step": REGISTRY_PUSH_STEP,
+        "state": "external",
+        "uri": f"registry://{registry.get('redacted_image_reference')}",
+        "checksum": digest,
+        "metadata": {
+            "provider": registry.get("provider"),
+            "pushed_image_reference": registry.get("redacted_image_reference"),
+            "digest": digest,
+        },
+    }
+
+
+def _container_registry_push_result(
+    *,
+    status: str,
+    completion_mode: str,
+    registry: dict[str, Any],
+    blocked_capabilities: list[dict[str, Any]],
+    deferred_capabilities: list[dict[str, Any]],
+    verification_results: list[dict[str, Any]],
+    artifact_entries: list[dict[str, Any]],
+    next_actions: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "success": True,
+        "status": status,
+        "workflow_id": "prepare_capstone_container_ci",
+        "completion_mode": completion_mode,
+        "registry": _redacted_evidence(registry),
+        "blocked_capabilities": _redacted_evidence(blocked_capabilities),
+        "deferred_capabilities": _redacted_evidence(deferred_capabilities),
+        "verification_results": verification_results,
+        "artifact_manifest": {"entries": _redacted_evidence(artifact_entries)},
+        "workflow_input_overrides": {
+            "registry_push_succeeded": status == "succeeded",
+            "pushed_image_reference_available": status == "succeeded",
+        },
+        "next_actions": next_actions
+        if next_actions is not None
+        else [
+            item["next_action"]
+            for item in (*blocked_capabilities, *deferred_capabilities)
+            if item.get("next_action")
+        ],
+    }
+
+
 def _resolve_container_data_stage_evidence(
     project_path: Path,
     workflow_inputs: dict[str, Any],
@@ -13275,6 +14070,14 @@ async def list_tools() -> list[Tool]:
             inputSchema=ConfigureValidateCapstoneRegistryTargetInput.model_json_schema(),
         ),
         Tool(
+            name="approval_gated_capstone_registry_login_push",
+            description=(
+                "Run approval-gated Phase 5 registry login and image push while recording "
+                "secret-safe observed push evidence"
+            ),
+            inputSchema=ApprovalGatedCapstoneRegistryLoginPushInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -13779,6 +14582,17 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 project_path=input_data.project_path,
                 workflow_inputs=input_data.workflow_inputs,
                 capstone_container_build_result=input_data.capstone_container_build_result,
+            )
+
+        elif name == "approval_gated_capstone_registry_login_push":
+            input_data = ApprovalGatedCapstoneRegistryLoginPushInput(**arguments)
+            result = approval_gated_capstone_registry_login_push(
+                project_path=input_data.project_path,
+                workflow_inputs=input_data.workflow_inputs,
+                capstone_registry_target_result=input_data.capstone_registry_target_result,
+                capstone_container_build_result=input_data.capstone_container_build_result,
+                approval_record=input_data.approval_record,
+                push_timeout_seconds=input_data.push_timeout_seconds,
             )
 
         # Docker Tools

@@ -1128,6 +1128,11 @@ class AgentLoop:
                 and step_id == "build_smoke_check_container_image"
             ):
                 return None
+            if (
+                self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+                and step_id == "approval_gated_registry_login_push"
+            ):
+                return self._validate_capstone_registry_push_approval(step_id)
             validation = self.workflow_registry.validate_step_approval(
                 workflow_id=self.workflow_selection.workflow_id,
                 workflow_run_id=self.session_id,
@@ -1234,6 +1239,97 @@ class AgentLoop:
             ),
         )
 
+    def _validate_capstone_registry_push_approval(self, step_id: str):
+        risk_categories = self._capstone_registry_push_risk_categories()
+        workflow_id = self.workflow_selection.workflow_id
+        approval_records = tuple(self.ctx.globals.get("approval_records", ()))
+        approval_record = next(
+            (
+                record
+                for record in approval_records
+                if record.workflow_run_id == self.session_id
+                and record.step_id == step_id
+                and record.risk_categories == risk_categories
+            ),
+            None,
+        )
+        if approval_record is not None and approval_record.status.value == "approved":
+            return StepApprovalValidation(
+                workflow_id=workflow_id,
+                workflow_run_id=self.session_id,
+                step_id=step_id,
+                status=WorkflowStatus.PENDING,
+                risk_categories=risk_categories,
+                approval_record=approval_record,
+                next_action="Approval satisfied; step may run.",
+            )
+        if approval_record is not None and approval_record.status.value == "denied":
+            approver = approval_record.approver or "unknown approver"
+            return StepApprovalValidation(
+                workflow_id=workflow_id,
+                workflow_run_id=self.session_id,
+                step_id=step_id,
+                status=WorkflowStatus.FAILED,
+                risk_categories=risk_categories,
+                approval_record=approval_record,
+                next_action=(
+                    f"Approval denied by {approver}; step '{step_id}' must not run."
+                ),
+            )
+        if self.auto_approve:
+            approval_record = ApprovalRecord(
+                workflow_run_id=self.session_id,
+                step_id=step_id,
+                risk_categories=risk_categories,
+                status="approved",
+                approver="auto_approve",
+                timestamp=datetime.now(timezone.utc),
+            )
+            self.ctx.globals["approval_records"] = (*approval_records, approval_record)
+            return StepApprovalValidation(
+                workflow_id=workflow_id,
+                workflow_run_id=self.session_id,
+                step_id=step_id,
+                status=WorkflowStatus.PENDING,
+                risk_categories=risk_categories,
+                approval_record=approval_record,
+                next_action="Approval satisfied; step may run.",
+            )
+        return StepApprovalValidation(
+            workflow_id=workflow_id,
+            workflow_run_id=self.session_id,
+            step_id=step_id,
+            status=WorkflowStatus.BLOCKED,
+            risk_categories=risk_categories,
+            approval_record=None,
+            next_action=(
+                f"Record approval for workflow run '{self.session_id}' "
+                f"before step '{step_id}' may run."
+            ),
+        )
+
+    def _capstone_registry_push_risk_categories(self) -> tuple[RiskCategory, ...]:
+        risks = [
+            RiskCategory.USES_REMOTE_SERVICE_CREDENTIALS,
+            RiskCategory.PUSHES_REGISTRY,
+        ]
+        if self._capstone_registry_target_provider() == "ecr":
+            risks.append(RiskCategory.USES_CLOUD_CREDENTIALS)
+        return tuple(risks)
+
+    def _capstone_registry_target_provider(self) -> str | None:
+        registry_result = self.ctx.globals.get("capstone_container_registry_target", {})
+        if isinstance(registry_result, dict):
+            provider = registry_result.get("registry", {}).get("provider")
+            if isinstance(provider, str):
+                return provider
+        workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+        if isinstance(workflow_inputs, dict):
+            registry_target = workflow_inputs.get("registry_target")
+            if isinstance(registry_target, str) and ".dkr.ecr." in registry_target:
+                return "ecr"
+        return None
+
     def _capstone_remote_risk_categories(self) -> tuple[RiskCategory, ...]:
         workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
         if not isinstance(workflow_inputs, dict):
@@ -1281,6 +1377,7 @@ class AgentLoop:
                 "generate_validate_runtime_image_spec",
                 "build_smoke_check_container_image",
                 "configure_validate_registry_target",
+                "approval_gated_registry_login_push",
             }
         ):
             return True
@@ -1609,6 +1706,16 @@ class AgentLoop:
             if isinstance(workflow_input_overrides, dict) and isinstance(workflow_inputs, dict):
                 workflow_inputs.update(workflow_input_overrides)
                 self.ctx.globals["workflow_inputs"] = workflow_inputs
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "approval_gated_registry_login_push"
+        ):
+            self.ctx.globals["capstone_container_registry_push"] = payload
+            workflow_input_overrides = payload.get("workflow_input_overrides")
+            workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+            if isinstance(workflow_input_overrides, dict) and isinstance(workflow_inputs, dict):
+                workflow_inputs.update(workflow_input_overrides)
+                self.ctx.globals["workflow_inputs"] = workflow_inputs
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1904,6 +2011,23 @@ class AgentLoop:
             build_result = self.ctx.globals.get("capstone_container_build_smoke_check", {})
             if isinstance(build_result, dict):
                 runtime_args["capstone_container_build_result"] = build_result
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "approval_gated_registry_login_push"
+        ):
+            runtime_args["workflow_inputs"] = self.ctx.globals.get("workflow_inputs", {})
+            registry_result = self.ctx.globals.get("capstone_container_registry_target", {})
+            if isinstance(registry_result, dict):
+                runtime_args["capstone_registry_target_result"] = registry_result
+            build_result = self.ctx.globals.get("capstone_container_build_smoke_check", {})
+            if isinstance(build_result, dict):
+                runtime_args["capstone_container_build_result"] = build_result
+            approval_record = self._approval_record_for_step(step_id)
+            if approval_record is not None:
+                runtime_args["approval_record"] = self._approval_record_to_payload(
+                    approval_record
+                )
         return runtime_args
 
     def _verification_results_payload(self) -> list[dict[str, Any]]:
