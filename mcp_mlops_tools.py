@@ -416,6 +416,32 @@ class TrackTrainingInMLflowInput(BaseModel):
     )
 
 
+class RecordCapstoneOrchestratorSkeletonInput(BaseModel):
+    """Record the first Capstone Orchestrator skeleton and deferred evidence."""
+
+    project_path: str = Field(..., description="Path to the project")
+    declared_stages: list[str] | None = Field(
+        default=None,
+        description="Declared capstone stages owned by the registry template",
+    )
+    implemented_subworkflows: list[str] | None = Field(
+        default=None,
+        description="Implemented workflow ids the skeleton may reference",
+    )
+    blocked_subworkflows: list[str] | None = Field(
+        default=None,
+        description="Known missing workflow ids that must remain blocked",
+    )
+    selected_model_artifact_path: str | None = Field(
+        default=None,
+        description="Optional selected model artifact evidence from a prior workflow",
+    )
+    endpoint_url: str | None = Field(
+        default=None,
+        description="Optional endpoint evidence from a prior deployment workflow",
+    )
+
+
 # --- Data Quality Tools ---
 
 
@@ -6355,6 +6381,202 @@ def _model_selection_verification_results(
     ]
 
 
+DEFAULT_CAPSTONE_STAGES = ("setup", "data", "train", "deploy", "monitor", "report")
+DEFAULT_CAPSTONE_IMPLEMENTED_SUBWORKFLOWS = (
+    "setup_pipeline",
+    "detect_training_project",
+    "train_and_track",
+    "deploy_litserve_preflight",
+    "deploy_litserve_gpu",
+)
+DEFAULT_CAPSTONE_BLOCKED_SUBWORKFLOWS = ("train_until_better",)
+DEFAULT_CAPSTONE_DEFERRED_CAPABILITIES = (
+    {
+        "stage": "data",
+        "capability": "S3 DVC remote automation",
+        "reason": "Remote DVC/S3 credential setup and automation are later-phase work.",
+        "later_phase_pointer": "Future data/versioning issue",
+    },
+    {
+        "stage": "deploy",
+        "capability": "KServe/Helm/ArgoCD",
+        "reason": "Production Kubernetes serving, charting, and GitOps rollout are not implemented.",
+        "later_phase_pointer": "Future production deployment issue",
+    },
+    {
+        "stage": "deploy",
+        "capability": "HuggingFace Spaces",
+        "reason": "Spaces publishing remains outside the current verified workflow set.",
+        "later_phase_pointer": "Future demo deployment issue",
+    },
+    {
+        "stage": "deploy",
+        "capability": "AWS Lambda serverless",
+        "reason": "Serverless packaging and deployment are not implemented by this skeleton.",
+        "later_phase_pointer": "Future serverless deployment issue",
+    },
+    {
+        "stage": "monitor",
+        "capability": "stress tests",
+        "reason": "Load and stress testing workflows are not part of the current registry contract.",
+        "later_phase_pointer": "Future monitoring and validation issue",
+    },
+    {
+        "stage": "monitor",
+        "capability": "frontend",
+        "reason": "Workflow timeline and endpoint cards are deferred UI work.",
+        "later_phase_pointer": "Future frontend issue",
+    },
+    {
+        "stage": "report",
+        "capability": "final report",
+        "reason": "Final report generation is not implemented in this phase.",
+        "later_phase_pointer": "Future reporting issue",
+    },
+    {
+        "stage": "report",
+        "capability": "video",
+        "reason": "Video generation and publication are not implemented in this phase.",
+        "later_phase_pointer": "Future reporting issue",
+    },
+)
+
+
+def record_capstone_orchestrator_skeleton(
+    project_path: str,
+    declared_stages: list[str] | tuple[str, ...] | None = None,
+    implemented_subworkflows: list[str] | tuple[str, ...] | None = None,
+    blocked_subworkflows: list[str] | tuple[str, ...] | None = None,
+    selected_model_artifact_path: str | None = None,
+    endpoint_url: str | None = None,
+) -> dict[str, Any]:
+    """Record the Capstone Orchestrator skeleton without faking full capstone success."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    declared = list(declared_stages or DEFAULT_CAPSTONE_STAGES)
+    implemented = list(implemented_subworkflows or DEFAULT_CAPSTONE_IMPLEMENTED_SUBWORKFLOWS)
+    blocked_workflows = list(blocked_subworkflows or DEFAULT_CAPSTONE_BLOCKED_SUBWORKFLOWS)
+    blocked_stages = [
+        {
+            "stage": "train",
+            "capability": workflow_id,
+            "reason": (
+                f"Workflow '{workflow_id}' is not registered on this branch; the "
+                "orchestrator must not claim iterative improvement success."
+            ),
+            "later_phase_pointer": "Future train-and-improve issue",
+        }
+        for workflow_id in blocked_workflows
+    ]
+    implemented_records = [
+        {
+            "workflow_id": workflow_id,
+            "status": "implemented",
+            "completion_rule": "A stage may be complete only after this workflow's SuccessContract succeeds.",
+        }
+        for workflow_id in implemented
+    ]
+    stage_statuses = [
+        {
+            "stage": stage,
+            "status": "available" if stage in {"setup", "train", "deploy"} else "deferred",
+            "completion_rule": "contract-derived",
+        }
+        for stage in declared
+    ]
+    selected_model_artifact = (
+        {"path": selected_model_artifact_path, "state": "available"}
+        if selected_model_artifact_path
+        else None
+    )
+    endpoint_evidence = (
+        {"endpoint_url": endpoint_url, "state": "available"} if endpoint_url else None
+    )
+    next_actions = [
+        "Run setup_pipeline and require its SuccessContract to succeed before marking setup complete.",
+        "Run train_and_track with explicit bounded controls and model-selection inputs.",
+        "Add train_until_better before claiming iterative improvement stage completion.",
+        "Provide selected model artifact evidence before executing LitServe deployment workflows.",
+        "Replace each deferred capability with a registry-owned workflow in a later issue.",
+    ]
+
+    plan_path = path / ".auto_mlops" / "capstone" / "orchestrator_plan.json"
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_entry = {
+        "artifact_type": "capstone_orchestrator_plan",
+        "producing_step": "record_capstone_orchestrator_skeleton",
+        "state": "generated",
+        "path": relative_to_project(str(path), plan_path),
+        "metadata": {
+            "declared_stages": declared,
+            "status": "blocked",
+            "deferred_capability_count": len(DEFAULT_CAPSTONE_DEFERRED_CAPABILITIES),
+        },
+    }
+    plan = {
+        "workflow_id": "build_capstone_pipeline",
+        "name": "Capstone Orchestrator",
+        "status": "blocked",
+        "declared_stages": declared,
+        "stage_statuses": stage_statuses,
+        "completed_stages": [],
+        "blocked_stages": blocked_stages,
+        "deferred_capabilities": list(DEFAULT_CAPSTONE_DEFERRED_CAPABILITIES),
+        "deferred_stages": list(DEFAULT_CAPSTONE_DEFERRED_CAPABILITIES),
+        "implemented_subworkflows": implemented_records,
+        "selected_model_artifact": selected_model_artifact,
+        "endpoint_evidence": endpoint_evidence,
+        "artifact_manifest": {"entries": [artifact_entry]},
+        "next_actions": next_actions,
+    }
+    plan_path.write_text(json.dumps(plan, indent=2, sort_keys=True))
+
+    verification_results = [
+        {
+            "check_name": "capstone_stage_plan_recorded",
+            "evidence_type": "declared",
+            "source_step": "record_capstone_orchestrator_skeleton",
+            "passed": True,
+            "evidence": json.dumps(
+                {"declared_stages": declared, "stage_statuses": stage_statuses},
+                sort_keys=True,
+            ),
+        },
+        {
+            "check_name": "implemented_subworkflows_referenced",
+            "evidence_type": "declared",
+            "source_step": "record_capstone_orchestrator_skeleton",
+            "passed": True,
+            "evidence": json.dumps(
+                {
+                    "implemented_subworkflows": implemented,
+                    "blocked_subworkflows": blocked_workflows,
+                },
+                sort_keys=True,
+            ),
+        },
+        {
+            "check_name": "deferred_capabilities_recorded",
+            "evidence_type": "declared",
+            "source_step": "record_capstone_orchestrator_skeleton",
+            "passed": True,
+            "evidence": json.dumps(list(DEFAULT_CAPSTONE_DEFERRED_CAPABILITIES), sort_keys=True),
+        },
+    ]
+
+    return {
+        "success": True,
+        **plan,
+        "verification_results": verification_results,
+        "message": (
+            "Capstone Orchestrator skeleton recorded; full capstone remains blocked until "
+            "future capabilities have registry-owned workflows and contract evidence."
+        ),
+    }
+
+
 def record_litserve_image_build_skipped(project_path: str) -> dict[str, Any]:
     """Record that Docker image build is optional and skipped by default."""
     path = Path(project_path)
@@ -8427,6 +8649,11 @@ async def list_tools() -> list[Tool]:
             inputSchema=TrackTrainingInMLflowInput.model_json_schema(),
         ),
         Tool(
+            name="record_capstone_orchestrator_skeleton",
+            description="Record the Capstone Orchestrator skeleton with blocked/deferred evidence",
+            inputSchema=RecordCapstoneOrchestratorSkeletonInput.model_json_schema(),
+        ),
+        Tool(
             name="analyze_training_results",
             description="Analyze training results and suggest improvements",
             inputSchema=AnalyzeTrainingResultsInput.model_json_schema(),
@@ -8911,6 +9138,17 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 tracking_uri=input_data.tracking_uri,
                 run_name=input_data.run_name,
                 params=input_data.params,
+            )
+
+        elif name == "record_capstone_orchestrator_skeleton":
+            input_data = RecordCapstoneOrchestratorSkeletonInput(**arguments)
+            result = record_capstone_orchestrator_skeleton(
+                project_path=input_data.project_path,
+                declared_stages=input_data.declared_stages,
+                implemented_subworkflows=input_data.implemented_subworkflows,
+                blocked_subworkflows=input_data.blocked_subworkflows,
+                selected_model_artifact_path=input_data.selected_model_artifact_path,
+                endpoint_url=input_data.endpoint_url,
             )
 
         elif name == "analyze_training_results":

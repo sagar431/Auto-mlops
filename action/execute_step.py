@@ -184,6 +184,7 @@ AVAILABLE_TOOLS = [
     "detect_training_project",
     "run_bounded_training",
     "track_training_in_mlflow",
+    "record_capstone_orchestrator_skeleton",
     "analyze_training_results",
     "suggest_improvements",
     "check_accuracy_threshold",

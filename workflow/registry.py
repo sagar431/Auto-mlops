@@ -713,12 +713,105 @@ def get_workflow_registry() -> WorkflowRegistry:
             _setup_pipeline_template(),
             _detect_training_project_template(),
             _train_and_track_template(),
+            _build_capstone_pipeline_template(),
             _deploy_litserve_preflight_template(),
             _deploy_litserve_gpu_template(),
             _deploy_gpu_inference_template(),
             _deploy_gradio_demo_template(),
             _deploy_kserve_production_template(),
         )
+    )
+
+
+def _build_capstone_pipeline_template() -> WorkflowTemplate:
+    return WorkflowTemplate(
+        workflow_id="build_capstone_pipeline",
+        name="Capstone Orchestrator",
+        description=(
+            "Record the first top-level capstone pipeline skeleton with setup, data, train, "
+            "deploy, monitor, and report stages, while keeping later-phase capabilities blocked "
+            "or deferred until implemented workflows can satisfy their contracts."
+        ),
+        required_inputs=(
+            WorkflowInput(
+                name="project_path",
+                description="Path to the project that should receive the capstone plan.",
+            ),
+        ),
+        steps=(
+            WorkflowStep(
+                step_id="record_capstone_orchestrator_skeleton",
+                name="Record Capstone Orchestrator Skeleton",
+                description=(
+                    "Write structured stage, sub-workflow, blocked, deferred, artifact, and "
+                    "next-action evidence without executing unimplemented future capabilities."
+                ),
+                order=1,
+                tool_functions=("record_capstone_orchestrator_skeleton",),
+                default_args={
+                    "declared_stages": (
+                        "setup",
+                        "data",
+                        "train",
+                        "deploy",
+                        "monitor",
+                        "report",
+                    ),
+                    "implemented_subworkflows": (
+                        "setup_pipeline",
+                        "detect_training_project",
+                        "train_and_track",
+                        "deploy_litserve_preflight",
+                        "deploy_litserve_gpu",
+                    ),
+                    "blocked_subworkflows": ("train_until_better",),
+                },
+            ),
+        ),
+        success_contract=SuccessContract(
+            checks=(
+                SuccessContractCheck(
+                    name="capstone_stage_plan_recorded",
+                    evidence_type="declared",
+                    source_step="record_capstone_orchestrator_skeleton",
+                ),
+                SuccessContractCheck(
+                    name="implemented_subworkflows_referenced",
+                    evidence_type="declared",
+                    source_step="record_capstone_orchestrator_skeleton",
+                ),
+                SuccessContractCheck(
+                    name="deferred_capabilities_recorded",
+                    evidence_type="declared",
+                    source_step="record_capstone_orchestrator_skeleton",
+                ),
+                SuccessContractCheck(
+                    name="capstone_orchestrator_artifact_reported",
+                    evidence_type="declared",
+                    source_step="record_capstone_orchestrator_skeleton",
+                ),
+                SuccessContractCheck(
+                    name="capstone_pipeline_ready",
+                    evidence_type="observed",
+                    source_step="record_capstone_orchestrator_skeleton",
+                ),
+            ),
+        ),
+        artifact_requirements=(
+            ArtifactRequirement(
+                name="capstone_orchestrator_plan",
+                artifact_type="capstone_orchestrator_plan",
+                source_step="record_capstone_orchestrator_skeleton",
+                state="generated",
+                contract_check_name="capstone_orchestrator_artifact_reported",
+            ),
+        ),
+        routing_aliases=(
+            "Build full capstone pipeline",
+            "build capstone pipeline",
+            "Capstone Orchestrator",
+            "create capstone orchestrator",
+        ),
     )
 
 

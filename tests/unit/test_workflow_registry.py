@@ -37,6 +37,7 @@ def test_registry_contains_phase_3_training_detection_template():
         "setup_pipeline",
         "detect_training_project",
         "train_and_track",
+        "build_capstone_pipeline",
         "deploy_litserve_preflight",
         "deploy_litserve_gpu",
         "deploy_gpu_inference",
@@ -71,6 +72,82 @@ def test_detect_training_project_declares_detection_only_template():
         "output_artifact_candidates_detected",
     ]
     assert all(check.evidence_type == "observed" for check in template.success_contract.checks)
+
+
+def test_build_capstone_pipeline_declares_orchestrator_skeleton():
+    template = get_workflow_registry().get("build_capstone_pipeline")
+
+    assert template.workflow_id == "build_capstone_pipeline"
+    assert template.name == "Capstone Orchestrator"
+    assert [workflow_input.name for workflow_input in template.required_inputs] == [
+        "project_path"
+    ]
+    assert [step.step_id for step in template.steps] == [
+        "record_capstone_orchestrator_skeleton"
+    ]
+    skeleton_step = template.step_by_id("record_capstone_orchestrator_skeleton")
+    assert skeleton_step.tool_functions == ("record_capstone_orchestrator_skeleton",)
+    assert skeleton_step.default_args["declared_stages"] == (
+        "setup",
+        "data",
+        "train",
+        "deploy",
+        "monitor",
+        "report",
+    )
+    assert skeleton_step.default_args["implemented_subworkflows"] == (
+        "setup_pipeline",
+        "detect_training_project",
+        "train_and_track",
+        "deploy_litserve_preflight",
+        "deploy_litserve_gpu",
+    )
+    assert "train_until_better" in skeleton_step.default_args["blocked_subworkflows"]
+    assert [check.name for check in template.success_contract.checks] == [
+        "capstone_stage_plan_recorded",
+        "implemented_subworkflows_referenced",
+        "deferred_capabilities_recorded",
+        "capstone_orchestrator_artifact_reported",
+        "capstone_pipeline_ready",
+    ]
+
+
+def test_build_capstone_pipeline_blocks_until_future_capabilities_are_implemented():
+    registry = get_workflow_registry()
+    template = registry.get("build_capstone_pipeline")
+    verification_results = tuple(
+        VerificationResult(
+            check_name=check.name,
+            evidence_type=check.evidence_type,
+            source_step=check.source_step,
+            passed=True,
+            evidence=f"{check.name}=ok",
+        )
+        for check in template.success_contract.checks
+        if check.name != "capstone_pipeline_ready"
+    )
+    manifest = ArtifactManifest(
+        entries=(
+            ArtifactManifestEntry(
+                artifact_type="capstone_orchestrator_plan",
+                producing_step="record_capstone_orchestrator_skeleton",
+                state="generated",
+                path=".auto_mlops/capstone/orchestrator_plan.json",
+            ),
+        )
+    )
+
+    validation = registry.validate_success_contract(
+        "build_capstone_pipeline",
+        verification_results=verification_results,
+        artifact_manifest=manifest,
+    )
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert [failure.check_name for failure in validation.missing_evidence] == [
+        "capstone_pipeline_ready"
+    ]
+    assert validation.failed_checks == ()
 
 
 def test_train_and_track_declares_bounded_training_template():

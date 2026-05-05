@@ -213,6 +213,66 @@ def test_select_best_model_artifact_blocks_without_candidate_artifact(tmp_path):
     assert verification_by_name["model_artifact_selected"]["passed"] is False
 
 
+def test_record_capstone_orchestrator_skeleton_records_deferred_capabilities(tmp_path):
+    result = mcp_mlops_tools.record_capstone_orchestrator_skeleton(
+        project_path=str(tmp_path),
+        selected_model_artifact_path="models/model.pt",
+        endpoint_url="http://127.0.0.1:8000",
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert result["declared_stages"] == [
+        "setup",
+        "data",
+        "train",
+        "deploy",
+        "monitor",
+        "report",
+    ]
+    assert result["completed_stages"] == []
+    assert {
+        "setup_pipeline",
+        "detect_training_project",
+        "train_and_track",
+        "deploy_litserve_preflight",
+        "deploy_litserve_gpu",
+    }.issubset({item["workflow_id"] for item in result["implemented_subworkflows"]})
+    assert result["blocked_stages"][0]["capability"] == "train_until_better"
+    deferred_names = {item["capability"] for item in result["deferred_capabilities"]}
+    assert {
+        "S3 DVC remote automation",
+        "KServe/Helm/ArgoCD",
+        "HuggingFace Spaces",
+        "AWS Lambda serverless",
+        "stress tests",
+        "frontend",
+        "final report",
+        "video",
+    }.issubset(deferred_names)
+    assert result["selected_model_artifact"] == {
+        "path": "models/model.pt",
+        "state": "available",
+    }
+    assert result["endpoint_evidence"] == {
+        "endpoint_url": "http://127.0.0.1:8000",
+        "state": "available",
+    }
+    assert result["next_actions"]
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["capstone_stage_plan_recorded"]["passed"] is True
+    assert verification_by_name["implemented_subworkflows_referenced"]["passed"] is True
+    assert verification_by_name["deferred_capabilities_recorded"]["passed"] is True
+    assert "capstone_pipeline_ready" not in verification_by_name
+    manifest_entry = result["artifact_manifest"]["entries"][0]
+    assert manifest_entry["artifact_type"] == "capstone_orchestrator_plan"
+    assert manifest_entry["state"] == "generated"
+    assert manifest_entry["path"] == ".auto_mlops/capstone/orchestrator_plan.json"
+    assert (tmp_path / manifest_entry["path"]).exists()
+
+
 def test_create_litserve_api_generates_tabular_server_for_pickle_artifact(tmp_path):
     outputs_dir = tmp_path / "outputs"
     outputs_dir.mkdir()
@@ -1465,6 +1525,45 @@ class TestAgentLoopRun:
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
         mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_build_capstone_pipeline_records_deferred_capabilities(
+        self, mock_agent, tmp_path
+    ):
+        """Test Capstone Orchestrator skeleton blocks honestly on future work."""
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("registry capstone must skip perception"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+        ):
+            result = await mock_agent.run("Build full capstone pipeline", str(tmp_path))
+
+        completed_tool_steps = [
+            step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
+        ]
+        assert mock_agent.workflow_selection.workflow_id == "build_capstone_pipeline"
+        assert completed_tool_steps == ["record_capstone_orchestrator_skeleton"]
+        assert mock_agent.status == "paused"
+        assert "build_capstone_pipeline final workflow status derived from SuccessContract" in result
+        assert "contract_status: blocked" in result
+        assert "capstone_pipeline_ready" in result
+        assert "train_until_better" in result
+        assert "S3 DVC remote automation" in result
+        assert "KServe/Helm/ArgoCD" in result
+        assert "final report" in result
+        assert "video" in result
+        assert ".auto_mlops/capstone/orchestrator_plan.json" in result
+        contract_status = mock_agent.ctx.globals["contract_status"]
+        assert contract_status.status is WorkflowStatus.BLOCKED
+        assert [failure.check_name for failure in contract_status.missing_evidence] == [
+            "capstone_pipeline_ready"
+        ]
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_run_train_and_track_blocks_missing_detection_evidence_before_training(
