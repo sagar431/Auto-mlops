@@ -503,6 +503,48 @@ class ConfigureValidateCapstoneDVCRemoteInput(BaseModel):
     )
 
 
+class PushCapstoneDataInput(BaseModel):
+    """Run approval-gated DVC push for capstone data package evidence."""
+
+    project_path: str = Field(..., description="Path to the project")
+    completion_mode: str = Field(default="capstone_complete", description="Phase 4 completion mode")
+    remote_name: str = Field(default="capstone", description="DVC remote name")
+    capstone_dvc_remote_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from configure_validate_capstone_dvc_remote",
+    )
+    approval_record: dict[str, Any] | None = Field(
+        default=None,
+        description="Approved ApprovalRecord payload for push_capstone_data",
+    )
+    paths: list[str] | None = Field(default=None, description="Optional DVC paths to push")
+    source_step: str = Field(
+        default="push_capstone_data",
+        description="Workflow step that owns emitted transfer evidence.",
+    )
+
+
+class PullCapstoneDataInput(BaseModel):
+    """Run approval-gated DVC pull for capstone data package evidence."""
+
+    project_path: str = Field(..., description="Path to the project")
+    completion_mode: str = Field(default="capstone_complete", description="Phase 4 completion mode")
+    remote_name: str = Field(default="capstone", description="DVC remote name")
+    capstone_dvc_remote_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from configure_validate_capstone_dvc_remote",
+    )
+    approval_record: dict[str, Any] | None = Field(
+        default=None,
+        description="Approved ApprovalRecord payload for pull_capstone_data",
+    )
+    paths: list[str] | None = Field(default=None, description="Optional DVC paths to pull")
+    source_step: str = Field(
+        default="pull_capstone_data",
+        description="Workflow step that owns emitted transfer evidence.",
+    )
+
+
 # --- Data Quality Tools ---
 
 
@@ -3076,6 +3118,326 @@ def configure_validate_capstone_dvc_remote(
     )
 
 
+def push_capstone_data(
+    project_path: str,
+    completion_mode: str = "capstone_complete",
+    remote_name: str = "capstone",
+    capstone_dvc_remote_result: dict[str, Any] | None = None,
+    approval_record: dict[str, Any] | None = None,
+    paths: list[str] | None = None,
+    source_step: str = "push_capstone_data",
+) -> dict[str, Any]:
+    """Run approval-gated DVC push and record observed capstone transfer evidence."""
+    return _run_capstone_dvc_transfer(
+        project_path=project_path,
+        completion_mode=completion_mode,
+        direction="push",
+        remote_name=remote_name,
+        capstone_dvc_remote_result=capstone_dvc_remote_result,
+        approval_record=approval_record,
+        paths=paths,
+        source_step=source_step,
+        required_risks=("uses_cloud_credentials",),
+    )
+
+
+def pull_capstone_data(
+    project_path: str,
+    completion_mode: str = "capstone_complete",
+    remote_name: str = "capstone",
+    capstone_dvc_remote_result: dict[str, Any] | None = None,
+    approval_record: dict[str, Any] | None = None,
+    paths: list[str] | None = None,
+    source_step: str = "pull_capstone_data",
+) -> dict[str, Any]:
+    """Run approval-gated DVC pull and record observed capstone transfer evidence."""
+    return _run_capstone_dvc_transfer(
+        project_path=project_path,
+        completion_mode=completion_mode,
+        direction="pull",
+        remote_name=remote_name,
+        capstone_dvc_remote_result=capstone_dvc_remote_result,
+        approval_record=approval_record,
+        paths=paths,
+        source_step=source_step,
+        required_risks=("uses_cloud_credentials", "writes_project_files"),
+    )
+
+
+def _run_capstone_dvc_transfer(
+    project_path: str,
+    completion_mode: str,
+    direction: str,
+    remote_name: str,
+    capstone_dvc_remote_result: dict[str, Any] | None,
+    approval_record: dict[str, Any] | None,
+    paths: list[str] | None,
+    source_step: str,
+    required_risks: tuple[str, ...],
+) -> dict[str, Any]:
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+    if not path.is_dir():
+        return {"success": False, "error": f"Project path {project_path} is not a directory"}
+    if direction not in {"push", "pull"}:
+        return {"success": False, "error": f"Unsupported DVC transfer direction: {direction}"}
+
+    remote = _transfer_remote_record(path, remote_name, capstone_dvc_remote_result)
+    base_evidence = {
+        "transfer_direction": direction,
+        "remote": remote,
+        "approval_record": _approval_record_evidence(approval_record),
+        "paths": paths or [],
+    }
+    if completion_mode == "local_ready":
+        evidence = {
+            **base_evidence,
+            "blocked_reason": "transfer_deferred_for_local_ready",
+            "capability": "deferred_for_local_ready",
+        }
+        return _capstone_transfer_result(
+            status="succeeded",
+            source_step=source_step,
+            passed=False,
+            evidence=evidence,
+            artifact_entries=[
+                _capstone_transfer_artifact(source_step, direction, remote, evidence, "deferred")
+            ],
+            next_actions=[],
+        )
+
+    if not _approved_transfer_record_matches(approval_record, source_step, required_risks):
+        evidence = {**base_evidence, "blocked_reason": "missing_or_denied_approval"}
+        return _capstone_transfer_result(
+            status="blocked",
+            source_step=source_step,
+            passed=False,
+            evidence=evidence,
+            artifact_entries=[],
+            next_actions=[
+                (
+                    f"Record approval as an approved ApprovalRecord for {source_step} "
+                    "with risk categories: "
+                    f"{', '.join(required_risks)}."
+                )
+            ],
+        )
+
+    if not check_tool_installed("dvc"):
+        evidence = {**base_evidence, "blocked_reason": "missing_dvc_executable"}
+        return _capstone_transfer_result(
+            status="blocked",
+            source_step=source_step,
+            passed=False,
+            evidence=evidence,
+            artifact_entries=[],
+            next_actions=["Install DVC before running capstone data push or pull."],
+        )
+
+    if not (path / ".dvc" / "config").exists():
+        evidence = {**base_evidence, "blocked_reason": "missing_dvc_repo"}
+        return _capstone_transfer_result(
+            status="blocked",
+            source_step=source_step,
+            passed=False,
+            evidence=evidence,
+            artifact_entries=[],
+            next_actions=["Validate or initialize DVC metadata before data transfer."],
+        )
+
+    if remote["remote_type"] != "s3":
+        evidence = {**base_evidence, "blocked_reason": "missing_validated_s3_remote"}
+        return _capstone_transfer_result(
+            status="blocked",
+            source_step=source_step,
+            passed=False,
+            evidence=evidence,
+            artifact_entries=[],
+            next_actions=[
+                "Validate an S3 capstone DVC remote before running capstone data transfer."
+            ],
+        )
+
+    resolved_url = _read_dvc_remote_url(path, remote_name)
+    if not resolved_url:
+        evidence = {**base_evidence, "blocked_reason": "missing_dvc_remote_url"}
+        return _capstone_transfer_result(
+            status="blocked",
+            source_step=source_step,
+            passed=False,
+            evidence=evidence,
+            artifact_entries=[],
+            next_actions=["Configure a DVC remote URL before running capstone data transfer."],
+        )
+
+    credential_capability = _validate_s3_credential_capability(resolved_url)
+    if not credential_capability.get("passed"):
+        evidence = {
+            **base_evidence,
+            "blocked_reason": "missing_or_invalid_cloud_credential_capability",
+            "credential_capability": credential_capability,
+        }
+        return _capstone_transfer_result(
+            status="blocked",
+            source_step=source_step,
+            passed=False,
+            evidence=evidence,
+            artifact_entries=[],
+            next_actions=credential_capability.get("next_actions", []),
+        )
+
+    command = ["dvc", direction, "-r", remote_name]
+    command.extend(paths or [])
+    started_at = time.monotonic()
+    result = run_command(command, cwd=str(path), timeout=600)
+    duration_seconds = round(time.monotonic() - started_at, 3)
+    evidence = {
+        **base_evidence,
+        "command": " ".join(command),
+        "returncode": result.get("returncode"),
+        "stdout_summary": _summarize_transfer_stream(result.get("stdout", "")),
+        "stderr_summary": _summarize_transfer_stream(result.get("stderr", "")),
+        "duration_seconds": duration_seconds,
+        "credential_capability": {
+            key: credential_capability.get(key)
+            for key in ("status", "identity", "bucket_reachable", "prefix_checked")
+        },
+    }
+    if result.get("success"):
+        return _capstone_transfer_result(
+            status="succeeded",
+            source_step=source_step,
+            passed=True,
+            evidence=evidence,
+            artifact_entries=[
+                _capstone_transfer_artifact(source_step, direction, remote, evidence, "validated")
+            ],
+            next_actions=[],
+        )
+
+    evidence["blocked_reason"] = "dvc_transfer_failed"
+    return _capstone_transfer_result(
+        status="failed",
+        source_step=source_step,
+        passed=False,
+        evidence=evidence,
+        artifact_entries=[],
+        next_actions=[
+            "Inspect DVC transfer output, fix remote permissions or connectivity, and rerun."
+        ],
+    )
+
+
+def _transfer_remote_record(
+    project_path: Path,
+    remote_name: str,
+    capstone_dvc_remote_result: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if isinstance(capstone_dvc_remote_result, dict):
+        remote = capstone_dvc_remote_result.get("remote")
+        if isinstance(remote, dict) and remote.get("remote_name"):
+            return {
+                "remote_name": remote.get("remote_name", remote_name),
+                "remote_type": remote.get("remote_type", "missing"),
+                "redacted_remote_url": remote.get("redacted_remote_url"),
+            }
+    remote_url = _read_dvc_remote_url(project_path, remote_name)
+    return _capstone_remote_record(remote_name, remote_url, _remote_type(remote_url))
+
+
+def _approved_transfer_record_matches(
+    approval_record: dict[str, Any] | None,
+    step_id: str,
+    required_risks: tuple[str, ...],
+) -> bool:
+    if not isinstance(approval_record, dict):
+        return False
+    status = str(approval_record.get("status", "")).casefold()
+    risk_categories = tuple(approval_record.get("risk_categories", ()))
+    return (
+        approval_record.get("step_id") == step_id
+        and status == "approved"
+        and risk_categories == required_risks
+    )
+
+
+def _approval_record_evidence(approval_record: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(approval_record, dict):
+        return None
+    return {
+        "workflow_run_id": approval_record.get("workflow_run_id"),
+        "step_id": approval_record.get("step_id"),
+        "risk_categories": approval_record.get("risk_categories", []),
+        "status": approval_record.get("status"),
+        "approver": approval_record.get("approver"),
+        "timestamp": str(approval_record.get("timestamp")),
+    }
+
+
+def _summarize_transfer_stream(value: str, limit: int = 500) -> str:
+    redacted = _redacted_evidence(value.strip())
+    if not isinstance(redacted, str):
+        redacted = str(redacted)
+    return redacted[:limit]
+
+
+def _capstone_transfer_result(
+    status: str,
+    source_step: str,
+    passed: bool,
+    evidence: dict[str, Any],
+    artifact_entries: list[dict[str, Any]],
+    next_actions: list[str],
+) -> dict[str, Any]:
+    return {
+        "success": True,
+        "status": status,
+        "transfer": {
+            "direction": evidence.get("transfer_direction"),
+            "remote": evidence.get("remote"),
+            "paths": evidence.get("paths", []),
+        },
+        "missing_inputs": [] if status == "succeeded" else ["approved_s3_transfer_evidence"],
+        "next_actions": next_actions,
+        "verification_results": [
+            {
+                "check_name": "s3_transfer_completed",
+                "evidence_type": "observed",
+                "source_step": source_step,
+                "passed": passed,
+                "evidence": json.dumps(_redacted_evidence(evidence), sort_keys=True),
+            }
+        ],
+        "artifact_manifest": {"entries": artifact_entries},
+    }
+
+
+def _capstone_transfer_artifact(
+    source_step: str,
+    direction: str,
+    remote: dict[str, Any],
+    evidence: dict[str, Any],
+    transfer_status: str,
+) -> dict[str, Any]:
+    return {
+        "artifact_type": "capstone_data_transfer",
+        "producing_step": source_step,
+        "state": "validated",
+        "uri": remote.get("redacted_remote_url") or f"dvc-remote://{remote.get('remote_name')}",
+        "metadata": {
+            "transfer_direction": direction,
+            "transfer_status": transfer_status,
+            "remote_name": remote.get("remote_name"),
+            "remote_type": remote.get("remote_type"),
+            "redacted_remote_url": remote.get("redacted_remote_url"),
+            "returncode": evidence.get("returncode"),
+            "duration_seconds": evidence.get("duration_seconds"),
+            "paths": evidence.get("paths", []),
+        },
+    }
+
+
 def _configure_capstone_dvc_remote(
     project_path: Path,
     remote_name: str,
@@ -3375,7 +3737,11 @@ def _redacted_evidence(value: Any) -> Any:
         return [_redacted_evidence(item) for item in value]
     if isinstance(value, str):
         if "s3://" in value:
-            return _redact_remote_url(value)
+            return re.sub(
+                r"s3://[^\s\"']+",
+                lambda match: _redact_remote_url(match.group(0)),
+                value,
+            )
         return value
     return value
 
@@ -10190,6 +10556,16 @@ async def list_tools() -> list[Tool]:
             inputSchema=ConfigureValidateCapstoneDVCRemoteInput.model_json_schema(),
         ),
         Tool(
+            name="push_capstone_data",
+            description="Run approval-gated DVC push and record capstone transfer evidence",
+            inputSchema=PushCapstoneDataInput.model_json_schema(),
+        ),
+        Tool(
+            name="pull_capstone_data",
+            description="Run approval-gated DVC pull and record capstone transfer evidence",
+            inputSchema=PullCapstoneDataInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -10610,6 +10986,30 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 remote_name=input_data.remote_name,
                 remote_url=input_data.remote_url,
                 default=input_data.default,
+                source_step=input_data.source_step,
+            )
+
+        elif name == "push_capstone_data":
+            input_data = PushCapstoneDataInput(**arguments)
+            result = push_capstone_data(
+                project_path=input_data.project_path,
+                completion_mode=input_data.completion_mode,
+                remote_name=input_data.remote_name,
+                capstone_dvc_remote_result=input_data.capstone_dvc_remote_result,
+                approval_record=input_data.approval_record,
+                paths=input_data.paths,
+                source_step=input_data.source_step,
+            )
+
+        elif name == "pull_capstone_data":
+            input_data = PullCapstoneDataInput(**arguments)
+            result = pull_capstone_data(
+                project_path=input_data.project_path,
+                completion_mode=input_data.completion_mode,
+                remote_name=input_data.remote_name,
+                capstone_dvc_remote_result=input_data.capstone_dvc_remote_result,
+                approval_record=input_data.approval_record,
+                paths=input_data.paths,
                 source_step=input_data.source_step,
             )
 

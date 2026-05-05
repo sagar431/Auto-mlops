@@ -821,6 +821,16 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 required=False,
                 default=None,
             ),
+            WorkflowInput(
+                name="dvc_transfer_direction",
+                description=(
+                    "Approved DVC transfer direction for capstone-complete evidence. "
+                    "Local-ready runs defer transfers."
+                ),
+                required=False,
+                default="push",
+                allowed_values=("push", "pull", "none"),
+            ),
         ),
         steps=(
             WorkflowStep(
@@ -862,6 +872,26 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 ),
                 order=4,
                 tool_functions=("configure_validate_capstone_dvc_remote",),
+            ),
+            WorkflowStep(
+                step_id="push_capstone_data",
+                name="Push Capstone Data",
+                description=(
+                    "Run approval-gated dvc push for the capstone data package and "
+                    "record observed S3 transfer evidence."
+                ),
+                order=5,
+                tool_functions=("push_capstone_data",),
+            ),
+            WorkflowStep(
+                step_id="pull_capstone_data",
+                name="Pull Capstone Data",
+                description=(
+                    "Run approval-gated dvc pull for the capstone data package and "
+                    "record observed S3 transfer evidence."
+                ),
+                order=6,
+                tool_functions=("pull_capstone_data",),
             ),
         ),
         success_contract=SuccessContract(
@@ -914,7 +944,7 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 SuccessContractCheck(
                     name="s3_transfer_completed",
                     evidence_type="observed",
-                    source_step="prepare_capstone_data_contract",
+                    source_step="push_capstone_data",
                     condition="completion_mode == capstone_complete",
                 ),
             ),
@@ -974,6 +1004,14 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
             ApprovalGate(
                 step_id="configure_validate_dvc_remote",
                 risk_categories=("writes_project_files", "uses_cloud_credentials"),
+            ),
+            ApprovalGate(
+                step_id="push_capstone_data",
+                risk_categories=("uses_cloud_credentials",),
+            ),
+            ApprovalGate(
+                step_id="pull_capstone_data",
+                risk_categories=("uses_cloud_credentials", "writes_project_files"),
             ),
         ),
     )

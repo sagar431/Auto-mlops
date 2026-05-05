@@ -1,1498 +1,1542 @@
 {
-  "/tmp/Auto-mlops-phase3-detect/mcp_mlops_tools.py": {
-    "mtime": 1777913743.390102,
-    "hash": "bbfacd44e2a37318d50dd8d46e817bdc"
+  "/home/ubuntu/Auto-mlops/mcp_mlops_tools.py": {
+    "mtime": 1777988008.5305517,
+    "hash": "47534b9de010e1e2147b72efd74f15ab"
   },
-  "/tmp/Auto-mlops-phase3-detect/cli.py": {
-    "mtime": 1777913254.9014769,
+  "/home/ubuntu/Auto-mlops/cli.py": {
+    "mtime": 1777964408.4684741,
     "hash": "9f964913c069e7059fdc456a3999eab5"
   },
-  "/tmp/Auto-mlops-phase3-detect/api_server.py": {
-    "mtime": 1777913254.8978224,
+  "/home/ubuntu/Auto-mlops/api_server.py": {
+    "mtime": 1777964408.466474,
     "hash": "15661b8f2faddd8ea7cf81f86544677b"
   },
-  "/tmp/Auto-mlops-phase3-detect/perception/__init__.py": {
-    "mtime": 1777913254.9639978,
-    "hash": "cb400ee5e56345b5d0d2adfd8c6a01fb"
-  },
-  "/tmp/Auto-mlops-phase3-detect/perception/perception.py": {
-    "mtime": 1777913254.9642062,
-    "hash": "fcfed170addac478849a79517be8d9b3"
-  },
-  "/tmp/Auto-mlops-phase3-detect/observability/__init__.py": {
-    "mtime": 1777913254.9628224,
-    "hash": "5282ce7b75aaf41462af947a9837a009"
-  },
-  "/tmp/Auto-mlops-phase3-detect/observability/metrics.py": {
-    "mtime": 1777913254.9639978,
-    "hash": "e4efbee1274fe01a62f2b2b76d7ced89"
-  },
-  "/tmp/Auto-mlops-phase3-detect/observability/logging.py": {
-    "mtime": 1777913254.9639978,
-    "hash": "0c54d093640e9474a7508ef5456f8cca"
-  },
-  "/tmp/Auto-mlops-phase3-detect/decision/__init__.py": {
-    "mtime": 1777913254.9039812,
-    "hash": "dfeaa3fc05568d8b102af49904037ea0"
-  },
-  "/tmp/Auto-mlops-phase3-detect/decision/decision.py": {
-    "mtime": 1777913254.9045596,
-    "hash": "001ac5b1fa770ff6057213543b44e10f"
-  },
-  "/tmp/Auto-mlops-phase3-detect/metrics/__init__.py": {
-    "mtime": 1777913254.961172,
-    "hash": "80b5a40e44f0d8a12ffd3d51b33bdb49"
-  },
-  "/tmp/Auto-mlops-phase3-detect/metrics/models.py": {
-    "mtime": 1777913254.9614253,
-    "hash": "c246428132c01f05079acd04abccb571"
-  },
-  "/tmp/Auto-mlops-phase3-detect/metrics/collector.py": {
-    "mtime": 1777913254.9614253,
-    "hash": "59ad0f90820bbcac2183bc2e571d8be8"
-  },
-  "/tmp/Auto-mlops-phase3-detect/utils/__init__.py": {
-    "mtime": 1777913254.9848223,
-    "hash": "71a05b8e83831aa0588c77c79abcc425"
-  },
-  "/tmp/Auto-mlops-phase3-detect/db/session.py": {
-    "mtime": 1777913254.9039812,
-    "hash": "887ae79ff40312f5bdef9e4f1894ccd0"
-  },
-  "/tmp/Auto-mlops-phase3-detect/db/__init__.py": {
-    "mtime": 1777913254.9031723,
-    "hash": "f0b65d50eff0ad13334665b63c942ebf"
-  },
-  "/tmp/Auto-mlops-phase3-detect/db/models.py": {
-    "mtime": 1777913254.9039812,
-    "hash": "f6bc6939d58302c20563f92f09c58c12"
-  },
-  "/tmp/Auto-mlops-phase3-detect/db/repositories.py": {
-    "mtime": 1777913254.9039812,
-    "hash": "6a323028f4a780b7b27b62712a1efbe7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/db/migrations/env.py": {
-    "mtime": 1777913254.9039812,
-    "hash": "b9661e59e7894059483e6da1f27412c6"
-  },
-  "/tmp/Auto-mlops-phase3-detect/db/migrations/versions/20260202_182249_cf06fa948e58_initial_schema.py": {
-    "mtime": 1777913254.9039812,
-    "hash": "a51a7d16c60d46eed3ab9953870819ee"
-  },
-  "/tmp/Auto-mlops-phase3-detect/data_quality/validators.py": {
-    "mtime": 1777913254.9031723,
-    "hash": "3f0e75177f3088722bd18ed0d43ab4b0"
-  },
-  "/tmp/Auto-mlops-phase3-detect/data_quality/__init__.py": {
-    "mtime": 1777913254.9024549,
-    "hash": "50a44f808187a2e88311a40f71962961"
-  },
-  "/tmp/Auto-mlops-phase3-detect/data_quality/validator.py": {
-    "mtime": 1777913254.9031723,
-    "hash": "61df592051786cebaedd8fc1d3f0fb20"
-  },
-  "/tmp/Auto-mlops-phase3-detect/data_quality/models.py": {
-    "mtime": 1777913254.9031723,
-    "hash": "7ecb51a52cb7da7879c9ea79faf9bdce"
-  },
-  "/tmp/Auto-mlops-phase3-detect/data_quality/profiler.py": {
-    "mtime": 1777913254.9031723,
-    "hash": "39063bb2d8323aa374d6eb62a527f87c"
-  },
-  "/tmp/Auto-mlops-phase3-detect/agent/approval.py": {
-    "mtime": 1777913254.8976822,
-    "hash": "042f5033d3008ee134b4fa73859a9ba1"
-  },
-  "/tmp/Auto-mlops-phase3-detect/agent/__init__.py": {
-    "mtime": 1777913254.8968225,
-    "hash": "8839a0c44aa91790e9c42973c54e2e0c"
-  },
-  "/tmp/Auto-mlops-phase3-detect/agent/agentSession.py": {
-    "mtime": 1777913254.8976822,
-    "hash": "eff45437305e33e1c52ae92db49e9ab0"
-  },
-  "/tmp/Auto-mlops-phase3-detect/agent/agent_loop.py": {
-    "mtime": 1777913383.0896258,
-    "hash": "b573e59b47cbaba5392c652e9c2062ab"
-  },
-  "/tmp/Auto-mlops-phase3-detect/agent/contextManager.py": {
-    "mtime": 1777913254.8976822,
-    "hash": "dfd89f74364b51fa482575b1ef56f610"
-  },
-  "/tmp/Auto-mlops-phase3-detect/agent/model_manager.py": {
-    "mtime": 1777913254.8976822,
-    "hash": "7a3b2f5c57b71b5a96424dbd73f50562"
-  },
-  "/tmp/Auto-mlops-phase3-detect/resilience/timeout.py": {
-    "mtime": 1777913254.9650042,
-    "hash": "49740c5917c4fc3c81371aba2f82add6"
-  },
-  "/tmp/Auto-mlops-phase3-detect/resilience/__init__.py": {
-    "mtime": 1777913254.964503,
-    "hash": "ae4fae46cacfeb6aa742d1915fe5fb48"
-  },
-  "/tmp/Auto-mlops-phase3-detect/resilience/bulkhead.py": {
-    "mtime": 1777913254.9650042,
-    "hash": "1d82ca51a1bae8b7f8dbd4fa392b2a5c"
-  },
-  "/tmp/Auto-mlops-phase3-detect/resilience/retry.py": {
-    "mtime": 1777913254.9650042,
-    "hash": "f050eb3477f8caeac1873e18fe3abea4"
-  },
-  "/tmp/Auto-mlops-phase3-detect/resilience/circuit_breaker.py": {
-    "mtime": 1777913254.9650042,
-    "hash": "81682f9a8c1c7a085a9cf0b969908d24"
-  },
-  "/tmp/Auto-mlops-phase3-detect/workflow/__init__.py": {
-    "mtime": 1777913254.9938223,
-    "hash": "265f87f8cb2cbfe9824a2373dddeab67"
-  },
-  "/tmp/Auto-mlops-phase3-detect/workflow/registry.py": {
-    "mtime": 1777913375.0346375,
-    "hash": "0155202e29828bb059e471ec55d7ef7b"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/scripts/download_datasets.py": {
-    "mtime": 1777913254.9008684,
-    "hash": "0aada620ada4f06566ae1ba1d2b0c7e4"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/scripts/prepare_splits.py": {
-    "mtime": 1777913254.9008684,
-    "hash": "8ff2da455ee7c1ca7b4994c81f12834b"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/scripts/send.py": {
-    "mtime": 1777913254.9008684,
-    "hash": "bdc34f6b2e8cd563afb951f6ce90b3ac"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/services/imagenet_api/app.py": {
-    "mtime": 1777913254.900268,
-    "hash": "14cc53a86be214324a4c3c03d34e8e23"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/training/lr_finder.py": {
-    "mtime": 1777913254.9014769,
-    "hash": "d63ea3d829411ac68006a03c7864ce4a"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/training/train_timm.py": {
-    "mtime": 1777913254.9014769,
-    "hash": "ff36e91422ae498e34ea70053f60e6eb"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/training/hpo_optuna.py": {
-    "mtime": 1777913254.9014769,
-    "hash": "73de84ca43a4607315da7ecb94b74f3a"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/training/export_torchscript.py": {
-    "mtime": 1777913254.9012432,
-    "hash": "aa51c103f2b807cce1b4b2375b378523"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/training/train_hf.py": {
-    "mtime": 1777913254.9014769,
-    "hash": "a3f63658d09b04260b424a491ea867f2"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/services/web_ui/app.py": {
-    "mtime": 1777913254.9012432,
-    "hash": "21bf5e61d017a9cace7791b039446851"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/services/model_api/app.py": {
-    "mtime": 1777913254.9011228,
-    "hash": "04cb7d448a53306006fe9850ec005a0d"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/__init__.py": {
-    "mtime": 1777913254.970597,
-    "hash": "46f3e03657c9d67219754ac6f630a943"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/test_model_manager.py": {
-    "mtime": 1777913254.9808223,
-    "hash": "948840e543400898cf5a3ce80c0e7945"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/test_agent_session.py": {
-    "mtime": 1777913254.9800262,
-    "hash": "7996e48a0497686f594f85043c7571b0"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/test_conftest_fixtures.py": {
-    "mtime": 1777913254.9800262,
-    "hash": "9c84357f614949793d0a3ed1af33af50"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/test_decision.py": {
-    "mtime": 1777913254.9808223,
-    "hash": "0236fe3b8da49fb2a028932931a5a535"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/test_step_execution_tracker.py": {
-    "mtime": 1777913254.9818223,
-    "hash": "56bfa315ed9c28fb03ca9c42a9311bd1"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/test_agent_logging.py": {
-    "mtime": 1777913254.9800262,
-    "hash": "3f58edab67c1669280ef5f8e066f11d4"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/test_perception.py": {
-    "mtime": 1777913254.9808223,
-    "hash": "75f6e866cd0ab1624cd33d5deae01320"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/test_circuit_breaker_retry.py": {
-    "mtime": 1777913254.9800262,
-    "hash": "e0ef0538494b0f982843aaca4fad8cf0"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/test_context_manager.py": {
-    "mtime": 1777913254.9800262,
-    "hash": "f28b0bbc176a603fc4d68cbbfba2a5cd"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/conftest.py": {
-    "mtime": 1777913254.9714465,
-    "hash": "0a8b7f82ee3b1bd1d5c4df4592ba0824"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/test_resilience.py": {
-    "mtime": 1777913254.9808223,
-    "hash": "4370201e6789c61b1f3c8d547783e7ba"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/test_observability.py": {
-    "mtime": 1777913254.9808223,
-    "hash": "02719f44abd1f2c81b297c4555104ab7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/unit/test_agent_loop.py": {
-    "mtime": 1777913884.8288956,
-    "hash": "d1220492db4d5fbf990b69b6dac39ae0"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/unit/test_workflow_registry.py": {
-    "mtime": 1777913908.2348614,
-    "hash": "409bc74e6a046e7e08e8cdfb8e96ccf5"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/unit/test_security_middleware.py": {
-    "mtime": 1777913254.9838223,
-    "hash": "a91876b6dae46a8e6c6b1b9a183b5a4f"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/unit/test_monitoring.py": {
-    "mtime": 1777913254.9838223,
-    "hash": "50f12d48145288419ef714ed8649b726"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/unit/test_execute_step.py": {
-    "mtime": 1777913254.9832551,
-    "hash": "7dbc08a8ad9b067e790a82793be7e315"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/unit/__init__.py": {
-    "mtime": 1777913254.9818223,
-    "hash": "adff788d1ca08192b40eaf848fbbb2a7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/unit/test_decision.py": {
-    "mtime": 1777913254.9832551,
-    "hash": "01056210d7531a5647658ef9fcc32991"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/unit/test_perception.py": {
-    "mtime": 1777913254.9838223,
-    "hash": "a998428cb3e82fe0f4b92266d47f6046"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/unit/test_k8s_aws_tools.py": {
-    "mtime": 1777913254.9832551,
-    "hash": "f0b5fd05fca3eca82215ad34c6270c67"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/unit/test_memory_search.py": {
-    "mtime": 1777913254.9832551,
-    "hash": "2037a84101376c7fc7fd9237ef11c3c2"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/unit/test_summarizer.py": {
-    "mtime": 1777913254.9838223,
-    "hash": "b8c35b529ee3b800ef0eeb6c8fa24006"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/e2e/test_train_deploy_flow.py": {
-    "mtime": 1777913254.971727,
-    "hash": "85f1f9fc88a068d9c97d4673f816e372"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/e2e/__init__.py": {
-    "mtime": 1777913254.9714465,
-    "hash": "eea140b4f0d5cade8c8a698a32c02f3e"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/e2e/test_phase1_setup_pipeline.py": {
-    "mtime": 1777913254.971727,
-    "hash": "03d82c4b1bbe417895882e496342938b"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/integration/test_api_endpoints.py": {
-    "mtime": 1777913254.9722674,
-    "hash": "ca8481f46a55360260c7497369ca7900"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/integration/__init__.py": {
-    "mtime": 1777913254.971727,
-    "hash": "67c4cd229b9c91cdbc80ef6b3c63eabc"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/integration/test_websocket.py": {
-    "mtime": 1777913254.9722674,
-    "hash": "67229661b8daa6a53b9d267bc2c067ae"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/integration/test_mcp_tools.py": {
-    "mtime": 1777913254.9722674,
-    "hash": "054cb937564e8f44f391a8203fd98f16"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/load/__init__.py": {
-    "mtime": 1777913254.9722674,
-    "hash": "9f1ce61b35af0ab4d3481cd0024a66b6"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/load/locustfile.py": {
-    "mtime": 1777913254.9728932,
-    "hash": "db55619a09461fcb50e12264ed4c42c6"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_db.py": {
-    "mtime": 1777913254.9731033,
-    "hash": "a7bab77d961792792f3ab49c544eedf7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_env_example.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "2253689e13f327f07a3c90932611f66d"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_lambda_labs_deployment_prompt.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "6f45f455f378460f12a7e4e773647834"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_detect_data_drift.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "0eb23a01145d548137b2b6e016f0528f"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_security_models.py": {
-    "mtime": 1777913254.9778223,
-    "hash": "2024ae7e8f1bd677ca381723e80a2372"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_mlops_tools.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "2a0e46d55f226c5d3cc6d285919b7311"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_setup_alerting.py": {
-    "mtime": 1777913254.9788225,
-    "hash": "acc62865611a2ad6dc49a0332163f4c6"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_db_migrations.py": {
-    "mtime": 1777913254.9731033,
-    "hash": "7bad56aa1360dbc61b3bc6400deb41cd"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_admin_endpoints.py": {
-    "mtime": 1777913254.9731033,
-    "hash": "6bef7f5e68ba17ece761b85dd4ab7692"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_security.py": {
-    "mtime": 1777913254.9778223,
-    "hash": "98d4eaaf24d7acb1e5429669035430f0"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_metrics_endpoints.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "021e2f6e5157ed193c94a48abe2ad6a3"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_monitor_model_performance.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "797a42b5fa71f33b370d50b096dacdba"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_session_manager.py": {
-    "mtime": 1777913254.9778223,
-    "hash": "e1426a201a722b36ea68e274e684b12b"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_monitoring.py": {
-    "mtime": 1777913254.9778223,
-    "hash": "804dcd2b5129acc22c84c500fa42077e"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/__init__.py": {
-    "mtime": 1777913254.9728932,
-    "hash": "cb11a3315a797ce4a04582aa0d437deb"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_ge_validator.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "26099631b2108886152d764ec1bc9bb7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_api_keys.py": {
-    "mtime": 1777913254.9731033,
-    "hash": "c9f480fc04635da8702bf2485528fac4"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_prometheus_metrics.py": {
-    "mtime": 1777913254.9778223,
-    "hash": "9284c8e93f48c5aef73363e86ac9fc1f"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_api_server_auth.py": {
-    "mtime": 1777913254.9731033,
-    "hash": "68e4b8e0757e3862edb1ed2edb74eaaa"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_db_repositories.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "84f0f5cceddd81ff2a522ad2d99f1c76"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_rate_limiting.py": {
-    "mtime": 1777913254.9778223,
-    "hash": "b3d8c8de859332eec15a8b7a9ba6040b"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_db_session.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "4b87fc438faa656cb25de3aad2e888fb"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_cors_config.py": {
-    "mtime": 1777913254.9731033,
-    "hash": "fc39e03b218b33097ad980222a5e2d37"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_cli_admin.py": {
-    "mtime": 1777913254.9731033,
-    "hash": "b7f082e73c1919727376fb6efa5feb1a"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_auth_middleware.py": {
-    "mtime": 1777913254.9731033,
-    "hash": "c672364b5e12ea5caaa4fee0a0e30e9d"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_data_quality.py": {
-    "mtime": 1777913254.9731033,
-    "hash": "0efa66312f64259157db88bf1bdd14b9"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_memory_search.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "b175e055abebd87bbe6a2e6b1d6330b9"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_middleware.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "cb1448ab0a58e4f16ac1a372346bd839"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_course_graph_prompt_coverage.py": {
-    "mtime": 1777913254.9731033,
-    "hash": "d3ef33acb446253148ba3c4f35be3a51"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_db_models.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "70e32f9a53ef05fcade0958198d2327e"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_decision_prompt_data_validation.py": {
-    "mtime": 1777913254.9768224,
-    "hash": "43b43ca5b95d8aa7a500df107de92cea"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/root_migrated/test_data_validation_tools.py": {
-    "mtime": 1777913254.9731033,
-    "hash": "f1ec7aa38c3ec21cd7090531178043d5"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/security/__init__.py": {
-    "mtime": 1777913254.9788225,
-    "hash": "da46846a6b30deffe136223a61afb83e"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/security/test_auth.py": {
-    "mtime": 1777913254.9800262,
-    "hash": "84846e4d513cff9afd9d8ccd9f110fde"
-  },
-  "/tmp/Auto-mlops-phase3-detect/tests/security/test_rate_limiting.py": {
-    "mtime": 1777913254.9800262,
-    "hash": "453c7e032e0b9531254bd4b20130c5a7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/frontend/postcss.config.js": {
-    "mtime": 1777913254.922129,
-    "hash": "854b38759e7a8b4b82306ae2d9a3a833"
-  },
-  "/tmp/Auto-mlops-phase3-detect/frontend/tailwind.config.js": {
-    "mtime": 1777913254.9223764,
-    "hash": "ffb98de809637ea4f7de833ead30225f"
-  },
-  "/tmp/Auto-mlops-phase3-detect/frontend/src/index.js": {
-    "mtime": 1777913254.9223764,
-    "hash": "9fc5841375336fc175b49f8767a11383"
-  },
-  "/tmp/Auto-mlops-phase3-detect/frontend/src/App.js": {
-    "mtime": 1777913254.922129,
-    "hash": "4d881ed0138295de5bc586aa736d667f"
-  },
-  "/tmp/Auto-mlops-phase3-detect/frontend/src/components/Landing.js": {
-    "mtime": 1777913254.9223764,
-    "hash": "58993ef0276ead2c40b2e317fd2141ec"
-  },
-  "/tmp/Auto-mlops-phase3-detect/frontend/src/components/MLOpsAgent.js": {
-    "mtime": 1777913254.9223764,
-    "hash": "3cd147705455316d49161f10b143cfab"
-  },
-  "/tmp/Auto-mlops-phase3-detect/frontend/src/components/Auth.js": {
-    "mtime": 1777913254.9222817,
-    "hash": "4fa9512ae03c3b49fec3a6c10b2344b8"
-  },
-  "/tmp/Auto-mlops-phase3-detect/frontend/src/context/AuthContext.js": {
-    "mtime": 1777913254.9223764,
-    "hash": "e676139dc8774bb9150a4c34a6da93b4"
-  },
-  "/tmp/Auto-mlops-phase3-detect/mcp_servers/__init__.py": {
-    "mtime": 1777913254.9598224,
-    "hash": "0c3e40c6035d9e25db494955bb53a2d8"
-  },
-  "/tmp/Auto-mlops-phase3-detect/mcp_servers/mcp_configs/__init__.py": {
-    "mtime": 1777913254.9609604,
-    "hash": "4f8ebbf3b2b8cd3946e77cff3b6cac64"
-  },
-  "/tmp/Auto-mlops-phase3-detect/mcp_servers/mcp_configs/mlflow_ops.py": {
-    "mtime": 1777913254.9610057,
-    "hash": "b97d615aeb26d3bba486529d3a09f949"
-  },
-  "/tmp/Auto-mlops-phase3-detect/mcp_servers/mcp_configs/dvc_ops.py": {
-    "mtime": 1777913254.9610057,
-    "hash": "922d44f70cf6f5ba2c600d3affb23da8"
-  },
-  "/tmp/Auto-mlops-phase3-detect/mcp_servers/mcp_configs/github_ops.py": {
-    "mtime": 1777913254.9610057,
-    "hash": "0171b5e199193b9385c395495fb7bee7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/mcp_servers/mcp_configs/hydra_ops.py": {
-    "mtime": 1777913254.9610057,
-    "hash": "44ca81ec3128645bc72616f5458ce2ed"
-  },
-  "/tmp/Auto-mlops-phase3-detect/monitoring/__init__.py": {
-    "mtime": 1777913254.9614253,
-    "hash": "e36f6637d23462eb276e4393639fe514"
-  },
-  "/tmp/Auto-mlops-phase3-detect/monitoring/drift_detector.py": {
-    "mtime": 1777913254.9616792,
-    "hash": "111c61dd0162e32e4bff376c21fc4c5e"
-  },
-  "/tmp/Auto-mlops-phase3-detect/monitoring/model_monitor.py": {
-    "mtime": 1777913254.9628224,
-    "hash": "71c498058d75b123cdafeb3823f88a03"
-  },
-  "/tmp/Auto-mlops-phase3-detect/monitoring/models.py": {
-    "mtime": 1777913254.9628224,
-    "hash": "892852a31780363313eb7c959c55161d"
-  },
-  "/tmp/Auto-mlops-phase3-detect/sdk/__init__.py": {
-    "mtime": 1777913254.9650042,
-    "hash": "8cd96e11b59754c7789f85972f13f4e4"
-  },
-  "/tmp/Auto-mlops-phase3-detect/sdk/async_client.py": {
-    "mtime": 1777913254.9653265,
-    "hash": "dbc724b029c0480d20d88e2ce279d625"
-  },
-  "/tmp/Auto-mlops-phase3-detect/sdk/client.py": {
-    "mtime": 1777913254.9653265,
-    "hash": "fb6d0f0024d297dbee3f0903688b874a"
-  },
-  "/tmp/Auto-mlops-phase3-detect/action/__init__.py": {
-    "mtime": 1777913254.8938224,
-    "hash": "7786f73c0c0bc2813a4fe686ac318970"
-  },
-  "/tmp/Auto-mlops-phase3-detect/action/execute_step.py": {
-    "mtime": 1777913390.4886212,
-    "hash": "0e956d4479163e2bdf5f961cbc02102d"
-  },
-  "/tmp/Auto-mlops-phase3-detect/security/__init__.py": {
-    "mtime": 1777913254.9653265,
+  "/home/ubuntu/Auto-mlops/security/__init__.py": {
+    "mtime": 1777964408.5184743,
     "hash": "80f17e0c14957bc4c7fc283713ee81e6"
   },
-  "/tmp/Auto-mlops-phase3-detect/security/middleware.py": {
-    "mtime": 1777913254.9656532,
-    "hash": "cc5bf6b5e57b1b86b915f7e26cbc1409"
-  },
-  "/tmp/Auto-mlops-phase3-detect/security/models.py": {
-    "mtime": 1777913254.9656532,
-    "hash": "f3423386e8a5c5a3fb4620ab6d97726e"
-  },
-  "/tmp/Auto-mlops-phase3-detect/security/api_keys.py": {
-    "mtime": 1777913254.9656532,
+  "/home/ubuntu/Auto-mlops/security/api_keys.py": {
+    "mtime": 1777964408.5184743,
     "hash": "238465d3bebe4d6db77d2d9c69d8f8b1"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/run_example.py": {
-    "mtime": 1777913254.9085674,
-    "hash": "1ebc118ba0d8d5d68d77b77f073d09a4"
+  "/home/ubuntu/Auto-mlops/security/models.py": {
+    "mtime": 1777964408.5184743,
+    "hash": "f3423386e8a5c5a3fb4620ab6d97726e"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/evaluate.py": {
-    "mtime": 1777913254.9085674,
-    "hash": "5ab3f9f7210cbd17d5690116804d2d03"
+  "/home/ubuntu/Auto-mlops/security/middleware.py": {
+    "mtime": 1777964408.5184743,
+    "hash": "cc5bf6b5e57b1b86b915f7e26cbc1409"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/dataset.py": {
-    "mtime": 1777913254.9085674,
-    "hash": "b7ece8394a83029155eff199251edc39"
+  "/home/ubuntu/Auto-mlops/utils/__init__.py": {
+    "mtime": 1777964408.5244744,
+    "hash": "71a05b8e83831aa0588c77c79abcc425"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/__init__.py": {
-    "mtime": 1777913254.9081168,
-    "hash": "35e86d16781b62552228544ba9fcf9d7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/prepare_data.py": {
-    "mtime": 1777913254.9085674,
-    "hash": "1459a15f85a510fb16157c24ded41b90"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/inference.py": {
-    "mtime": 1777913254.9085674,
-    "hash": "f93c696632a7439a23613f3ecf40a0dd"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/model.py": {
-    "mtime": 1777913254.9085674,
-    "hash": "ee19bfce15e17a33031061619d5deeff"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/train.py": {
-    "mtime": 1777913254.9085674,
-    "hash": "c937172e1dcf96e219bd29e922b4643d"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/tests/test_model.py": {
-    "mtime": 1777913254.9093997,
-    "hash": "abd257b8e512a56ba8a74a60f7fadeb1"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/tests/test_dvc_pipeline.py": {
-    "mtime": 1777913254.9093997,
-    "hash": "648e1186bc9587ecd6041cb4be2b640c"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/tests/__init__.py": {
-    "mtime": 1777913254.9085674,
-    "hash": "b6845a53ce70966ce976c78cd510f114"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/tests/test_training.py": {
-    "mtime": 1777913254.9093997,
-    "hash": "30c411f96238fc65079b304cbd3ce989"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/tests/test_inference.py": {
-    "mtime": 1777913254.9093997,
-    "hash": "60e0122ff8d686fa330f3e0fb4d85878"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/tests/test_readme.py": {
-    "mtime": 1777913254.9093997,
-    "hash": "4687f508e72d881df7b271f33ab58ae9"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/tests/test_dataset.py": {
-    "mtime": 1777913254.9093997,
-    "hash": "83e9ecc395c6a16b3ff4e98a49311e65"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/tests/test_hydra_configs.py": {
-    "mtime": 1777913254.9093997,
-    "hash": "23d9e0102924bb5fe963e1f111691814"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/tests/conftest.py": {
-    "mtime": 1777913254.9093997,
-    "hash": "d4587e4c107984852523a411cc59d249"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/evaluate.py": {
-    "mtime": 1777913254.9136155,
-    "hash": "f9582457df599dd354f12e3c82b65eea"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/dataset.py": {
-    "mtime": 1777913254.9136155,
-    "hash": "c5d23bac19e75d1cc68a0cbe0f6ace81"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/__init__.py": {
-    "mtime": 1777913254.9131532,
-    "hash": "d40695f587a5dfe5052b2b6a2f6669b7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/prepare_data.py": {
-    "mtime": 1777913254.9136155,
-    "hash": "a4ec3803c83bc802e75cfe099e0c69ab"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/inference.py": {
-    "mtime": 1777913254.9136155,
-    "hash": "2ac411f85bf0c9b60fe54e5ff3181704"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/model.py": {
-    "mtime": 1777913254.9136155,
-    "hash": "95a9e3837b5ac75426ba8546fa40974e"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/train.py": {
-    "mtime": 1777913254.9136155,
-    "hash": "b872dd9318aa65537a1d56ccca33a7dc"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/tests/test_model.py": {
-    "mtime": 1777913254.9140186,
-    "hash": "0207a688e2a5d39bebf78b18e259e316"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/tests/test_dvc_pipeline.py": {
-    "mtime": 1777913254.9140186,
-    "hash": "675b614bba28244b1d1b59b8e9731d34"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/tests/__init__.py": {
-    "mtime": 1777913254.9136155,
-    "hash": "809fcc6675094b420fef19ac2f52be8c"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/tests/test_training.py": {
-    "mtime": 1777913254.9140186,
-    "hash": "77ba06e99fe6a709e569be490c25538f"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/tests/test_inference.py": {
-    "mtime": 1777913254.9140186,
-    "hash": "b1dce418512d4a6db08548b3169cecb0"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/tests/test_dataset.py": {
-    "mtime": 1777913254.9140186,
-    "hash": "c2bc1bba0bf969e5b3d68b1b0b4b2398"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/tests/test_hydra_configs.py": {
-    "mtime": 1777913254.9140186,
-    "hash": "9aca31ad23b8f9277c9d46acef780aa9"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/tests/conftest.py": {
-    "mtime": 1777913254.9140186,
-    "hash": "fa59520a1cc3cb1f7df59e68b7473375"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/train.py": {
-    "mtime": 1777913254.9123333,
-    "hash": "8b97e01709a3383d4be9301c4d719871"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/evaluate.py": {
-    "mtime": 1777913254.911615,
-    "hash": "df111bbc8aa486cc915c904c4ff84960"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/dataset.py": {
-    "mtime": 1777913254.911615,
-    "hash": "1134eb81af727d70543add5169dd17eb"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/__init__.py": {
-    "mtime": 1777913254.9108946,
-    "hash": "170174e12f28e8a77a8a3a9a75722536"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/prepare_data.py": {
-    "mtime": 1777913254.911615,
-    "hash": "c173bd86c736b65df7a12833ee47ea37"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/inference.py": {
-    "mtime": 1777913254.911615,
-    "hash": "cb0966be5906ced1b1d61da13387caab"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/model.py": {
-    "mtime": 1777913254.911615,
-    "hash": "151fb9a311089ee24c92494ddaf63c30"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/train.py": {
-    "mtime": 1777913254.911615,
-    "hash": "495037b286dadcf9fdef272318662999"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/tests/test_model.py": {
-    "mtime": 1777913254.9123333,
-    "hash": "34e70470bb25c75f76c5ad5d3ecb04d9"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/tests/test_dvc_pipeline.py": {
-    "mtime": 1777913254.9123333,
-    "hash": "40cfede2ccc0b7bfe486d96f7ee07ea4"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/tests/__init__.py": {
-    "mtime": 1777913254.911615,
-    "hash": "4e3d5f20c5a2e900f28392e9413a2947"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/tests/test_training.py": {
-    "mtime": 1777913254.9123333,
-    "hash": "00222e65772175efa3d83da108c6a520"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/tests/test_inference.py": {
-    "mtime": 1777913254.9123333,
-    "hash": "8885b59ae50fb18caceeea146f24f50d"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/tests/test_dataset.py": {
-    "mtime": 1777913254.9123333,
-    "hash": "846129f0a3cde4d8ca4e28833880c164"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/tests/test_hydra_configs.py": {
-    "mtime": 1777913254.9123333,
-    "hash": "d9ee7eeb285f43d29d37e5f43309506c"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/tests/conftest.py": {
-    "mtime": 1777913254.9123333,
-    "hash": "8de16408588363359ade66a3b7c04585"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/tests/test_sklearn_training.py": {
-    "mtime": 1777913254.9123333,
-    "hash": "e94b06897de63f13311afecc2be7aad3"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/tests/test_sklearn_hydra_configs.py": {
-    "mtime": 1777913254.9123333,
-    "hash": "1313ad2aaefdec2b164b7cffd420b5e6"
-  },
-  "/tmp/Auto-mlops-phase3-detect/summarization/__init__.py": {
-    "mtime": 1777913254.9678223,
-    "hash": "274a2d7d575504e1f5ff8a396ca8a06f"
-  },
-  "/tmp/Auto-mlops-phase3-detect/summarization/summarizer.py": {
-    "mtime": 1777913254.9689157,
-    "hash": "399972198f20d1acdf1ddb06c206fda7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/memory/__init__.py": {
-    "mtime": 1777913254.9610057,
+  "/home/ubuntu/Auto-mlops/memory/__init__.py": {
+    "mtime": 1777964408.5164745,
     "hash": "d779e9145f1f9b5b994addef6d3a739d"
   },
-  "/tmp/Auto-mlops-phase3-detect/memory/memory_search.py": {
-    "mtime": 1777913254.961172,
+  "/home/ubuntu/Auto-mlops/memory/memory_search.py": {
+    "mtime": 1777964408.5164745,
     "hash": "1859b688862ef83d1cd6164978d9223a"
   },
-  "/tmp/Auto-mlops-phase3-detect/CLAUDE.md": {
-    "mtime": 1777913254.8918226,
-    "hash": "c1f521975489a842dea09a664cdc1441"
+  "/home/ubuntu/Auto-mlops/monitoring/__init__.py": {
+    "mtime": 1777964408.5164745,
+    "hash": "e36f6637d23462eb276e4393639fe514"
   },
-  "/tmp/Auto-mlops-phase3-detect/AGENTS.md": {
-    "mtime": 1777913254.8918226,
-    "hash": "6009a605d3e70e8d8382c7c26c9257ee"
+  "/home/ubuntu/Auto-mlops/monitoring/models.py": {
+    "mtime": 1777964408.5174744,
+    "hash": "892852a31780363313eb7c959c55161d"
   },
-  "/tmp/Auto-mlops-phase3-detect/DIARY.md": {
-    "mtime": 1777913254.8928225,
+  "/home/ubuntu/Auto-mlops/monitoring/model_monitor.py": {
+    "mtime": 1777964408.5174744,
+    "hash": "71c498058d75b123cdafeb3823f88a03"
+  },
+  "/home/ubuntu/Auto-mlops/monitoring/drift_detector.py": {
+    "mtime": 1777964408.5164745,
+    "hash": "111c61dd0162e32e4bff376c21fc4c5e"
+  },
+  "/home/ubuntu/Auto-mlops/tests/test_resilience.py": {
+    "mtime": 1777964408.5234745,
+    "hash": "4370201e6789c61b1f3c8d547783e7ba"
+  },
+  "/home/ubuntu/Auto-mlops/tests/conftest.py": {
+    "mtime": 1777964408.5194745,
+    "hash": "0a8b7f82ee3b1bd1d5c4df4592ba0824"
+  },
+  "/home/ubuntu/Auto-mlops/tests/__init__.py": {
+    "mtime": 1777964408.5194745,
+    "hash": "46f3e03657c9d67219754ac6f630a943"
+  },
+  "/home/ubuntu/Auto-mlops/tests/test_perception.py": {
+    "mtime": 1777964408.5234745,
+    "hash": "75f6e866cd0ab1624cd33d5deae01320"
+  },
+  "/home/ubuntu/Auto-mlops/tests/test_step_execution_tracker.py": {
+    "mtime": 1777964408.5234745,
+    "hash": "56bfa315ed9c28fb03ca9c42a9311bd1"
+  },
+  "/home/ubuntu/Auto-mlops/tests/test_decision.py": {
+    "mtime": 1777964408.5234745,
+    "hash": "0236fe3b8da49fb2a028932931a5a535"
+  },
+  "/home/ubuntu/Auto-mlops/tests/test_observability.py": {
+    "mtime": 1777964408.5234745,
+    "hash": "02719f44abd1f2c81b297c4555104ab7"
+  },
+  "/home/ubuntu/Auto-mlops/tests/test_circuit_breaker_retry.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "e0ef0538494b0f982843aaca4fad8cf0"
+  },
+  "/home/ubuntu/Auto-mlops/tests/test_agent_logging.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "3f58edab67c1669280ef5f8e066f11d4"
+  },
+  "/home/ubuntu/Auto-mlops/tests/test_conftest_fixtures.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "9c84357f614949793d0a3ed1af33af50"
+  },
+  "/home/ubuntu/Auto-mlops/tests/test_context_manager.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "f28b0bbc176a603fc4d68cbbfba2a5cd"
+  },
+  "/home/ubuntu/Auto-mlops/tests/test_agent_session.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "7996e48a0497686f594f85043c7571b0"
+  },
+  "/home/ubuntu/Auto-mlops/tests/test_model_manager.py": {
+    "mtime": 1777964408.5234745,
+    "hash": "948840e543400898cf5a3ce80c0e7945"
+  },
+  "/home/ubuntu/Auto-mlops/tests/security/__init__.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "da46846a6b30deffe136223a61afb83e"
+  },
+  "/home/ubuntu/Auto-mlops/tests/security/test_auth.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "84846e4d513cff9afd9d8ccd9f110fde"
+  },
+  "/home/ubuntu/Auto-mlops/tests/security/test_rate_limiting.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "453c7e032e0b9531254bd4b20130c5a7"
+  },
+  "/home/ubuntu/Auto-mlops/tests/e2e/test_phase3_capstone_orchestrator.py": {
+    "mtime": 1777981734.4797375,
+    "hash": "778215adcaadb968f05ec6a9f5c90d74"
+  },
+  "/home/ubuntu/Auto-mlops/tests/e2e/__init__.py": {
+    "mtime": 1777964408.5194745,
+    "hash": "eea140b4f0d5cade8c8a698a32c02f3e"
+  },
+  "/home/ubuntu/Auto-mlops/tests/e2e/test_phase4_prepare_capstone_data.py": {
+    "mtime": 1777987978.4473708,
+    "hash": "3adf88525a1dba6cee8efe71b532b687"
+  },
+  "/home/ubuntu/Auto-mlops/tests/e2e/test_phase1_setup_pipeline.py": {
+    "mtime": 1777964408.5194745,
+    "hash": "03d82c4b1bbe417895882e496342938b"
+  },
+  "/home/ubuntu/Auto-mlops/tests/e2e/test_train_deploy_flow.py": {
+    "mtime": 1777964408.5194745,
+    "hash": "85f1f9fc88a068d9c97d4673f816e372"
+  },
+  "/home/ubuntu/Auto-mlops/tests/integration/test_api_endpoints.py": {
+    "mtime": 1777964408.5194745,
+    "hash": "ca8481f46a55360260c7497369ca7900"
+  },
+  "/home/ubuntu/Auto-mlops/tests/integration/__init__.py": {
+    "mtime": 1777964408.5194745,
+    "hash": "67c4cd229b9c91cdbc80ef6b3c63eabc"
+  },
+  "/home/ubuntu/Auto-mlops/tests/integration/test_websocket.py": {
+    "mtime": 1777964408.5194745,
+    "hash": "67229661b8daa6a53b9d267bc2c067ae"
+  },
+  "/home/ubuntu/Auto-mlops/tests/integration/test_mcp_tools.py": {
+    "mtime": 1777964408.5194745,
+    "hash": "054cb937564e8f44f391a8203fd98f16"
+  },
+  "/home/ubuntu/Auto-mlops/tests/load/__init__.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "9f1ce61b35af0ab4d3481cd0024a66b6"
+  },
+  "/home/ubuntu/Auto-mlops/tests/load/locustfile.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "db55619a09461fcb50e12264ed4c42c6"
+  },
+  "/home/ubuntu/Auto-mlops/tests/unit/test_execute_step.py": {
+    "mtime": 1777987692.25765,
+    "hash": "de26f519c760ee60d990ee9ffb4b5917"
+  },
+  "/home/ubuntu/Auto-mlops/tests/unit/test_security_middleware.py": {
+    "mtime": 1777964408.5244744,
+    "hash": "a91876b6dae46a8e6c6b1b9a183b5a4f"
+  },
+  "/home/ubuntu/Auto-mlops/tests/unit/__init__.py": {
+    "mtime": 1777964408.5234745,
+    "hash": "adff788d1ca08192b40eaf848fbbb2a7"
+  },
+  "/home/ubuntu/Auto-mlops/tests/unit/test_perception.py": {
+    "mtime": 1777964408.5244744,
+    "hash": "a998428cb3e82fe0f4b92266d47f6046"
+  },
+  "/home/ubuntu/Auto-mlops/tests/unit/test_summarizer.py": {
+    "mtime": 1777964408.5244744,
+    "hash": "b8c35b529ee3b800ef0eeb6c8fa24006"
+  },
+  "/home/ubuntu/Auto-mlops/tests/unit/test_monitoring.py": {
+    "mtime": 1777964408.5244744,
+    "hash": "50f12d48145288419ef714ed8649b726"
+  },
+  "/home/ubuntu/Auto-mlops/tests/unit/test_workflow_registry.py": {
+    "mtime": 1777987644.04036,
+    "hash": "acd9d01bb5f71f98e5741b7d1160f184"
+  },
+  "/home/ubuntu/Auto-mlops/tests/unit/test_agent_loop.py": {
+    "mtime": 1777988051.149808,
+    "hash": "b34db5dc8addb1de451f8eb0f76d27e7"
+  },
+  "/home/ubuntu/Auto-mlops/tests/unit/test_decision.py": {
+    "mtime": 1777964408.5234745,
+    "hash": "01056210d7531a5647658ef9fcc32991"
+  },
+  "/home/ubuntu/Auto-mlops/tests/unit/test_memory_search.py": {
+    "mtime": 1777964408.5244744,
+    "hash": "2037a84101376c7fc7fd9237ef11c3c2"
+  },
+  "/home/ubuntu/Auto-mlops/tests/unit/test_k8s_aws_tools.py": {
+    "mtime": 1777964408.5234745,
+    "hash": "f0b5fd05fca3eca82215ad34c6270c67"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_db.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "a7bab77d961792792f3ab49c544eedf7"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_monitor_model_performance.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "797a42b5fa71f33b370d50b096dacdba"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_course_graph_prompt_coverage.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "d3ef33acb446253148ba3c4f35be3a51"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/__init__.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "cb11a3315a797ce4a04582aa0d437deb"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_detect_data_drift.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "0eb23a01145d548137b2b6e016f0528f"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_decision_prompt_data_validation.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "43b43ca5b95d8aa7a500df107de92cea"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_middleware.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "cb1448ab0a58e4f16ac1a372346bd839"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_cli_admin.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "b7f082e73c1919727376fb6efa5feb1a"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_db_repositories.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "84f0f5cceddd81ff2a522ad2d99f1c76"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_db_session.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "4b87fc438faa656cb25de3aad2e888fb"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_monitoring.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "804dcd2b5129acc22c84c500fa42077e"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_api_server_auth.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "68e4b8e0757e3862edb1ed2edb74eaaa"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_lambda_labs_deployment_prompt.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "6f45f455f378460f12a7e4e773647834"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_security.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "98d4eaaf24d7acb1e5429669035430f0"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_db_migrations.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "7bad56aa1360dbc61b3bc6400deb41cd"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_metrics_endpoints.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "021e2f6e5157ed193c94a48abe2ad6a3"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_api_keys.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "c9f480fc04635da8702bf2485528fac4"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_setup_alerting.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "acc62865611a2ad6dc49a0332163f4c6"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_db_models.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "70e32f9a53ef05fcade0958198d2327e"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_prometheus_metrics.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "9284c8e93f48c5aef73363e86ac9fc1f"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_session_manager.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "e1426a201a722b36ea68e274e684b12b"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_ge_validator.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "26099631b2108886152d764ec1bc9bb7"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_memory_search.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "b175e055abebd87bbe6a2e6b1d6330b9"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_auth_middleware.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "c672364b5e12ea5caaa4fee0a0e30e9d"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_data_validation_tools.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "f1ec7aa38c3ec21cd7090531178043d5"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_security_models.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "2024ae7e8f1bd677ca381723e80a2372"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_cors_config.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "fc39e03b218b33097ad980222a5e2d37"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_mlops_tools.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "2a0e46d55f226c5d3cc6d285919b7311"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_data_quality.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "0efa66312f64259157db88bf1bdd14b9"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_admin_endpoints.py": {
+    "mtime": 1777964408.5204744,
+    "hash": "6bef7f5e68ba17ece761b85dd4ab7692"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_env_example.py": {
+    "mtime": 1777964408.5214744,
+    "hash": "2253689e13f327f07a3c90932611f66d"
+  },
+  "/home/ubuntu/Auto-mlops/tests/root_migrated/test_rate_limiting.py": {
+    "mtime": 1777964408.5224745,
+    "hash": "b3d8c8de859332eec15a8b7a9ba6040b"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/services/imagenet_api/app.py": {
+    "mtime": 1777964408.4674742,
+    "hash": "14cc53a86be214324a4c3c03d34e8e23"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/training/lr_finder.py": {
+    "mtime": 1777964408.4684741,
+    "hash": "d63ea3d829411ac68006a03c7864ce4a"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/training/hpo_optuna.py": {
+    "mtime": 1777964408.4684741,
+    "hash": "73de84ca43a4607315da7ecb94b74f3a"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/training/train_hf.py": {
+    "mtime": 1777964408.4684741,
+    "hash": "a3f63658d09b04260b424a491ea867f2"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/training/export_torchscript.py": {
+    "mtime": 1777964408.4684741,
+    "hash": "aa51c103f2b807cce1b4b2375b378523"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/training/train_timm.py": {
+    "mtime": 1777964408.4684741,
+    "hash": "ff36e91422ae498e34ea70053f60e6eb"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/services/model_api/app.py": {
+    "mtime": 1777964408.4684741,
+    "hash": "04cb7d448a53306006fe9850ec005a0d"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/services/web_ui/app.py": {
+    "mtime": 1777964408.4684741,
+    "hash": "21bf5e61d017a9cace7791b039446851"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/scripts/prepare_splits.py": {
+    "mtime": 1777964408.4684741,
+    "hash": "8ff2da455ee7c1ca7b4994c81f12834b"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/scripts/download_datasets.py": {
+    "mtime": 1777964408.4684741,
+    "hash": "0aada620ada4f06566ae1ba1d2b0c7e4"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/scripts/send.py": {
+    "mtime": 1777964408.4684741,
+    "hash": "bdc34f6b2e8cd563afb951f6ce90b3ac"
+  },
+  "/home/ubuntu/Auto-mlops/resilience/timeout.py": {
+    "mtime": 1777964408.5184743,
+    "hash": "49740c5917c4fc3c81371aba2f82add6"
+  },
+  "/home/ubuntu/Auto-mlops/resilience/__init__.py": {
+    "mtime": 1777964408.5174744,
+    "hash": "ae4fae46cacfeb6aa742d1915fe5fb48"
+  },
+  "/home/ubuntu/Auto-mlops/resilience/circuit_breaker.py": {
+    "mtime": 1777964408.5174744,
+    "hash": "81682f9a8c1c7a085a9cf0b969908d24"
+  },
+  "/home/ubuntu/Auto-mlops/resilience/retry.py": {
+    "mtime": 1777964408.5184743,
+    "hash": "f050eb3477f8caeac1873e18fe3abea4"
+  },
+  "/home/ubuntu/Auto-mlops/resilience/bulkhead.py": {
+    "mtime": 1777964408.5174744,
+    "hash": "1d82ca51a1bae8b7f8dbd4fa392b2a5c"
+  },
+  "/home/ubuntu/Auto-mlops/mcp_servers/__init__.py": {
+    "mtime": 1777964408.5164745,
+    "hash": "0c3e40c6035d9e25db494955bb53a2d8"
+  },
+  "/home/ubuntu/Auto-mlops/mcp_servers/mcp_configs/mlflow_ops.py": {
+    "mtime": 1777964408.5164745,
+    "hash": "b97d615aeb26d3bba486529d3a09f949"
+  },
+  "/home/ubuntu/Auto-mlops/mcp_servers/mcp_configs/__init__.py": {
+    "mtime": 1777964408.5164745,
+    "hash": "4f8ebbf3b2b8cd3946e77cff3b6cac64"
+  },
+  "/home/ubuntu/Auto-mlops/mcp_servers/mcp_configs/hydra_ops.py": {
+    "mtime": 1777964408.5164745,
+    "hash": "44ca81ec3128645bc72616f5458ce2ed"
+  },
+  "/home/ubuntu/Auto-mlops/mcp_servers/mcp_configs/dvc_ops.py": {
+    "mtime": 1777964408.5164745,
+    "hash": "922d44f70cf6f5ba2c600d3affb23da8"
+  },
+  "/home/ubuntu/Auto-mlops/mcp_servers/mcp_configs/github_ops.py": {
+    "mtime": 1777964408.5164745,
+    "hash": "0171b5e199193b9385c395495fb7bee7"
+  },
+  "/home/ubuntu/Auto-mlops/summarization/__init__.py": {
+    "mtime": 1777964408.5184743,
+    "hash": "274a2d7d575504e1f5ff8a396ca8a06f"
+  },
+  "/home/ubuntu/Auto-mlops/summarization/summarizer.py": {
+    "mtime": 1777964408.5184743,
+    "hash": "399972198f20d1acdf1ddb06c206fda7"
+  },
+  "/home/ubuntu/Auto-mlops/observability/__init__.py": {
+    "mtime": 1777964408.5174744,
+    "hash": "5282ce7b75aaf41462af947a9837a009"
+  },
+  "/home/ubuntu/Auto-mlops/observability/metrics.py": {
+    "mtime": 1777964408.5174744,
+    "hash": "e4efbee1274fe01a62f2b2b76d7ced89"
+  },
+  "/home/ubuntu/Auto-mlops/observability/logging.py": {
+    "mtime": 1777964408.5174744,
+    "hash": "0c54d093640e9474a7508ef5456f8cca"
+  },
+  "/home/ubuntu/Auto-mlops/frontend/postcss.config.js": {
+    "mtime": 1777964408.4794743,
+    "hash": "854b38759e7a8b4b82306ae2d9a3a833"
+  },
+  "/home/ubuntu/Auto-mlops/frontend/tailwind.config.js": {
+    "mtime": 1777964408.4804742,
+    "hash": "ffb98de809637ea4f7de833ead30225f"
+  },
+  "/home/ubuntu/Auto-mlops/frontend/src/App.js": {
+    "mtime": 1777964408.4794743,
+    "hash": "4d881ed0138295de5bc586aa736d667f"
+  },
+  "/home/ubuntu/Auto-mlops/frontend/src/index.js": {
+    "mtime": 1777964408.4804742,
+    "hash": "9fc5841375336fc175b49f8767a11383"
+  },
+  "/home/ubuntu/Auto-mlops/frontend/src/components/Landing.js": {
+    "mtime": 1777964408.4794743,
+    "hash": "58993ef0276ead2c40b2e317fd2141ec"
+  },
+  "/home/ubuntu/Auto-mlops/frontend/src/components/Auth.js": {
+    "mtime": 1777964408.4794743,
+    "hash": "4fa9512ae03c3b49fec3a6c10b2344b8"
+  },
+  "/home/ubuntu/Auto-mlops/frontend/src/components/MLOpsAgent.js": {
+    "mtime": 1777964408.4804742,
+    "hash": "3cd147705455316d49161f10b143cfab"
+  },
+  "/home/ubuntu/Auto-mlops/frontend/src/context/AuthContext.js": {
+    "mtime": 1777964408.4804742,
+    "hash": "e676139dc8774bb9150a4c34a6da93b4"
+  },
+  "/home/ubuntu/Auto-mlops/sdk/__init__.py": {
+    "mtime": 1777964408.5184743,
+    "hash": "8cd96e11b59754c7789f85972f13f4e4"
+  },
+  "/home/ubuntu/Auto-mlops/sdk/async_client.py": {
+    "mtime": 1777964408.5184743,
+    "hash": "dbc724b029c0480d20d88e2ce279d625"
+  },
+  "/home/ubuntu/Auto-mlops/sdk/client.py": {
+    "mtime": 1777964408.5184743,
+    "hash": "fb6d0f0024d297dbee3f0903688b874a"
+  },
+  "/home/ubuntu/Auto-mlops/workflow/registry.py": {
+    "mtime": 1777987714.1777816,
+    "hash": "dcc30a52e82c56ce93297b73cc7db41c"
+  },
+  "/home/ubuntu/Auto-mlops/workflow/__init__.py": {
+    "mtime": 1777964408.5294745,
+    "hash": "265f87f8cb2cbfe9824a2373dddeab67"
+  },
+  "/home/ubuntu/Auto-mlops/decision/__init__.py": {
+    "mtime": 1777964408.4704742,
+    "hash": "dfeaa3fc05568d8b102af49904037ea0"
+  },
+  "/home/ubuntu/Auto-mlops/decision/decision.py": {
+    "mtime": 1777964408.4704742,
+    "hash": "001ac5b1fa770ff6057213543b44e10f"
+  },
+  "/home/ubuntu/Auto-mlops/perception/__init__.py": {
+    "mtime": 1777964408.5174744,
+    "hash": "cb400ee5e56345b5d0d2adfd8c6a01fb"
+  },
+  "/home/ubuntu/Auto-mlops/perception/perception.py": {
+    "mtime": 1777964408.5174744,
+    "hash": "fcfed170addac478849a79517be8d9b3"
+  },
+  "/home/ubuntu/Auto-mlops/action/__init__.py": {
+    "mtime": 1777964408.4654741,
+    "hash": "7786f73c0c0bc2813a4fe686ac318970"
+  },
+  "/home/ubuntu/Auto-mlops/action/execute_step.py": {
+    "mtime": 1777987784.1182022,
+    "hash": "9f8b14083b782f05b1b3d1696640e5d2"
+  },
+  "/home/ubuntu/Auto-mlops/metrics/__init__.py": {
+    "mtime": 1777964408.5164745,
+    "hash": "80b5a40e44f0d8a12ffd3d51b33bdb49"
+  },
+  "/home/ubuntu/Auto-mlops/metrics/models.py": {
+    "mtime": 1777964408.5164745,
+    "hash": "c246428132c01f05079acd04abccb571"
+  },
+  "/home/ubuntu/Auto-mlops/metrics/collector.py": {
+    "mtime": 1777964408.5164745,
+    "hash": "59ad0f90820bbcac2183bc2e571d8be8"
+  },
+  "/home/ubuntu/Auto-mlops/data_quality/__init__.py": {
+    "mtime": 1777964408.469474,
+    "hash": "50a44f808187a2e88311a40f71962961"
+  },
+  "/home/ubuntu/Auto-mlops/data_quality/validator.py": {
+    "mtime": 1777964408.469474,
+    "hash": "61df592051786cebaedd8fc1d3f0fb20"
+  },
+  "/home/ubuntu/Auto-mlops/data_quality/validators.py": {
+    "mtime": 1777964408.469474,
+    "hash": "3f0e75177f3088722bd18ed0d43ab4b0"
+  },
+  "/home/ubuntu/Auto-mlops/data_quality/models.py": {
+    "mtime": 1777964408.469474,
+    "hash": "7ecb51a52cb7da7879c9ea79faf9bdce"
+  },
+  "/home/ubuntu/Auto-mlops/data_quality/profiler.py": {
+    "mtime": 1777964408.469474,
+    "hash": "39063bb2d8323aa374d6eb62a527f87c"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/tests/conftest.py": {
+    "mtime": 1777964408.475474,
+    "hash": "fa59520a1cc3cb1f7df59e68b7473375"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/tests/__init__.py": {
+    "mtime": 1777964408.475474,
+    "hash": "809fcc6675094b420fef19ac2f52be8c"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/tests/test_hydra_configs.py": {
+    "mtime": 1777964408.475474,
+    "hash": "9aca31ad23b8f9277c9d46acef780aa9"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/tests/test_training.py": {
+    "mtime": 1777964408.475474,
+    "hash": "77ba06e99fe6a709e569be490c25538f"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/tests/test_model.py": {
+    "mtime": 1777964408.475474,
+    "hash": "0207a688e2a5d39bebf78b18e259e316"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/tests/test_dvc_pipeline.py": {
+    "mtime": 1777964408.475474,
+    "hash": "675b614bba28244b1d1b59b8e9731d34"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/tests/test_inference.py": {
+    "mtime": 1777964408.475474,
+    "hash": "b1dce418512d4a6db08548b3169cecb0"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/tests/test_dataset.py": {
+    "mtime": 1777964408.475474,
+    "hash": "c2bc1bba0bf969e5b3d68b1b0b4b2398"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/inference.py": {
+    "mtime": 1777964408.475474,
+    "hash": "2ac411f85bf0c9b60fe54e5ff3181704"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/__init__.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "d40695f587a5dfe5052b2b6a2f6669b7"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/train.py": {
+    "mtime": 1777964408.475474,
+    "hash": "b872dd9318aa65537a1d56ccca33a7dc"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/evaluate.py": {
+    "mtime": 1777964408.475474,
+    "hash": "f9582457df599dd354f12e3c82b65eea"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/dataset.py": {
+    "mtime": 1777964408.475474,
+    "hash": "c5d23bac19e75d1cc68a0cbe0f6ace81"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/prepare_data.py": {
+    "mtime": 1777964408.475474,
+    "hash": "a4ec3803c83bc802e75cfe099e0c69ab"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/model.py": {
+    "mtime": 1777964408.475474,
+    "hash": "95a9e3837b5ac75426ba8546fa40974e"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/run_example.py": {
+    "mtime": 1777964408.472474,
+    "hash": "1ebc118ba0d8d5d68d77b77f073d09a4"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/tests/test_readme.py": {
+    "mtime": 1777964408.472474,
+    "hash": "4687f508e72d881df7b271f33ab58ae9"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/tests/conftest.py": {
+    "mtime": 1777964408.472474,
+    "hash": "d4587e4c107984852523a411cc59d249"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/tests/__init__.py": {
+    "mtime": 1777964408.472474,
+    "hash": "b6845a53ce70966ce976c78cd510f114"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/tests/test_hydra_configs.py": {
+    "mtime": 1777964408.472474,
+    "hash": "23d9e0102924bb5fe963e1f111691814"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/tests/test_training.py": {
+    "mtime": 1777964408.472474,
+    "hash": "30c411f96238fc65079b304cbd3ce989"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/tests/test_model.py": {
+    "mtime": 1777964408.472474,
+    "hash": "abd257b8e512a56ba8a74a60f7fadeb1"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/tests/test_dvc_pipeline.py": {
+    "mtime": 1777964408.472474,
+    "hash": "648e1186bc9587ecd6041cb4be2b640c"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/tests/test_inference.py": {
+    "mtime": 1777964408.472474,
+    "hash": "60e0122ff8d686fa330f3e0fb4d85878"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/tests/test_dataset.py": {
+    "mtime": 1777964408.472474,
+    "hash": "83e9ecc395c6a16b3ff4e98a49311e65"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/inference.py": {
+    "mtime": 1777964408.472474,
+    "hash": "f93c696632a7439a23613f3ecf40a0dd"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/__init__.py": {
+    "mtime": 1777964408.4714742,
+    "hash": "35e86d16781b62552228544ba9fcf9d7"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/train.py": {
+    "mtime": 1777964408.472474,
+    "hash": "c937172e1dcf96e219bd29e922b4643d"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/evaluate.py": {
+    "mtime": 1777964408.472474,
+    "hash": "5ab3f9f7210cbd17d5690116804d2d03"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/dataset.py": {
+    "mtime": 1777964408.472474,
+    "hash": "b7ece8394a83029155eff199251edc39"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/prepare_data.py": {
+    "mtime": 1777964408.472474,
+    "hash": "1459a15f85a510fb16157c24ded41b90"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/model.py": {
+    "mtime": 1777964408.472474,
+    "hash": "ee19bfce15e17a33031061619d5deeff"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/train.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "8b97e01709a3383d4be9301c4d719871"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/tests/conftest.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "8de16408588363359ade66a3b7c04585"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/tests/__init__.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "4e3d5f20c5a2e900f28392e9413a2947"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/tests/test_sklearn_training.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "e94b06897de63f13311afecc2be7aad3"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/tests/test_hydra_configs.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "d9ee7eeb285f43d29d37e5f43309506c"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/tests/test_training.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "00222e65772175efa3d83da108c6a520"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/tests/test_model.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "34e70470bb25c75f76c5ad5d3ecb04d9"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/tests/test_sklearn_hydra_configs.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "1313ad2aaefdec2b164b7cffd420b5e6"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/tests/test_dvc_pipeline.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "40cfede2ccc0b7bfe486d96f7ee07ea4"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/tests/test_inference.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "8885b59ae50fb18caceeea146f24f50d"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/tests/test_dataset.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "846129f0a3cde4d8ca4e28833880c164"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/inference.py": {
+    "mtime": 1777964408.4734743,
+    "hash": "cb0966be5906ced1b1d61da13387caab"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/__init__.py": {
+    "mtime": 1777964408.4734743,
+    "hash": "170174e12f28e8a77a8a3a9a75722536"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/train.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "495037b286dadcf9fdef272318662999"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/evaluate.py": {
+    "mtime": 1777964408.4734743,
+    "hash": "df111bbc8aa486cc915c904c4ff84960"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/dataset.py": {
+    "mtime": 1777964408.4734743,
+    "hash": "1134eb81af727d70543add5169dd17eb"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/prepare_data.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "c173bd86c736b65df7a12833ee47ea37"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/model.py": {
+    "mtime": 1777964408.4744742,
+    "hash": "151fb9a311089ee24c92494ddaf63c30"
+  },
+  "/home/ubuntu/Auto-mlops/db/__init__.py": {
+    "mtime": 1777964408.469474,
+    "hash": "f0b65d50eff0ad13334665b63c942ebf"
+  },
+  "/home/ubuntu/Auto-mlops/db/models.py": {
+    "mtime": 1777964408.4704742,
+    "hash": "f6bc6939d58302c20563f92f09c58c12"
+  },
+  "/home/ubuntu/Auto-mlops/db/repositories.py": {
+    "mtime": 1777964408.4704742,
+    "hash": "6a323028f4a780b7b27b62712a1efbe7"
+  },
+  "/home/ubuntu/Auto-mlops/db/session.py": {
+    "mtime": 1777964408.4704742,
+    "hash": "887ae79ff40312f5bdef9e4f1894ccd0"
+  },
+  "/home/ubuntu/Auto-mlops/db/migrations/env.py": {
+    "mtime": 1777964408.469474,
+    "hash": "b9661e59e7894059483e6da1f27412c6"
+  },
+  "/home/ubuntu/Auto-mlops/db/migrations/versions/20260202_182249_cf06fa948e58_initial_schema.py": {
+    "mtime": 1777964408.4704742,
+    "hash": "a51a7d16c60d46eed3ab9953870819ee"
+  },
+  "/home/ubuntu/Auto-mlops/agent/__init__.py": {
+    "mtime": 1777964408.4654741,
+    "hash": "8839a0c44aa91790e9c42973c54e2e0c"
+  },
+  "/home/ubuntu/Auto-mlops/agent/agent_loop.py": {
+    "mtime": 1777987834.7075064,
+    "hash": "1e6971c9bc91d8186beb17c2d7688687"
+  },
+  "/home/ubuntu/Auto-mlops/agent/contextManager.py": {
+    "mtime": 1777964408.466474,
+    "hash": "dfd89f74364b51fa482575b1ef56f610"
+  },
+  "/home/ubuntu/Auto-mlops/agent/approval.py": {
+    "mtime": 1777964408.466474,
+    "hash": "042f5033d3008ee134b4fa73859a9ba1"
+  },
+  "/home/ubuntu/Auto-mlops/agent/agentSession.py": {
+    "mtime": 1777964408.466474,
+    "hash": "eff45437305e33e1c52ae92db49e9ab0"
+  },
+  "/home/ubuntu/Auto-mlops/agent/model_manager.py": {
+    "mtime": 1777964408.466474,
+    "hash": "7a3b2f5c57b71b5a96424dbd73f50562"
+  },
+  "/home/ubuntu/Auto-mlops/GOAL.md": {
+    "mtime": 1777971511.0578923,
+    "hash": "a7b066b22d84455beeaa83f03aee26af"
+  },
+  "/home/ubuntu/Auto-mlops/DIARY.md": {
+    "mtime": 1777964408.4654741,
     "hash": "640818af20a4818c1c3e58201ea68c2c"
   },
-  "/tmp/Auto-mlops-phase3-detect/CONTEXT.md": {
-    "mtime": 1777913254.8918226,
-    "hash": "426d7bbdc45b6ac58a36afba54c9d41a"
-  },
-  "/tmp/Auto-mlops-phase3-detect/requirements.txt": {
-    "mtime": 1777913254.964503,
-    "hash": "349066670a1fee0cb242a58774d63414"
-  },
-  "/tmp/Auto-mlops-phase3-detect/DEPLOYMENT_CONTEXT.md": {
-    "mtime": 1777913254.8918226,
-    "hash": "d38de1d0a38b42c14a776c1d65861492"
-  },
-  "/tmp/Auto-mlops-phase3-detect/PRD.md": {
-    "mtime": 1777913254.8938224,
-    "hash": "c571c0e96530eb9797ac5d862320f911"
-  },
-  "/tmp/Auto-mlops-phase3-detect/README.md": {
-    "mtime": 1777913254.8938224,
+  "/home/ubuntu/Auto-mlops/README.md": {
+    "mtime": 1777964408.4654741,
     "hash": "ef67df6bbd7e7edc547e172787c1e732"
   },
-  "/tmp/Auto-mlops-phase3-detect/docs/api-reference.md": {
-    "mtime": 1777913254.904837,
-    "hash": "461019e5e27a37140ae72e7b680268d3"
+  "/home/ubuntu/Auto-mlops/requirements.txt": {
+    "mtime": 1777964408.5174744,
+    "hash": "349066670a1fee0cb242a58774d63414"
   },
-  "/tmp/Auto-mlops-phase3-detect/docs/getting-started.md": {
-    "mtime": 1777913254.9052327,
-    "hash": "626b85d0607fe3b39a50500703c97194"
+  "/home/ubuntu/Auto-mlops/DEPLOYMENT_CONTEXT.md": {
+    "mtime": 1777964408.4654741,
+    "hash": "d38de1d0a38b42c14a776c1d65861492"
   },
-  "/tmp/Auto-mlops-phase3-detect/docs/deployment-targets.md": {
-    "mtime": 1777913254.904837,
-    "hash": "5df3781461b56bcd85656481d4f827b3"
+  "/home/ubuntu/Auto-mlops/AGENTS.md": {
+    "mtime": 1777964408.4654741,
+    "hash": "6009a605d3e70e8d8382c7c26c9257ee"
   },
-  "/tmp/Auto-mlops-phase3-detect/docs/baseline-checkpoint-2026-05-02.md": {
-    "mtime": 1777913254.904837,
-    "hash": "4f7ac98a133900329b216a851a88da36"
+  "/home/ubuntu/Auto-mlops/PRD.md": {
+    "mtime": 1777964408.4654741,
+    "hash": "c571c0e96530eb9797ac5d862320f911"
   },
-  "/tmp/Auto-mlops-phase3-detect/docs/security.md": {
-    "mtime": 1777913254.9072752,
-    "hash": "c42a57a6e2e6adc61f8ae010423ab00c"
+  "/home/ubuntu/Auto-mlops/CLAUDE.md": {
+    "mtime": 1777964408.4654741,
+    "hash": "c1f521975489a842dea09a664cdc1441"
   },
-  "/tmp/Auto-mlops-phase3-detect/docs/adr/0003-registry-executed-workflows-skip-post-step-llm-perception-by-default.md": {
-    "mtime": 1777913254.904837,
-    "hash": "159b609cc9f8fd2315f5f5804f2fd79f"
+  "/home/ubuntu/Auto-mlops/CONTEXT.md": {
+    "mtime": 1777981734.4767375,
+    "hash": "e7633e67ff20bd1a542e103ede61497c"
   },
-  "/tmp/Auto-mlops-phase3-detect/docs/adr/0002-workflow-runtime-executes-registry-templates-for-phase-1-setup-pipeline.md": {
-    "mtime": 1777913254.904837,
-    "hash": "c1eafeb5fe584788cd7e5b01f6ffeecf"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/adr/0001-workflow-registry-source-of-truth.md": {
-    "mtime": 1777913254.9046924,
-    "hash": "49ddce35956a6ee951a48b36082b8e50"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-3/0005-capstone-orchestrator-skeleton.md": {
-    "mtime": 1777913254.9072752,
-    "hash": "8803c14e41921cb28c932024cc0165cd"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-3/0002-run-training-and-capture-metrics.md": {
-    "mtime": 1777913254.9072752,
-    "hash": "a5e72c7d4f902cb4307f9797973aa0d4"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-3/0001-detect-training-project-and-entrypoint.md": {
-    "mtime": 1777913254.9069047,
-    "hash": "1e559edf02ff09be96c7c1efa333dec1"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-3/0004-select-best-model-artifact.md": {
-    "mtime": 1777913254.9072752,
-    "hash": "7cd3071704f5682afeac83ed47247c4c"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-3/0003-track-training-in-mlflow.md": {
-    "mtime": 1777913254.9072752,
-    "hash": "ef0f044dbf4322780d6945a636deaea8"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-3/README.md": {
-    "mtime": 1777913254.9072752,
-    "hash": "58b84e457a120b4af211d7f14e45bc1a"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-2/0001-harden-registry-executed-workflow-runtime.md": {
-    "mtime": 1777913254.9062834,
-    "hash": "40ae7a00811abe00e80e962398a69c1d"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-2/0002-add-local-litserve-deployment-preflight-workflow.md": {
-    "mtime": 1777913254.9069047,
-    "hash": "992b0042c507f68f2355b9c31b06a0a3"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-2/0003-run-litserve-on-user-started-lambda-gpu.md": {
-    "mtime": 1777913254.9069047,
-    "hash": "a6513856f898c5482c782db742ba0da5"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-2/README.md": {
-    "mtime": 1777913254.9069047,
-    "hash": "52bad1f7fc8a3b32f8794fa86142c897"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-0/0005-artifact-manifest-schema-and-contract-checks.md": {
-    "mtime": 1777913254.9054527,
-    "hash": "1ce83320750fc9c59659db0b84a548ac"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-0/0003-workflow-selection-decision-object.md": {
-    "mtime": 1777913254.9054527,
-    "hash": "27bfc59a8c9ac6fc124f3871bf60f3ce"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-0/0007-deployment-report-schema-and-rollback-readiness.md": {
-    "mtime": 1777913254.9054527,
-    "hash": "b7931c275fcc7a614e50bfa433ef7b21"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-0/0006-approval-gate-metadata-and-blocking.md": {
-    "mtime": 1777913254.9054527,
-    "hash": "76eaff240cafba6b4f604170edcc7fef"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-0/0001-workflow-registry-core-and-setup-template.md": {
-    "mtime": 1777913254.9053571,
-    "hash": "1cc305b92a109da9332d6c1d4c686d86"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-0/0002-add-phase-0-deployment-workflow-templates.md": {
-    "mtime": 1777913254.9054527,
-    "hash": "712d4bebcc9d4d5a4117385ee64effb3"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-0/0004-success-contract-validator-and-runtime-status.md": {
-    "mtime": 1777913254.9054527,
-    "hash": "92ed4ea7fe0cbc5dc16538b3fa267295"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-0/0008-phase-0-routing-and-contract-test-matrix.md": {
-    "mtime": 1777913254.9054527,
-    "hash": "71df5b797fe3278fc95836737c5fd62d"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-0/README.md": {
-    "mtime": 1777913254.9054527,
-    "hash": "ae3d06b6bd94d9a70ae40d3372bfecef"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-1/0001-select-workflow-before-perception-or-decision.md": {
-    "mtime": 1777913254.9054527,
-    "hash": "4b45d54fe223453ef9bac8fce73422fa"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-1/0006-derive-final-workflow-status-from-success-contract.md": {
-    "mtime": 1777913254.9062834,
-    "hash": "d76eaa5f0bf2d270e1757ed0bc0b7b50"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-1/0004-enforce-setup-pipeline-approval-gates-before-execute-step.md": {
-    "mtime": 1777913254.9062834,
-    "hash": "9ab63689fcfc5bb6a049f6d0b80e687b"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-1/0002-project-setup-pipeline-template-into-executable-runtime-steps.md": {
-    "mtime": 1777913254.9062834,
-    "hash": "ead68a0cb420671e22f528165e16ead9"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-1/0007-add-local-setup-pipeline-end-to-end-test-fixture.md": {
-    "mtime": 1777913254.9062834,
-    "hash": "87e25f5999457f054486d7fe73679c8f"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-1/0003-block-missing-required-workflow-inputs-with-clarifying-questions.md": {
-    "mtime": 1777913254.9062834,
-    "hash": "359ac52460b75e9d30c766b66136fb71"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-1/README.md": {
-    "mtime": 1777913254.9062834,
-    "hash": "df595cbb95b7523b23898260563c59f5"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/issues/phase-1/0005-capture-verification-results-and-artifact-manifest-for-setup-pipeline.md": {
-    "mtime": 1777913254.9062834,
-    "hash": "ba3e2435d7b40ece8093b7591a4c7ceb"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/examples/custom-deployment.md": {
-    "mtime": 1777913254.9052327,
-    "hash": "9cd3f3c973352fd4c0c68337d6c32f00"
-  },
-  "/tmp/Auto-mlops-phase3-detect/docs/examples/basic-pipeline.md": {
-    "mtime": 1777913254.904837,
-    "hash": "3d101fb77165e5d9559ecfb369cb84e7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/course_context/emlo_graphify/README.md": {
-    "mtime": 1777913254.9024549,
-    "hash": "d559683e4eefae5d38b546742e25ac6d"
-  },
-  "/tmp/Auto-mlops-phase3-detect/course_context/emlo_graphify/GRAPH_REPORT.md": {
-    "mtime": 1777913254.9023407,
-    "hash": "f9ba55cb2c8fd5216ea91a5d4221d142"
-  },
-  "/tmp/Auto-mlops-phase3-detect/prompts/perception_prompt.txt": {
-    "mtime": 1777913254.964503,
-    "hash": "2eb4bff27ee28976fc92737f122a6461"
-  },
-  "/tmp/Auto-mlops-phase3-detect/prompts/decision_prompt.txt": {
-    "mtime": 1777913254.9642062,
-    "hash": "d67b9efd6b3e4d8684242dd0ab2bbba7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/prompts/improvement_prompt.txt": {
-    "mtime": 1777913254.964503,
-    "hash": "8edd41bd3c517165759d8ac3535cf99a"
-  },
-  "/tmp/Auto-mlops-phase3-detect/prompts/summarizer_prompt.txt": {
-    "mtime": 1777913254.964503,
-    "hash": "d525a968debb46e7b04837e1fdbbf3cc"
-  },
-  "/tmp/Auto-mlops-phase3-detect/prompts/deployment_selector_prompt.txt": {
-    "mtime": 1777913254.964503,
-    "hash": "8ee67fe7774dbcb0852c93c7d7484721"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/docker-compose.yml": {
-    "mtime": 1777913254.8991265,
-    "hash": "9f194235e373a954b61e3f3fc02029fc"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/requirements.txt": {
-    "mtime": 1777913254.9003897,
-    "hash": "3257686fdf0742548cad5e573f3282aa"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/README.md": {
-    "mtime": 1777913254.8989503,
+  "/home/ubuntu/Auto-mlops/automation/full_platform/README.md": {
+    "mtime": 1777964408.466474,
     "hash": "1e4617039c2b63fb4f30eeb9caa52a98"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/README.md": {
-    "mtime": 1777913254.8993676,
-    "hash": "f0852c5e8101cd8b5d4bd4263a78258b"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/requirements.txt": {
+    "mtime": 1777964408.4684741,
+    "hash": "3257686fdf0742548cad5e573f3282aa"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/docs/canary.md": {
-    "mtime": 1777913254.8997731,
-    "hash": "06e5d766e5224dc2312f01c35070d6f8"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/docker-compose.yml": {
+    "mtime": 1777964408.4674742,
+    "hash": "9f194235e373a954b61e3f3fc02029fc"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/docs/notes.md": {
-    "mtime": 1777913254.8998969,
-    "hash": "8b6fff296e64fcefa9d29803993f6863"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/argo/imagenet-canary-app.yaml": {
-    "mtime": 1777913254.8997731,
-    "hash": "2074eb8da17a801e5830554b8dae541a"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/k8s/ingress.yaml": {
-    "mtime": 1777913254.9000318,
-    "hash": "b9a0d6cc86d99a60ecb85c17562f0072"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/k8s/rollout.yaml": {
-    "mtime": 1777913254.9000318,
-    "hash": "126dfa6cb05d29c609cf781a438ab8df"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/k8s/namespace.yaml": {
-    "mtime": 1777913254.9000318,
-    "hash": "e9932efdc810f3718350809c384f853e"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/k8s/analysis-template.yaml": {
-    "mtime": 1777913254.8998969,
-    "hash": "20d781a5622925086cec932007e98e0f"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/k8s/redis.yaml": {
-    "mtime": 1777913254.9000318,
-    "hash": "1a191dba951584dba52082dc92bd5b59"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/k8s/services.yaml": {
-    "mtime": 1777913254.9000318,
-    "hash": "c4b089bcd474618f333e2fb723ffbb10"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/k8s/kustomization.yaml": {
-    "mtime": 1777913254.9000318,
-    "hash": "9d2d891ed702906c0969a2820e6e72df"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/imagenet_canary/services/imagenet_api/requirements.txt": {
-    "mtime": 1777913254.900268,
-    "hash": "f83e727c4b48e4e3e1fc1302dee0d4ec"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/configs/deploy.yaml": {
-    "mtime": 1777913254.8991265,
-    "hash": "ff39a76a86b9c5fe302d394c4346cf94"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/configs/training.yaml": {
-    "mtime": 1777913254.8991265,
-    "hash": "89fef73dfa9a24f32143e36056e30a3a"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/configs/datasets.yaml": {
-    "mtime": 1777913254.899028,
-    "hash": "7be0d1538aa35efe81f533c266bbf32b"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/models/README.md": {
-    "mtime": 1777913254.9003897,
-    "hash": "54837d9e655e0ff1b0855af6e24964b3"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/reports/cluster_outputs.md": {
-    "mtime": 1777913254.9003897,
+  "/home/ubuntu/Auto-mlops/automation/full_platform/reports/cluster_outputs.md": {
+    "mtime": 1777964408.4684741,
     "hash": "c36d24fc6a221e6bea98f159658b048b"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/docs/deploy.md": {
-    "mtime": 1777913254.8991265,
-    "hash": "aba27d23a9457d49f72b7c04edf1b08e"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/models/README.md": {
+    "mtime": 1777964408.4674742,
+    "hash": "54837d9e655e0ff1b0855af6e24964b3"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/helm/values.yaml": {
-    "mtime": 1777913254.8993676,
-    "hash": "5a309fdad3983c6e565869540a23e1ee"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/helm/Chart.yaml": {
-    "mtime": 1777913254.8991265,
-    "hash": "a928e5b0563b3bd9084e59d0db7110df"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/helm/templates/pvc.yaml": {
-    "mtime": 1777913254.8993676,
-    "hash": "43df52a4cdbbf7cfdb5d5f284ca839e0"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/helm/templates/ingress.yaml": {
-    "mtime": 1777913254.8993676,
-    "hash": "38a4c778ef347092be1290d9ef21707b"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/helm/templates/redis-deployment.yaml": {
-    "mtime": 1777913254.8993676,
-    "hash": "6d7263c0785e99b4e333a32a0731e54c"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/helm/templates/configmap.yaml": {
-    "mtime": 1777913254.8993676,
-    "hash": "0c4ca75cab85fba66cfdd6f5a224e7cb"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/helm/templates/model-api-deployment.yaml": {
-    "mtime": 1777913254.8993676,
-    "hash": "84b8a35333795fbec73b82a71dab0a93"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/helm/templates/hpa.yaml": {
-    "mtime": 1777913254.8993676,
-    "hash": "d02174bbad55ae77d4eabbae93049361"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/helm/templates/web-ui-deployment.yaml": {
-    "mtime": 1777913254.8993676,
-    "hash": "49bb2dbd03992fcd2051b4fbf8f5a931"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/helm/templates/redis-service.yaml": {
-    "mtime": 1777913254.8993676,
-    "hash": "ce16db64e943cf86548f1a9ddfe8c979"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/helm/templates/web-ui-service.yaml": {
-    "mtime": 1777913254.8993676,
-    "hash": "b5f50acdf4ce0288a75c75bbf27d8e7d"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/helm/templates/model-api-service.yaml": {
-    "mtime": 1777913254.8993676,
-    "hash": "1feac1af9974092ccdedf6d146760abe"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/argo/app.yaml": {
-    "mtime": 1777913254.899028,
+  "/home/ubuntu/Auto-mlops/automation/full_platform/argo/app.yaml": {
+    "mtime": 1777964408.466474,
     "hash": "3a0585a977f94abae1a3bed4709eefcc"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/k8s/pvc.yaml": {
-    "mtime": 1777913254.9003897,
-    "hash": "a42cf09c24f7869b442fa433ed10e663"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/README.md": {
+    "mtime": 1777964408.4674742,
+    "hash": "f0852c5e8101cd8b5d4bd4263a78258b"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/k8s/ingress.yaml": {
-    "mtime": 1777913254.9003897,
-    "hash": "8b072f762e288d039ff3ab553570e4d5"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/argo/imagenet-canary-app.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "2074eb8da17a801e5830554b8dae541a"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/k8s/redis-deploy.yaml": {
-    "mtime": 1777913254.9003897,
-    "hash": "a3c41970f3f773722015f789268bd23f"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/services/imagenet_api/requirements.txt": {
+    "mtime": 1777964408.4674742,
+    "hash": "f83e727c4b48e4e3e1fc1302dee0d4ec"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/k8s/model-api-svc.yaml": {
-    "mtime": 1777913254.9003897,
-    "hash": "9037a76e9cd57479351d484dff7b7d45"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/docs/notes.md": {
+    "mtime": 1777964408.4674742,
+    "hash": "8b6fff296e64fcefa9d29803993f6863"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/k8s/configmap.yaml": {
-    "mtime": 1777913254.900268,
-    "hash": "af4e519e36e83f9390e4e8970f57c19c"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/docs/canary.md": {
+    "mtime": 1777964408.4674742,
+    "hash": "06e5d766e5224dc2312f01c35070d6f8"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/k8s/namespace.yaml": {
-    "mtime": 1777913254.9003897,
-    "hash": "42c40c6b9b14bf9b7cd33cfdb3367ee3"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/k8s/ingress.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "b9a0d6cc86d99a60ecb85c17562f0072"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/k8s/web-ui-svc.yaml": {
-    "mtime": 1777913254.9003897,
-    "hash": "0e1e2de634b358eb09d1c2475872fabd"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/k8s/kustomization.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "9d2d891ed702906c0969a2820e6e72df"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/k8s/redis-svc.yaml": {
-    "mtime": 1777913254.9003897,
-    "hash": "29ee54490ef8db22fca08b6935c00c9b"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/k8s/services.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "c4b089bcd474618f333e2fb723ffbb10"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/k8s/web-ui-deploy.yaml": {
-    "mtime": 1777913254.9003897,
-    "hash": "cd40f008d65ef334e10557581cb1c96f"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/k8s/analysis-template.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "20d781a5622925086cec932007e98e0f"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/k8s/model-api-deploy.yaml": {
-    "mtime": 1777913254.9003897,
-    "hash": "3fc9c4370e294d31d7c028e79aac11d8"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/k8s/namespace.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "e9932efdc810f3718350809c384f853e"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/k8s/hpa.yaml": {
-    "mtime": 1777913254.9003897,
-    "hash": "fdb8df5b3ee0427974e8d580b2d7ae2b"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/k8s/redis.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "1a191dba951584dba52082dc92bd5b59"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/k8s/kustomization.yaml": {
-    "mtime": 1777913254.9003897,
-    "hash": "5cfecb862e81dcb2059e0d695a7cf6c4"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/imagenet_canary/k8s/rollout.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "126dfa6cb05d29c609cf781a438ab8df"
   },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/services/web_ui/requirements.txt": {
-    "mtime": 1777913254.9012432,
-    "hash": "d786abb052c2ddde33fa38ea90965e87"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/services/web_ui/templates/index.html": {
-    "mtime": 1777913254.9012432,
-    "hash": "1a7774e10f203bddb219880182f12919"
-  },
-  "/tmp/Auto-mlops-phase3-detect/automation/full_platform/services/model_api/requirements.txt": {
-    "mtime": 1777913254.9011228,
+  "/home/ubuntu/Auto-mlops/automation/full_platform/services/model_api/requirements.txt": {
+    "mtime": 1777964408.4684741,
     "hash": "a778cefbb61799a87088779cb49c4681"
   },
-  "/tmp/Auto-mlops-phase3-detect/templates/github/train.yml": {
-    "mtime": 1777913254.970597,
-    "hash": "97d140b048e2166e2afb733c99033551"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/services/web_ui/requirements.txt": {
+    "mtime": 1777964408.4684741,
+    "hash": "d786abb052c2ddde33fa38ea90965e87"
   },
-  "/tmp/Auto-mlops-phase3-detect/templates/dvc/dvc.yaml": {
-    "mtime": 1777913254.970597,
-    "hash": "d1d7e432b669eafd11986f9ce8a15824"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/services/web_ui/templates/index.html": {
+    "mtime": 1777964408.4684741,
+    "hash": "1a7774e10f203bddb219880182f12919"
   },
-  "/tmp/Auto-mlops-phase3-detect/templates/hydra/config.yaml": {
-    "mtime": 1777913254.970597,
-    "hash": "fa4cb6db7f7aff1ad70a6884e85a7003"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/docs/deploy.md": {
+    "mtime": 1777964408.4674742,
+    "hash": "aba27d23a9457d49f72b7c04edf1b08e"
   },
-  "/tmp/Auto-mlops-phase3-detect/config/profiles.yaml": {
-    "mtime": 1777913254.9022007,
-    "hash": "5a38136fb2faaaa607ce23a1641bc816"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/helm/Chart.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "a928e5b0563b3bd9084e59d0db7110df"
   },
-  "/tmp/Auto-mlops-phase3-detect/config/mlops_defaults.yaml": {
-    "mtime": 1777913254.9014769,
-    "hash": "b944e5aab0440c052a0317dbf3605a18"
+  "/home/ubuntu/Auto-mlops/automation/full_platform/helm/values.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "5a309fdad3983c6e565869540a23e1ee"
   },
-  "/tmp/Auto-mlops-phase3-detect/frontend/public/index.html": {
-    "mtime": 1777913254.922129,
+  "/home/ubuntu/Auto-mlops/automation/full_platform/helm/templates/pvc.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "43df52a4cdbbf7cfdb5d5f284ca839e0"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/helm/templates/redis-deployment.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "6d7263c0785e99b4e333a32a0731e54c"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/helm/templates/ingress.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "38a4c778ef347092be1290d9ef21707b"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/helm/templates/configmap.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "0c4ca75cab85fba66cfdd6f5a224e7cb"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/helm/templates/model-api-service.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "1feac1af9974092ccdedf6d146760abe"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/helm/templates/web-ui-deployment.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "49bb2dbd03992fcd2051b4fbf8f5a931"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/helm/templates/model-api-deployment.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "84b8a35333795fbec73b82a71dab0a93"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/helm/templates/redis-service.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "ce16db64e943cf86548f1a9ddfe8c979"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/helm/templates/web-ui-service.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "b5f50acdf4ce0288a75c75bbf27d8e7d"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/helm/templates/hpa.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "d02174bbad55ae77d4eabbae93049361"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/configs/training.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "89fef73dfa9a24f32143e36056e30a3a"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/configs/deploy.yaml": {
+    "mtime": 1777964408.466474,
+    "hash": "ff39a76a86b9c5fe302d394c4346cf94"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/configs/datasets.yaml": {
+    "mtime": 1777964408.466474,
+    "hash": "7be0d1538aa35efe81f533c266bbf32b"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/k8s/web-ui-deploy.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "cd40f008d65ef334e10557581cb1c96f"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/k8s/model-api-svc.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "9037a76e9cd57479351d484dff7b7d45"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/k8s/pvc.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "a42cf09c24f7869b442fa433ed10e663"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/k8s/ingress.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "8b072f762e288d039ff3ab553570e4d5"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/k8s/configmap.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "af4e519e36e83f9390e4e8970f57c19c"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/k8s/model-api-deploy.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "3fc9c4370e294d31d7c028e79aac11d8"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/k8s/redis-svc.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "29ee54490ef8db22fca08b6935c00c9b"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/k8s/kustomization.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "5cfecb862e81dcb2059e0d695a7cf6c4"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/k8s/redis-deploy.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "a3c41970f3f773722015f789268bd23f"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/k8s/web-ui-svc.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "0e1e2de634b358eb09d1c2475872fabd"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/k8s/namespace.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "42c40c6b9b14bf9b7cd33cfdb3367ee3"
+  },
+  "/home/ubuntu/Auto-mlops/automation/full_platform/k8s/hpa.yaml": {
+    "mtime": 1777964408.4674742,
+    "hash": "fdb8df5b3ee0427974e8d580b2d7ae2b"
+  },
+  "/home/ubuntu/Auto-mlops/frontend/public/index.html": {
+    "mtime": 1777964408.4794743,
     "hash": "39ad0e3f50115e74290d1c6e42005a03"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/agent_queries.md": {
-    "mtime": 1777913254.9079347,
-    "hash": "9ea26eed874c73a7b42c428c7a50f5fb"
+  "/home/ubuntu/Auto-mlops/templates/hydra/config.yaml": {
+    "mtime": 1777964408.5194745,
+    "hash": "fa4cb6db7f7aff1ad70a6884e85a7003"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/README.md": {
-    "mtime": 1777913254.907753,
-    "hash": "d44ee827804693a6dddfa489be9ed8fe"
+  "/home/ubuntu/Auto-mlops/templates/dvc/dvc.yaml": {
+    "mtime": 1777964408.5194745,
+    "hash": "d1d7e432b669eafd11986f9ce8a15824"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/docs/walkthrough.md": {
-    "mtime": 1777913254.9079347,
-    "hash": "ad05e07fed2bdf4e15b6d3035a6023fe"
+  "/home/ubuntu/Auto-mlops/templates/github/train.yml": {
+    "mtime": 1777964408.5194745,
+    "hash": "97d140b048e2166e2afb733c99033551"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/requirements.txt": {
-    "mtime": 1777913254.9085674,
-    "hash": "84794897ca65ba852656e59e38d96055"
+  "/home/ubuntu/Auto-mlops/prompts/summarizer_prompt.txt": {
+    "mtime": 1777964408.5174744,
+    "hash": "d525a968debb46e7b04837e1fdbbf3cc"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/dvc.yaml": {
-    "mtime": 1777913254.9085674,
-    "hash": "f7b53f06381859527911523c5f35be22"
+  "/home/ubuntu/Auto-mlops/prompts/deployment_selector_prompt.txt": {
+    "mtime": 1777964408.5174744,
+    "hash": "8ee67fe7774dbcb0852c93c7d7484721"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/config.yaml": {
-    "mtime": 1777913254.9081168,
-    "hash": "021aaebcc229587ea6ed5f571c83f054"
+  "/home/ubuntu/Auto-mlops/prompts/decision_prompt.txt": {
+    "mtime": 1777964408.5174744,
+    "hash": "d67b9efd6b3e4d8684242dd0ab2bbba7"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/experiment/high_accuracy.yaml": {
-    "mtime": 1777913254.9083245,
-    "hash": "2255fb54e4dcb83867194db6291019dd"
+  "/home/ubuntu/Auto-mlops/prompts/perception_prompt.txt": {
+    "mtime": 1777964408.5174744,
+    "hash": "2eb4bff27ee28976fc92737f122a6461"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/experiment/resnet_baseline.yaml": {
-    "mtime": 1777913254.9083245,
-    "hash": "fd7c7eb24f087373111cbb52d76726a8"
+  "/home/ubuntu/Auto-mlops/prompts/improvement_prompt.txt": {
+    "mtime": 1777964408.5174744,
+    "hash": "8edd41bd3c517165759d8ac3535cf99a"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/experiment/baseline.yaml": {
-    "mtime": 1777913254.9082515,
-    "hash": "492082e68650a28e492e790d62d6fc4b"
+  "/home/ubuntu/Auto-mlops/docs/getting-started.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "626b85d0607fe3b39a50500703c97194"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/experiment/quick_test.yaml": {
-    "mtime": 1777913254.9083245,
-    "hash": "e72ccfe0f454a24c300ea8426869f84e"
+  "/home/ubuntu/Auto-mlops/docs/baseline-checkpoint-2026-05-02.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "4f7ac98a133900329b216a851a88da36"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/model/cifar10_cnn.yaml": {
-    "mtime": 1777913254.9083245,
-    "hash": "b6d97c122d84784e66a789bf3f0e4180"
+  "/home/ubuntu/Auto-mlops/docs/deployment-targets.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "5df3781461b56bcd85656481d4f827b3"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/model/resnet18.yaml": {
-    "mtime": 1777913254.908451,
-    "hash": "937df8781bb6618d1807f35ea5e4f631"
+  "/home/ubuntu/Auto-mlops/docs/api-reference.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "461019e5e27a37140ae72e7b680268d3"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/paths/default.yaml": {
-    "mtime": 1777913254.908451,
-    "hash": "e0e48eca095f3e333db9220706e2d9b5"
+  "/home/ubuntu/Auto-mlops/docs/security.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "c42a57a6e2e6adc61f8ae010423ab00c"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/training/default.yaml": {
-    "mtime": 1777913254.908451,
-    "hash": "8b88022771b72ec8e81335f56bbe11f5"
+  "/home/ubuntu/Auto-mlops/docs/adr/0001-workflow-registry-source-of-truth.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "49ddce35956a6ee951a48b36082b8e50"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/training/fast.yaml": {
-    "mtime": 1777913254.9085674,
-    "hash": "8eeb0d4630f7ba20a2ade7e0eee8079f"
+  "/home/ubuntu/Auto-mlops/docs/adr/0002-workflow-runtime-executes-registry-templates-for-phase-1-setup-pipeline.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "c1eafeb5fe584788cd7e5b01f6ffeecf"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/training/sgd.yaml": {
-    "mtime": 1777913254.9085674,
-    "hash": "995e9f793faa945615c5ac8b677f4d34"
+  "/home/ubuntu/Auto-mlops/docs/adr/0003-registry-executed-workflows-skip-post-step-llm-perception-by-default.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "159b609cc9f8fd2315f5f5804f2fd79f"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/training/long.yaml": {
-    "mtime": 1777913254.9085674,
-    "hash": "628af8f4f0c3ab501832e67c1372cc8d"
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-0/0008-phase-0-routing-and-contract-test-matrix.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "71df5b797fe3278fc95836737c5fd62d"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/data/cifar10.yaml": {
-    "mtime": 1777913254.908211,
-    "hash": "5b2518e2f68dc3f07442fa7e0bad4cd2"
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-0/README.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "ae3d06b6bd94d9a70ae40d3372bfecef"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/image_classification/project/configs/data/cifar10_minimal.yaml": {
-    "mtime": 1777913254.9082515,
-    "hash": "ca2767692dd859329be8860140084478"
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-0/0006-approval-gate-metadata-and-blocking.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "76eaff240cafba6b4f604170edcc7fef"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/agent_queries.md": {
-    "mtime": 1777913254.912973,
-    "hash": "d543a05f77039c1fe18cc74d8a1c4c43"
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-0/0001-workflow-registry-core-and-setup-template.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "1cc305b92a109da9332d6c1d4c686d86"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/README.md": {
-    "mtime": 1777913254.9123333,
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-0/0005-artifact-manifest-schema-and-contract-checks.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "1ce83320750fc9c59659db0b84a548ac"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-0/0003-workflow-selection-decision-object.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "27bfc59a8c9ac6fc124f3871bf60f3ce"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-0/0007-deployment-report-schema-and-rollback-readiness.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "b7931c275fcc7a614e50bfa433ef7b21"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-0/0004-success-contract-validator-and-runtime-status.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "92ed4ea7fe0cbc5dc16538b3fa267295"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-0/0002-add-phase-0-deployment-workflow-templates.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "712d4bebcc9d4d5a4117385ee64effb3"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-1/0004-enforce-setup-pipeline-approval-gates-before-execute-step.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "9ab63689fcfc5bb6a049f6d0b80e687b"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-1/0003-block-missing-required-workflow-inputs-with-clarifying-questions.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "359ac52460b75e9d30c766b66136fb71"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-1/0006-derive-final-workflow-status-from-success-contract.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "d76eaa5f0bf2d270e1757ed0bc0b7b50"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-1/README.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "df595cbb95b7523b23898260563c59f5"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-1/0007-add-local-setup-pipeline-end-to-end-test-fixture.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "87e25f5999457f054486d7fe73679c8f"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-1/0005-capture-verification-results-and-artifact-manifest-for-setup-pipeline.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "ba3e2435d7b40ece8093b7591a4c7ceb"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-1/0001-select-workflow-before-perception-or-decision.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "4b45d54fe223453ef9bac8fce73422fa"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-1/0002-project-setup-pipeline-template-into-executable-runtime-steps.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "ead68a0cb420671e22f528165e16ead9"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-4/0006-approval-gated-dvc-push-pull.md": {
+    "mtime": 1777981734.4777377,
+    "hash": "2e2c552e1b3edf5478578eb039c1a2d9"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-4/README.md": {
+    "mtime": 1777981734.4777377,
+    "hash": "12e6cc4ce365723807bcd7b79a6ee28b"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-4/0002-detect-two-image-folder-datasets.md": {
+    "mtime": 1777981734.4777377,
+    "hash": "7ad4efc76a220c0776af4a5c03bf4ab7"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-4/0007-data-stage-evidence-and-orchestrator-handoff.md": {
+    "mtime": 1777981734.4777377,
+    "hash": "51ee7489fa13270235eb8664449b7329"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-4/0004-dvc-track-capstone-data-package.md": {
+    "mtime": 1777981734.4777377,
+    "hash": "63c0443473ea8bfc71162fb4d38b902a"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-4/0005-configure-and-validate-dvc-remote.md": {
+    "mtime": 1777981734.4777377,
+    "hash": "29893c1f85e974e2132ae8ba14dde77d"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-4/0001-register-prepare-capstone-data.md": {
+    "mtime": 1777981734.4777377,
+    "hash": "b366b2e38d91e5a37028d73e9627c711"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-4/0003-generate-split-manifests.md": {
+    "mtime": 1777981734.4777377,
+    "hash": "a19133958c285dbe09accf762952606d"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-2/README.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "52bad1f7fc8a3b32f8794fa86142c897"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-2/0001-harden-registry-executed-workflow-runtime.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "40ae7a00811abe00e80e962398a69c1d"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-2/0003-run-litserve-on-user-started-lambda-gpu.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "a6513856f898c5482c782db742ba0da5"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-2/0002-add-local-litserve-deployment-preflight-workflow.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "992b0042c507f68f2355b9c31b06a0a3"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-3/0001-detect-training-project-and-entrypoint.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "1e559edf02ff09be96c7c1efa333dec1"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-3/0002-run-training-and-capture-metrics.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "a5e72c7d4f902cb4307f9797973aa0d4"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-3/0005-capstone-orchestrator-skeleton.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "8803c14e41921cb28c932024cc0165cd"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-3/README.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "58b84e457a120b4af211d7f14e45bc1a"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-3/0004-select-best-model-artifact.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "7cd3071704f5682afeac83ed47247c4c"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-3/0003-track-training-in-mlflow.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "ef0f044dbf4322780d6945a636deaea8"
+  },
+  "/home/ubuntu/Auto-mlops/docs/examples/custom-deployment.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "9cd3f3c973352fd4c0c68337d6c32f00"
+  },
+  "/home/ubuntu/Auto-mlops/docs/examples/basic-pipeline.md": {
+    "mtime": 1777964408.4704742,
+    "hash": "3d101fb77165e5d9559ecfb369cb84e7"
+  },
+  "/home/ubuntu/Auto-mlops/course_context/emlo_graphify/README.md": {
+    "mtime": 1777964408.469474,
+    "hash": "d559683e4eefae5d38b546742e25ac6d"
+  },
+  "/home/ubuntu/Auto-mlops/course_context/emlo_graphify/GRAPH_REPORT.md": {
+    "mtime": 1777964408.469474,
+    "hash": "f9ba55cb2c8fd5216ea91a5d4221d142"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/README.md": {
+    "mtime": 1777964408.4744742,
     "hash": "7a745ce968b5fd6cd4024a8de51ad88f"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/docs/walkthrough.md": {
-    "mtime": 1777913254.912973,
+  "/home/ubuntu/Auto-mlops/examples/text_classification/agent_queries.md": {
+    "mtime": 1777964408.4744742,
+    "hash": "d543a05f77039c1fe18cc74d8a1c4c43"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/docs/walkthrough.md": {
+    "mtime": 1777964408.4744742,
     "hash": "77ec450ac02fa4e9065e7b63ca755395"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/requirements.txt": {
-    "mtime": 1777913254.9136155,
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/requirements.txt": {
+    "mtime": 1777964408.475474,
     "hash": "07df91fb8fc1713b9be226f620926d3f"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/dvc.yaml": {
-    "mtime": 1777913254.9136155,
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/dvc.yaml": {
+    "mtime": 1777964408.475474,
     "hash": "b237652092f7e885dd107dc9b26bcc15"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/config.yaml": {
-    "mtime": 1777913254.9131532,
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/config.yaml": {
+    "mtime": 1777964408.4744742,
     "hash": "b8e46ff7e99af46474e59ce4ac24b516"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/experiment/high_accuracy.yaml": {
-    "mtime": 1777913254.913342,
-    "hash": "52408b8e4bf06bed15c618ff854e3b1e"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/experiment/lstm_baseline.yaml": {
-    "mtime": 1777913254.913342,
-    "hash": "ede00088e042bec2ecb21045f720730d"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/experiment/distilbert_baseline.yaml": {
-    "mtime": 1777913254.913342,
-    "hash": "c20ff22a7f69c9fccbfa48dde4e76e7c"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/experiment/baseline.yaml": {
-    "mtime": 1777913254.913267,
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/experiment/baseline.yaml": {
+    "mtime": 1777964408.4744742,
     "hash": "d954f434758f8e5ed4383bc04b1a2dd9"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/experiment/quick_test.yaml": {
-    "mtime": 1777913254.913342,
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/experiment/quick_test.yaml": {
+    "mtime": 1777964408.4744742,
     "hash": "5b28e3912a637a5d8d3a56d2d1010dc9"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/model/lstm.yaml": {
-    "mtime": 1777913254.9134736,
-    "hash": "2c28b19d0386fb13f8edd5982b85fd5b"
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/experiment/distilbert_baseline.yaml": {
+    "mtime": 1777964408.4744742,
+    "hash": "c20ff22a7f69c9fccbfa48dde4e76e7c"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/model/textcnn.yaml": {
-    "mtime": 1777913254.9134736,
-    "hash": "cf477bb7e5a3b56702026015230815e6"
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/experiment/lstm_baseline.yaml": {
+    "mtime": 1777964408.4744742,
+    "hash": "ede00088e042bec2ecb21045f720730d"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/model/distilbert.yaml": {
-    "mtime": 1777913254.913342,
-    "hash": "e79a1098c684ec01e6863245a35421fd"
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/experiment/high_accuracy.yaml": {
+    "mtime": 1777964408.4744742,
+    "hash": "52408b8e4bf06bed15c618ff854e3b1e"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/paths/default.yaml": {
-    "mtime": 1777913254.9134736,
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/paths/default.yaml": {
+    "mtime": 1777964408.475474,
     "hash": "e0e48eca095f3e333db9220706e2d9b5"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/training/default.yaml": {
-    "mtime": 1777913254.9134736,
-    "hash": "35416952ef5c1aa04c268f85b0f6b0a7"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/training/fast.yaml": {
-    "mtime": 1777913254.9136155,
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/training/fast.yaml": {
+    "mtime": 1777964408.475474,
     "hash": "6eab7de8054317dda80e57dc12f4341c"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/training/long.yaml": {
-    "mtime": 1777913254.9136155,
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/training/long.yaml": {
+    "mtime": 1777964408.475474,
     "hash": "2663f17489ec318e8874e291cba8c0de"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/data/imdb.yaml": {
-    "mtime": 1777913254.9132268,
-    "hash": "20e280e2eaf4a287334659f96cdfcfe7"
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/training/default.yaml": {
+    "mtime": 1777964408.475474,
+    "hash": "35416952ef5c1aa04c268f85b0f6b0a7"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/text_classification/project/configs/data/synthetic.yaml": {
-    "mtime": 1777913254.913267,
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/data/synthetic.yaml": {
+    "mtime": 1777964408.4744742,
     "hash": "63b15c30ee6df8a09f9752bb83235049"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/agent_queries.md": {
-    "mtime": 1777913254.910141,
-    "hash": "524a5f4b3e2ba2d7542e609aa17555db"
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/data/imdb.yaml": {
+    "mtime": 1777964408.4744742,
+    "hash": "20e280e2eaf4a287334659f96cdfcfe7"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/README.md": {
-    "mtime": 1777913254.9093997,
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/model/lstm.yaml": {
+    "mtime": 1777964408.475474,
+    "hash": "2c28b19d0386fb13f8edd5982b85fd5b"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/model/distilbert.yaml": {
+    "mtime": 1777964408.4744742,
+    "hash": "e79a1098c684ec01e6863245a35421fd"
+  },
+  "/home/ubuntu/Auto-mlops/examples/text_classification/project/configs/model/textcnn.yaml": {
+    "mtime": 1777964408.475474,
+    "hash": "cf477bb7e5a3b56702026015230815e6"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/README.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "d44ee827804693a6dddfa489be9ed8fe"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/agent_queries.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "9ea26eed874c73a7b42c428c7a50f5fb"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/docs/walkthrough.md": {
+    "mtime": 1777964408.4714742,
+    "hash": "ad05e07fed2bdf4e15b6d3035a6023fe"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/requirements.txt": {
+    "mtime": 1777964408.472474,
+    "hash": "84794897ca65ba852656e59e38d96055"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/dvc.yaml": {
+    "mtime": 1777964408.472474,
+    "hash": "f7b53f06381859527911523c5f35be22"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/config.yaml": {
+    "mtime": 1777964408.4714742,
+    "hash": "021aaebcc229587ea6ed5f571c83f054"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/experiment/resnet_baseline.yaml": {
+    "mtime": 1777964408.4714742,
+    "hash": "fd7c7eb24f087373111cbb52d76726a8"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/experiment/baseline.yaml": {
+    "mtime": 1777964408.4714742,
+    "hash": "492082e68650a28e492e790d62d6fc4b"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/experiment/quick_test.yaml": {
+    "mtime": 1777964408.4714742,
+    "hash": "e72ccfe0f454a24c300ea8426869f84e"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/experiment/high_accuracy.yaml": {
+    "mtime": 1777964408.4714742,
+    "hash": "2255fb54e4dcb83867194db6291019dd"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/paths/default.yaml": {
+    "mtime": 1777964408.472474,
+    "hash": "e0e48eca095f3e333db9220706e2d9b5"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/training/fast.yaml": {
+    "mtime": 1777964408.472474,
+    "hash": "8eeb0d4630f7ba20a2ade7e0eee8079f"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/training/sgd.yaml": {
+    "mtime": 1777964408.472474,
+    "hash": "995e9f793faa945615c5ac8b677f4d34"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/training/long.yaml": {
+    "mtime": 1777964408.472474,
+    "hash": "628af8f4f0c3ab501832e67c1372cc8d"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/training/default.yaml": {
+    "mtime": 1777964408.472474,
+    "hash": "8b88022771b72ec8e81335f56bbe11f5"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/data/cifar10.yaml": {
+    "mtime": 1777964408.4714742,
+    "hash": "5b2518e2f68dc3f07442fa7e0bad4cd2"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/data/cifar10_minimal.yaml": {
+    "mtime": 1777964408.4714742,
+    "hash": "ca2767692dd859329be8860140084478"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/model/resnet18.yaml": {
+    "mtime": 1777964408.472474,
+    "hash": "937df8781bb6618d1807f35ea5e4f631"
+  },
+  "/home/ubuntu/Auto-mlops/examples/image_classification/project/configs/model/cifar10_cnn.yaml": {
+    "mtime": 1777964408.472474,
+    "hash": "b6d97c122d84784e66a789bf3f0e4180"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/README.md": {
+    "mtime": 1777964408.4734743,
     "hash": "e5fdfe764ab0ec0fbb20bb7f269eb2fb"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/configs/config.yaml": {
-    "mtime": 1777913254.910141,
-    "hash": "d134d1a015e447dcfb27f88fd68b4baf"
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/agent_queries.md": {
+    "mtime": 1777964408.4734743,
+    "hash": "524a5f4b3e2ba2d7542e609aa17555db"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/configs/experiment/high_accuracy.yaml": {
-    "mtime": 1777913254.9103835,
-    "hash": "f49377d088e87cfea39822569a06a64e"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/configs/experiment/ridge_baseline.yaml": {
-    "mtime": 1777913254.9103835,
-    "hash": "ccf475772138e519cfa33117c28d2cfc"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/configs/experiment/random_forest_baseline.yaml": {
-    "mtime": 1777913254.9103835,
-    "hash": "0cd6a6d863a1067379e7f8fbbbfb8e22"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/configs/experiment/baseline.yaml": {
-    "mtime": 1777913254.9102776,
-    "hash": "93fd9b7f545d4c97aa7849a02f46c2cb"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/configs/model/gradient_boosting.yaml": {
-    "mtime": 1777913254.9103835,
-    "hash": "be14c9e0cb076a514b470861599d74b5"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/configs/model/ridge.yaml": {
-    "mtime": 1777913254.910531,
-    "hash": "0b37a86dff81ce11a66ae72ade91a648"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/configs/model/random_forest.yaml": {
-    "mtime": 1777913254.910531,
-    "hash": "96689b48812eb6f556360823c25dfccd"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/configs/paths/default.yaml": {
-    "mtime": 1777913254.910531,
-    "hash": "81b834e8721308e9e84c87d692dc7cbe"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/configs/training/default.yaml": {
-    "mtime": 1777913254.910531,
-    "hash": "46be130df823e0e249004784e68d912a"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/configs/data/california.yaml": {
-    "mtime": 1777913254.9102776,
-    "hash": "f5a5455db8ecfaf7ef9ec7d8e3016550"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/docs/walkthrough.md": {
-    "mtime": 1777913254.910531,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/docs/walkthrough.md": {
+    "mtime": 1777964408.4734743,
     "hash": "148e05b5b34bcdb2739b13aad6f2129f"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/requirements.txt": {
-    "mtime": 1777913254.911615,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/requirements.txt": {
+    "mtime": 1777964408.4744742,
     "hash": "91ec42c13e9980f33a10d890f7b65e8e"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/dvc.yaml": {
-    "mtime": 1777913254.911615,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/dvc.yaml": {
+    "mtime": 1777964408.4734743,
     "hash": "0603ba536ed6bc189ca5a566450bb7cf"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/config.yaml": {
-    "mtime": 1777913254.9108946,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/config.yaml": {
+    "mtime": 1777964408.4734743,
     "hash": "46f985aeae23ddf9c14d07cf2dec0661"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/experiment/high_accuracy.yaml": {
-    "mtime": 1777913254.9112835,
-    "hash": "3c70a63f3373c459a05c8d9ba4f1abd0"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/experiment/tabnet_baseline.yaml": {
-    "mtime": 1777913254.9112835,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/experiment/tabnet_baseline.yaml": {
+    "mtime": 1777964408.4734743,
     "hash": "dc20bb6d44b978129071423e9000b772"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/experiment/baseline.yaml": {
-    "mtime": 1777913254.9111965,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/experiment/baseline.yaml": {
+    "mtime": 1777964408.4734743,
     "hash": "9215cfebc73bb11cc9622807604bd22e"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/experiment/quick_test.yaml": {
-    "mtime": 1777913254.9112835,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/experiment/quick_test.yaml": {
+    "mtime": 1777964408.4734743,
     "hash": "c3938e7efa058e05e9c7b5224d3d6cdc"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/model/mlp.yaml": {
-    "mtime": 1777913254.9112835,
-    "hash": "8bbf0192b21e80a81e8453b371d0bd73"
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/experiment/high_accuracy.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "3c70a63f3373c459a05c8d9ba4f1abd0"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/model/tabnet.yaml": {
-    "mtime": 1777913254.9114509,
-    "hash": "05d6070562af99ed723208e0f853760f"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/paths/default.yaml": {
-    "mtime": 1777913254.9114509,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/paths/default.yaml": {
+    "mtime": 1777964408.4734743,
     "hash": "c54ade984576189f0c354efe87d2c72e"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/training/default.yaml": {
-    "mtime": 1777913254.9114509,
-    "hash": "1ae10307e5ba2b5fcdb6ef376c6db8eb"
-  },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/training/fast.yaml": {
-    "mtime": 1777913254.911615,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/training/fast.yaml": {
+    "mtime": 1777964408.4734743,
     "hash": "64aabaaf5a0cd98c40c83829debda48f"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/training/long.yaml": {
-    "mtime": 1777913254.911615,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/training/long.yaml": {
+    "mtime": 1777964408.4734743,
     "hash": "4c916e3914428f4261628a0b7e30d12e"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/data/california.yaml": {
-    "mtime": 1777913254.9111466,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/training/default.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "1ae10307e5ba2b5fcdb6ef376c6db8eb"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/data/california.yaml": {
+    "mtime": 1777964408.4734743,
     "hash": "a4abefe5be05180c82ded756a7eaf66e"
   },
-  "/tmp/Auto-mlops-phase3-detect/examples/tabular_regression/project/configs/data/synthetic.yaml": {
-    "mtime": 1777913254.9111965,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/data/synthetic.yaml": {
+    "mtime": 1777964408.4734743,
     "hash": "30171f3d0b23f143e7c1612553036e26"
   },
-  "/tmp/Auto-mlops-phase3-detect/ezgif-231cd63112f33ccb.gif": {
-    "mtime": 1777913254.9208224,
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/model/tabnet.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "05d6070562af99ed723208e0f853760f"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/project/configs/model/mlp.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "8bbf0192b21e80a81e8453b371d0bd73"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/configs/config.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "d134d1a015e447dcfb27f88fd68b4baf"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/configs/experiment/random_forest_baseline.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "0cd6a6d863a1067379e7f8fbbbfb8e22"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/configs/experiment/baseline.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "93fd9b7f545d4c97aa7849a02f46c2cb"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/configs/experiment/ridge_baseline.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "ccf475772138e519cfa33117c28d2cfc"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/configs/experiment/high_accuracy.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "f49377d088e87cfea39822569a06a64e"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/configs/paths/default.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "81b834e8721308e9e84c87d692dc7cbe"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/configs/training/default.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "46be130df823e0e249004784e68d912a"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/configs/data/california.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "f5a5455db8ecfaf7ef9ec7d8e3016550"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/configs/model/ridge.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "0b37a86dff81ce11a66ae72ade91a648"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/configs/model/gradient_boosting.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "be14c9e0cb076a514b470861599d74b5"
+  },
+  "/home/ubuntu/Auto-mlops/examples/tabular_regression/configs/model/random_forest.yaml": {
+    "mtime": 1777964408.4734743,
+    "hash": "96689b48812eb6f556360823c25dfccd"
+  },
+  "/home/ubuntu/Auto-mlops/config/mlops_defaults.yaml": {
+    "mtime": 1777964408.4684741,
+    "hash": "b944e5aab0440c052a0317dbf3605a18"
+  },
+  "/home/ubuntu/Auto-mlops/config/profiles.yaml": {
+    "mtime": 1777964408.4684741,
+    "hash": "5a38136fb2faaaa607ce23a1641bc816"
+  },
+  "/home/ubuntu/Auto-mlops/ezgif-231cd63112f33ccb.gif": {
+    "mtime": 1777964408.4794743,
     "hash": "7e83ca03317c19ef27c44b29e0db8546"
   }
 }
