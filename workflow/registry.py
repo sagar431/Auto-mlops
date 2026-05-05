@@ -785,6 +785,27 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 default="local_ready",
                 allowed_values=("local_ready", "capstone_complete"),
             ),
+            WorkflowInput(
+                name="test_size",
+                description="Declared deterministic split ratio for generated manifests.",
+                required=False,
+                default=0.2,
+            ),
+            WorkflowInput(
+                name="split_seed",
+                description="Declared deterministic split seed for generated manifests.",
+                required=False,
+                default=42,
+            ),
+            WorkflowInput(
+                name="materialize_splits",
+                description=(
+                    "Whether physical train/test folders are requested. Defaults to false; "
+                    "folder writes require a separate future approval-gated step."
+                ),
+                required=False,
+                default=False,
+            ),
         ),
         steps=(
             WorkflowStep(
@@ -796,6 +817,16 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 ),
                 order=1,
                 tool_functions=("detect_capstone_data_layouts",),
+            ),
+            WorkflowStep(
+                step_id="generate_split_manifests",
+                name="Generate Split Manifests",
+                description=(
+                    "Record existing split evidence or write deterministic split manifests "
+                    "under data/capstone/<dataset_id>/ without mutating source datasets."
+                ),
+                order=2,
+                tool_functions=("generate_capstone_split_manifests",),
             ),
         ),
         success_contract=SuccessContract(
@@ -815,7 +846,7 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 SuccessContractCheck(
                     name="split_evidence_recorded",
                     evidence_type="observed",
-                    source_step="prepare_capstone_data_contract",
+                    source_step="generate_split_manifests",
                 ),
                 SuccessContractCheck(
                     name="capstone_data_package_tracked",
@@ -835,7 +866,7 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 SuccessContractCheck(
                     name="dataset_lineage_artifacts_reported",
                     evidence_type="declared_or_observed",
-                    source_step="prepare_capstone_data_contract",
+                    source_step="generate_split_manifests",
                 ),
                 SuccessContractCheck(
                     name="s3_remote_validated",
@@ -873,6 +904,20 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
             "setup capstone data",
             "version capstone datasets",
             "prepare datasets for capstone",
+        ),
+        artifact_requirements=(
+            ArtifactRequirement(
+                name="split_manifest",
+                artifact_type="split_manifest",
+                source_step="generate_split_manifests",
+                state="generated",
+            ),
+        ),
+        approval_gates=(
+            ApprovalGate(
+                step_id="generate_split_manifests",
+                risk_categories=("writes_project_files",),
+            ),
         ),
     )
 

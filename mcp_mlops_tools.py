@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import pickle
+import random
 import re
 import shutil
 import socket
@@ -449,6 +450,23 @@ class DetectCapstoneDataLayoutsInput(BaseModel):
     dataset_1_path: str = Field(..., description="First user-provided dataset path")
     dataset_2_path: str = Field(..., description="Second user-provided dataset path")
     completion_mode: str = Field(default="local_ready", description="Phase 4 completion mode")
+    test_size: float = Field(default=0.2, description="Declared test split ratio")
+    split_seed: int = Field(default=42, description="Declared deterministic split seed")
+
+
+class GenerateCapstoneSplitManifestsInput(BaseModel):
+    """Generate deterministic split manifests under the project capstone data path."""
+
+    project_path: str = Field(..., description="Path to the project")
+    capstone_data_detection: dict[str, Any] = Field(
+        ..., description="Output from detect_capstone_data_layouts"
+    )
+    test_size: float = Field(default=0.2, description="Test split ratio")
+    split_seed: int = Field(default=42, description="Deterministic split seed")
+    materialize_splits: bool = Field(
+        default=False,
+        description="Reserved for future approval-gated copied folder materialization.",
+    )
 
 
 # --- Data Quality Tools ---
@@ -2320,6 +2338,8 @@ def detect_capstone_data_layouts(
     dataset_1_path: str,
     dataset_2_path: str,
     completion_mode: str = "local_ready",
+    test_size: float = 0.2,
+    split_seed: int = 42,
 ) -> dict[str, Any]:
     """Detect two capstone image-folder datasets without mutating files or DVC state."""
     path = Path(project_path)
@@ -2335,6 +2355,14 @@ def detect_capstone_data_layouts(
     paths_passed = all(dataset["path_exists"] and dataset["is_directory"] for dataset in datasets)
     layouts_passed = all(dataset["status"] == "succeeded" for dataset in datasets)
     workflow_status = "succeeded" if paths_passed and layouts_passed else "blocked"
+    split_manifest_writes_required = layouts_passed and any(
+        dataset["layout"] == "class_folders" for dataset in datasets
+    )
+    split_plans = [
+        _capstone_split_plan(path, dataset, float(test_size), int(split_seed))
+        for dataset in datasets
+        if dataset["status"] == "succeeded" and dataset["layout"] == "class_folders"
+    ]
     blocked_dataset_ids = [
         dataset["dataset_id"] for dataset in datasets if dataset["status"] != "succeeded"
     ]
@@ -2366,6 +2394,7 @@ def detect_capstone_data_layouts(
         "workflow_status": workflow_status,
         "dataset_count": len(datasets),
         "blocked_dataset_ids": blocked_dataset_ids,
+        "split_plans": split_plans,
         "datasets": datasets,
     }
 
@@ -2374,6 +2403,10 @@ def detect_capstone_data_layouts(
         "status": workflow_status,
         "completion_mode": completion_mode,
         "datasets": datasets,
+        "split_manifest_writes_required": split_manifest_writes_required,
+        "split_plans": split_plans,
+        "split_seed": int(split_seed),
+        "test_size": float(test_size),
         "missing_inputs": sorted(
             {
                 missing_input
@@ -2516,6 +2549,310 @@ def _detect_existing_train_test_dataset(
     }
     record["total_image_count"] = sum(record["per_class_counts"].values())
     return record
+
+
+def generate_capstone_split_manifests(
+    project_path: str,
+    capstone_data_detection: dict[str, Any],
+    test_size: float = 0.2,
+    split_seed: int = 42,
+    materialize_splits: bool = False,
+) -> dict[str, Any]:
+    """Write deterministic split manifests for supported capstone datasets only."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+    if not path.is_dir():
+        return {"success": False, "error": f"Project path {project_path} is not a directory"}
+    if not isinstance(capstone_data_detection, dict):
+        return {"success": False, "error": "capstone_data_detection must be structured data"}
+    if capstone_data_detection.get("status") != "succeeded":
+        evidence = {
+            "blocked_reason": "unsupported_or_empty_dataset_evidence",
+            "detection_status": capstone_data_detection.get("status"),
+            "blocked_dataset_ids": capstone_data_detection.get("blocked_dataset_ids", []),
+        }
+        return {
+            "success": True,
+            "status": "blocked",
+            "split_manifests": [],
+            "missing_inputs": ["supported_capstone_dataset_evidence"],
+            "next_actions": [
+                "Resolve blocked dataset layout evidence before writing split manifests."
+            ],
+            "verification_results": [
+                _capstone_split_verification_result(
+                    "split_evidence_recorded",
+                    False,
+                    evidence,
+                ),
+                _capstone_split_verification_result(
+                    "dataset_lineage_artifacts_reported",
+                    False,
+                    evidence,
+                    evidence_type="declared",
+                ),
+            ],
+            "artifact_manifest": {"entries": []},
+        }
+    if not 0 < float(test_size) < 1:
+        return {
+            "success": True,
+            "status": "blocked",
+            "split_manifests": [],
+            "missing_inputs": ["test_size"],
+            "next_actions": ["Provide test_size as a float greater than 0 and less than 1."],
+            "verification_results": [
+                _capstone_split_verification_result(
+                    "split_evidence_recorded",
+                    False,
+                    {"blocked_reason": "invalid_test_size", "test_size": test_size},
+                )
+            ],
+            "artifact_manifest": {"entries": []},
+        }
+
+    split_records: list[dict[str, Any]] = []
+    artifact_entries: list[dict[str, Any]] = []
+    for dataset in capstone_data_detection.get("datasets", []):
+        if dataset.get("status") != "succeeded":
+            continue
+        if dataset.get("layout") == "existing_train_test_split":
+            split_records.append(_existing_split_record(dataset, split_seed, float(test_size)))
+            continue
+        if dataset.get("layout") != "class_folders":
+            continue
+
+        manifest = _build_split_manifest(dataset, float(test_size), int(split_seed))
+        manifest_path = (
+            path
+            / "data"
+            / "capstone"
+            / dataset["dataset_id"]
+            / "split_manifest.json"
+        )
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        relative_manifest_path = relative_to_project(str(path), manifest_path)
+        split_record = {
+            "dataset_id": dataset["dataset_id"],
+            "source_path": dataset["source_path"],
+            "split_strategy": "manifest",
+            "seed": int(split_seed),
+            "test_size": float(test_size),
+            "train_count": manifest["train_count"],
+            "test_count": manifest["test_count"],
+            "per_class_counts": manifest["per_class_counts"],
+            "split_manifest_path": relative_manifest_path,
+            "materialized_train_path": None,
+            "materialized_test_path": None,
+        }
+        split_records.append(split_record)
+        artifact_entries.append(
+            {
+                "artifact_type": "split_manifest",
+                "producing_step": "generate_split_manifests",
+                "state": "generated",
+                "path": relative_manifest_path,
+                "checksum": _sha256_file(manifest_path),
+                "metadata": {
+                    "dataset_id": dataset["dataset_id"],
+                    "source_path": dataset["source_path"],
+                    "split_strategy": "manifest",
+                    "seed": int(split_seed),
+                    "test_size": float(test_size),
+                    "train_count": manifest["train_count"],
+                    "test_count": manifest["test_count"],
+                    "per_class_counts": manifest["per_class_counts"],
+                },
+            }
+        )
+
+    materialization_block = (
+        {
+            "requested": True,
+            "status": "blocked",
+            "next_action": (
+                "Materialized split folders require a separate approval-gated copied-folder "
+                "step; no folders were created."
+            ),
+        }
+        if materialize_splits
+        else {"requested": False, "status": "not_requested"}
+    )
+    status = "blocked" if materialize_splits else "succeeded"
+    evidence = {
+        "split_records": split_records,
+        "materialization": materialization_block,
+    }
+    next_actions = []
+    if materialize_splits:
+        next_actions.append(materialization_block["next_action"])
+    return {
+        "success": True,
+        "status": status,
+        "split_manifests": split_records,
+        "materialization": materialization_block,
+        "missing_inputs": ["materialized_split_folder_approval"] if materialize_splits else [],
+        "next_actions": next_actions,
+        "verification_results": [
+            _capstone_split_verification_result(
+                "split_evidence_recorded",
+                bool(split_records) and not materialize_splits,
+                evidence,
+            ),
+            _capstone_split_verification_result(
+                "dataset_lineage_artifacts_reported",
+                bool(split_records),
+                evidence,
+                evidence_type="observed" if artifact_entries else "declared",
+            ),
+        ],
+        "artifact_manifest": {"entries": artifact_entries},
+    }
+
+
+def _capstone_split_plan(
+    project_path: Path,
+    dataset: dict[str, Any],
+    test_size: float,
+    split_seed: int,
+) -> dict[str, Any]:
+    per_class_counts = {}
+    for class_name, total_count in dataset.get("per_class_counts", {}).items():
+        planned_test = _planned_test_count(total_count, test_size)
+        per_class_counts[class_name] = {
+            "train": total_count - planned_test,
+            "test": planned_test,
+            "total": total_count,
+        }
+    relative_manifest_path = (
+        Path("data") / "capstone" / dataset["dataset_id"] / "split_manifest.json"
+    )
+    return {
+        "dataset_id": dataset["dataset_id"],
+        "source_path": dataset["source_path"],
+        "split_strategy": "manifest",
+        "seed": int(split_seed),
+        "test_size": float(test_size),
+        "train_count": sum(item["train"] for item in per_class_counts.values()),
+        "test_count": sum(item["test"] for item in per_class_counts.values()),
+        "per_class_counts": per_class_counts,
+        "split_manifest_path": str(relative_manifest_path),
+        "absolute_split_manifest_path": str(project_path / relative_manifest_path),
+    }
+
+
+def _planned_test_count(total_count: int, test_size: float) -> int:
+    test_count = max(1, round(total_count * test_size))
+    if test_count >= total_count and total_count > 1:
+        test_count = total_count - 1
+    return test_count
+
+
+def _existing_split_record(
+    dataset: dict[str, Any],
+    split_seed: int,
+    test_size: float,
+) -> dict[str, Any]:
+    train_counts = dataset.get("split_counts", {}).get("train", {})
+    test_counts = dataset.get("split_counts", {}).get("test", {})
+    return {
+        "dataset_id": dataset["dataset_id"],
+        "source_path": dataset["source_path"],
+        "split_strategy": "existing",
+        "seed": split_seed,
+        "test_size": test_size,
+        "train_count": sum(train_counts.values()),
+        "test_count": sum(test_counts.values()),
+        "per_class_counts": {
+            class_name: {
+                "train": train_counts.get(class_name, 0),
+                "test": test_counts.get(class_name, 0),
+                "total": train_counts.get(class_name, 0) + test_counts.get(class_name, 0),
+            }
+            for class_name in dataset.get("class_names", [])
+        },
+        "split_manifest_path": None,
+        "materialized_train_path": dataset.get("existing_train_path"),
+        "materialized_test_path": dataset.get("existing_test_path"),
+    }
+
+
+def _build_split_manifest(
+    dataset: dict[str, Any],
+    test_size: float,
+    split_seed: int,
+) -> dict[str, Any]:
+    source_path = Path(dataset["source_path"])
+    train_files: list[dict[str, str]] = []
+    test_files: list[dict[str, str]] = []
+    per_class_counts: dict[str, dict[str, int]] = {}
+    for class_name in dataset.get("class_names", []):
+        class_dir = source_path / class_name
+        files = sorted(
+            _image_files_under(class_dir),
+            key=lambda item: item.relative_to(source_path).as_posix(),
+        )
+        shuffled = list(files)
+        random.Random(f"{split_seed}:{class_name}").shuffle(shuffled)
+        test_count = _planned_test_count(len(shuffled), test_size)
+        test_set = {
+            file.relative_to(source_path).as_posix()
+            for file in shuffled[:test_count]
+        }
+        class_train: list[dict[str, str]] = []
+        class_test: list[dict[str, str]] = []
+        for file in files:
+            relative_path = file.relative_to(source_path).as_posix()
+            file_record = {
+                "class_name": class_name,
+                "relative_path": relative_path,
+                "source_path": str(file),
+            }
+            if relative_path in test_set:
+                class_test.append(file_record)
+            else:
+                class_train.append(file_record)
+        train_files.extend(class_train)
+        test_files.extend(class_test)
+        per_class_counts[class_name] = {
+            "train": len(class_train),
+            "test": len(class_test),
+            "total": len(files),
+        }
+
+    train_files = sorted(train_files, key=lambda item: (item["class_name"], item["relative_path"]))
+    test_files = sorted(test_files, key=lambda item: (item["class_name"], item["relative_path"]))
+    return {
+        "dataset_id": dataset["dataset_id"],
+        "source_path": dataset["source_path"],
+        "split_strategy": "manifest",
+        "seed": int(split_seed),
+        "test_size": float(test_size),
+        "train_count": len(train_files),
+        "test_count": len(test_files),
+        "per_class_counts": per_class_counts,
+        "files": {
+            "train": train_files,
+            "test": test_files,
+        },
+    }
+
+
+def _capstone_split_verification_result(
+    check_name: str,
+    passed: bool,
+    evidence: dict[str, Any],
+    evidence_type: str = "observed",
+) -> dict[str, Any]:
+    return {
+        "check_name": check_name,
+        "evidence_type": evidence_type,
+        "source_step": "generate_split_manifests",
+        "passed": passed,
+        "evidence": json.dumps(evidence, sort_keys=True),
+    }
 
 
 def _detect_unsplit_class_folder_dataset(record: dict[str, Any], path: Path) -> dict[str, Any]:
@@ -6658,6 +6995,14 @@ def _artifact_checksum(project_path: Path, artifact_path: str | None) -> str | N
     return f"sha256:{digest.hexdigest()}"
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as artifact_file:
+        for chunk in iter(lambda: artifact_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
+
+
 def _model_type_from_artifact(artifact: str | None) -> str:
     if artifact is None:
         return "unknown"
@@ -8958,6 +9303,11 @@ async def list_tools() -> list[Tool]:
             inputSchema=DetectCapstoneDataLayoutsInput.model_json_schema(),
         ),
         Tool(
+            name="generate_capstone_split_manifests",
+            description="Generate deterministic capstone split manifests after approval",
+            inputSchema=GenerateCapstoneSplitManifestsInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -9440,6 +9790,18 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 dataset_1_path=input_data.dataset_1_path,
                 dataset_2_path=input_data.dataset_2_path,
                 completion_mode=input_data.completion_mode,
+                test_size=input_data.test_size,
+                split_seed=input_data.split_seed,
+            )
+
+        elif name == "generate_capstone_split_manifests":
+            input_data = GenerateCapstoneSplitManifestsInput(**arguments)
+            result = generate_capstone_split_manifests(
+                project_path=input_data.project_path,
+                capstone_data_detection=input_data.capstone_data_detection,
+                test_size=input_data.test_size,
+                split_seed=input_data.split_seed,
+                materialize_splits=input_data.materialize_splits,
             )
 
         elif name == "run_bounded_training":
