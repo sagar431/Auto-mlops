@@ -309,14 +309,14 @@ def test_configure_validate_capstone_dvc_remote_blocks_missing_aws_credentials(
     dvc_config = project_path / ".dvc" / "config"
     dvc_config.parent.mkdir()
     dvc_config.write_text("[core]\n")
-    secret_url = "s3://secret-capstone-bucket/path?AWS_SECRET_ACCESS_KEY=do-not-record"
+    remote_url = "s3://capstone-bucket/path"
 
     def fake_run_command(cmd, cwd=None, timeout=60):
         if cmd[:3] == ["dvc", "remote", "add"]:
             dvc_config.write_text(
                 "[core]\n    remote = capstone\n"
                 '[\'remote "capstone"\']\n'
-                f"    url = {secret_url}\n"
+                f"    url = {remote_url}\n"
             )
         return {"success": True, "stdout": "ok", "stderr": "", "returncode": 0}
 
@@ -340,7 +340,7 @@ def test_configure_validate_capstone_dvc_remote_blocks_missing_aws_credentials(
         project_path=str(project_path),
         completion_mode="capstone_complete",
         remote_name="capstone",
-        remote_url=secret_url,
+        remote_url=remote_url,
     )
     serialized = json.dumps(result, sort_keys=True)
 
@@ -348,13 +348,49 @@ def test_configure_validate_capstone_dvc_remote_blocks_missing_aws_credentials(
     assert result["status"] == "blocked"
     assert result["remote"]["remote_type"] == "s3"
     assert "missing_cloud_credential_capability" in serialized
-    assert "do-not-record" not in serialized
-    assert secret_url not in serialized
+    assert remote_url not in serialized
     verification_by_name = {
         item["check_name"]: item for item in result["verification_results"]
     }
     assert verification_by_name["s3_remote_validated"]["passed"] is False
     assert "Configure AWS credentials" in " ".join(result["next_actions"])
+
+
+def test_configure_validate_capstone_dvc_remote_rejects_secret_bearing_url(
+    tmp_path, monkeypatch
+):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    dvc_config = project_path / ".dvc" / "config"
+    dvc_config.parent.mkdir()
+    original_config = "[core]\n"
+    dvc_config.write_text(original_config)
+    commands = []
+    secret_url = "s3://AKIAEXAMPLE:secret@example-bucket/path?token=do-not-record"
+
+    def fake_run_command(cmd, cwd=None, timeout=60):
+        commands.append((cmd, cwd, timeout))
+        return {"success": True, "stdout": "ok", "stderr": "", "returncode": 0}
+
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: tool == "dvc")
+    monkeypatch.setattr(mcp_mlops_tools, "run_command", fake_run_command)
+
+    result = mcp_mlops_tools.configure_validate_capstone_dvc_remote(
+        project_path=str(project_path),
+        completion_mode="capstone_complete",
+        remote_name="capstone",
+        remote_url=secret_url,
+    )
+    serialized = json.dumps(result, sort_keys=True)
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert commands == []
+    assert dvc_config.read_text() == original_config
+    assert secret_url not in serialized
+    assert "AKIAEXAMPLE" not in serialized
+    assert "do-not-record" not in serialized
+    assert "secret_remote_url_material" in serialized
 
 
 @pytest.mark.asyncio

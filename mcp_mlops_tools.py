@@ -2929,6 +2929,25 @@ def configure_validate_capstone_dvc_remote(
             next_actions=["Validate or initialize DVC metadata before remote validation."],
         )
 
+    if _remote_url_contains_secret_material(remote_url):
+        remote = _capstone_remote_record(remote_name, remote_url, _remote_type(remote_url))
+        evidence = {
+            "blocked_reason": "secret_remote_url_material",
+            "remote": remote,
+            "credential_capability": None,
+        }
+        return _capstone_remote_validation_result(
+            status="blocked",
+            remote=remote,
+            verification_results=_capstone_remote_verification_results(
+                completion_mode, source_step, False, evidence
+            ),
+            artifact_entries=[],
+            next_actions=[
+                "Remove credentials, tokens, or secret query parameters from dvc_remote_url."
+            ],
+        )
+
     configure_result: dict[str, Any] | None = None
     if remote_url:
         configure_result = _configure_capstone_dvc_remote(
@@ -3134,6 +3153,25 @@ def _remote_type(remote_url: str | None) -> str:
     if parsed.scheme in {"", "file"}:
         return "local"
     return parsed.scheme or "unknown"
+
+
+def _remote_url_contains_secret_material(remote_url: str | None) -> bool:
+    if not remote_url:
+        return False
+    parsed = urlparse(remote_url)
+    if parsed.username or parsed.password:
+        return True
+    lowered_query = parsed.query.casefold()
+    secret_markers = (
+        "aws_access_key_id",
+        "aws_secret_access_key",
+        "aws_session_token",
+        "access_key",
+        "secret",
+        "token",
+        "password",
+    )
+    return any(marker in lowered_query for marker in secret_markers)
 
 
 def _capstone_remote_record(
