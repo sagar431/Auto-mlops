@@ -150,6 +150,16 @@ def test_build_capstone_pipeline_blocks_until_future_capabilities_are_implemente
     assert validation.failed_checks == ()
 
 
+def test_select_workflow_routes_capstone_pipeline_request_to_orchestrator():
+    selection = get_workflow_registry().select_workflow(
+        "Build the capstone pipeline for this project"
+    )
+
+    assert selection.workflow_id == "build_capstone_pipeline"
+    assert selection.status is WorkflowStatus.PENDING
+    assert selection.matched_aliases == ("Build the capstone pipeline",)
+
+
 def test_train_and_track_declares_bounded_training_template():
     template = get_workflow_registry().get("train_and_track")
 

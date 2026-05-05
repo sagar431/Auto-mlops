@@ -33,7 +33,7 @@ async def test_capstone_orchestrator_records_skeleton_and_blocks_future_capabili
             side_effect=AssertionError("Capstone registry path must not call decision"),
         ),
     ):
-        result = await agent.run("Build full capstone pipeline", str(project_path))
+        result = await agent.run("Build the capstone pipeline for this project", str(project_path))
 
     plan_path = project_path / ".auto_mlops" / "capstone" / "orchestrator_plan.json"
     assert plan_path.exists()

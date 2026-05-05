@@ -809,6 +809,8 @@ def _build_capstone_pipeline_template() -> WorkflowTemplate:
         routing_aliases=(
             "Build full capstone pipeline",
             "build capstone pipeline",
+            "Build the capstone pipeline",
+            "capstone pipeline for this project",
             "Capstone Orchestrator",
             "create capstone orchestrator",
         ),
