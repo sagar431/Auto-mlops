@@ -157,6 +157,8 @@ class WorkflowInput:
     name: str
     description: str
     required: bool = True
+    default: Any | None = None
+    allowed_values: tuple[Any, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -179,6 +181,7 @@ class SuccessContractCheck:
     name: str
     evidence_type: EvidenceType
     source_step: str
+    condition: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "evidence_type", EvidenceType(self.evidence_type))
@@ -441,6 +444,7 @@ class WorkflowRegistry:
         verification_results: tuple[VerificationResult, ...],
         artifact_manifest: ArtifactManifest | None = None,
         rollback_plan: RollbackPlan | None = None,
+        workflow_inputs: dict[str, Any] | None = None,
     ) -> ContractValidation:
         """Derive workflow status from required success contract verification results."""
 
@@ -450,6 +454,8 @@ class WorkflowRegistry:
         missing_evidence: list[ContractFailure] = []
         failed_checks: list[ContractFailure] = []
         for check in template.success_contract.checks:
+            if not _contract_check_condition_applies(check, workflow_inputs or {}):
+                continue
             if rollback_plan is not None and _is_rollback_readiness_check(check):
                 continue
             actual_evidence = tuple(
@@ -684,6 +690,18 @@ def _is_rollback_readiness_check(check: SuccessContractCheck) -> bool:
     return "rollback_plan" in check.name
 
 
+def _contract_check_condition_applies(
+    check: SuccessContractCheck,
+    workflow_inputs: dict[str, Any],
+) -> bool:
+    if check.condition is None:
+        return True
+    if "==" not in check.condition:
+        return True
+    input_name, expected_value = (part.strip() for part in check.condition.split("==", 1))
+    return workflow_inputs.get(input_name) == expected_value
+
+
 def _artifact_requirement_satisfied(
     artifact_manifest: ArtifactManifest | None,
     requirement: ArtifactRequirement,
@@ -714,12 +732,132 @@ def get_workflow_registry() -> WorkflowRegistry:
             _detect_training_project_template(),
             _train_and_track_template(),
             _build_capstone_pipeline_template(),
+            _prepare_capstone_data_template(),
             _deploy_litserve_preflight_template(),
             _deploy_litserve_gpu_template(),
             _deploy_gpu_inference_template(),
             _deploy_gradio_demo_template(),
             _deploy_kserve_production_template(),
         )
+    )
+
+
+def _prepare_capstone_data_template() -> WorkflowTemplate:
+    return WorkflowTemplate(
+        workflow_id="prepare_capstone_data",
+        name="Prepare Capstone Data",
+        description=(
+            "Declare the Phase 4 capstone data automation workflow for two "
+            "user-provided datasets without mutating data, DVC, remotes, or S3."
+        ),
+        required_inputs=(
+            WorkflowInput(
+                name="project_path",
+                description="Path to the project that should receive capstone data evidence.",
+            ),
+            WorkflowInput(
+                name="dataset_1_path",
+                description="First user-provided local or mounted capstone dataset path.",
+            ),
+            WorkflowInput(
+                name="dataset_2_path",
+                description="Second user-provided local or mounted capstone dataset path.",
+            ),
+            WorkflowInput(
+                name="completion_mode",
+                description=(
+                    "Whether to validate local data readiness or capstone-complete "
+                    "S3 data evidence."
+                ),
+                default="local_ready",
+                allowed_values=("local_ready", "capstone_complete"),
+            ),
+        ),
+        steps=(
+            WorkflowStep(
+                step_id="prepare_capstone_data_contract",
+                name="Prepare Capstone Data Contract",
+                description=(
+                    "Record the registry-owned Phase 4 Issue 1 contract shape and "
+                    "block until later issues provide executable data evidence."
+                ),
+                order=1,
+            ),
+        ),
+        success_contract=SuccessContract(
+            checks=(
+                SuccessContractCheck(
+                    name="two_dataset_paths_provided",
+                    evidence_type="observed",
+                    source_step="prepare_capstone_data_contract",
+                ),
+                SuccessContractCheck(
+                    name="two_dataset_layouts_supported",
+                    evidence_type="observed",
+                    source_step="prepare_capstone_data_contract",
+                ),
+                SuccessContractCheck(
+                    name="split_evidence_recorded",
+                    evidence_type="observed",
+                    source_step="prepare_capstone_data_contract",
+                ),
+                SuccessContractCheck(
+                    name="capstone_data_package_tracked",
+                    evidence_type="observed",
+                    source_step="prepare_capstone_data_contract",
+                ),
+                SuccessContractCheck(
+                    name="dvc_repo_validated",
+                    evidence_type="observed",
+                    source_step="prepare_capstone_data_contract",
+                ),
+                SuccessContractCheck(
+                    name="data_stage_evidence_artifact_reported",
+                    evidence_type="observed",
+                    source_step="prepare_capstone_data_contract",
+                ),
+                SuccessContractCheck(
+                    name="dataset_lineage_artifacts_reported",
+                    evidence_type="declared_or_observed",
+                    source_step="prepare_capstone_data_contract",
+                ),
+                SuccessContractCheck(
+                    name="s3_remote_validated",
+                    evidence_type="observed",
+                    source_step="prepare_capstone_data_contract",
+                    condition="completion_mode == capstone_complete",
+                ),
+                SuccessContractCheck(
+                    name="s3_transfer_completed",
+                    evidence_type="observed",
+                    source_step="prepare_capstone_data_contract",
+                    condition="completion_mode == capstone_complete",
+                ),
+            ),
+        ),
+        branches=(
+            WorkflowBranch(
+                name="local_ready",
+                selection_rule=(
+                    "Requires local dataset paths, split evidence, DVC tracking, "
+                    "and data-stage evidence artifact checks."
+                ),
+            ),
+            WorkflowBranch(
+                name="capstone_complete",
+                selection_rule=(
+                    "Requires all local_ready checks plus S3 remote validation and "
+                    "S3 transfer evidence."
+                ),
+            ),
+        ),
+        routing_aliases=(
+            "prepare capstone data",
+            "set up capstone data",
+            "setup capstone data",
+            "version capstone datasets",
+            "prepare datasets for capstone",
+        ),
     )
 
 
