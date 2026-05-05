@@ -502,6 +502,8 @@ class TestAvailableTools:
 
     def test_contains_training_tools(self):
         """Test AVAILABLE_TOOLS contains training control tools."""
+        assert "detect_training_project" in AVAILABLE_TOOLS
+        assert "run_bounded_training" in AVAILABLE_TOOLS
         assert "analyze_training_results" in AVAILABLE_TOOLS
         assert "suggest_improvements" in AVAILABLE_TOOLS
         assert "check_accuracy_threshold" in AVAILABLE_TOOLS

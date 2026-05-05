@@ -36,6 +36,7 @@ def test_registry_contains_phase_3_training_detection_template():
     assert registry.workflow_ids == (
         "setup_pipeline",
         "detect_training_project",
+        "train_and_track",
         "deploy_litserve_preflight",
         "deploy_litserve_gpu",
         "deploy_gpu_inference",
@@ -45,7 +46,6 @@ def test_registry_contains_phase_3_training_detection_template():
     for excluded_workflow_id in (
         "rollback",
         "monitor_and_alert",
-        "train_and_track",
         "train_until_better",
     ):
         with pytest.raises(KeyError):
@@ -69,6 +69,40 @@ def test_detect_training_project_declares_detection_only_template():
         "pytorch_timm_signals_detected",
         "test_command_detected",
         "output_artifact_candidates_detected",
+    ]
+    assert all(check.evidence_type == "observed" for check in template.success_contract.checks)
+
+
+def test_train_and_track_declares_bounded_training_template():
+    template = get_workflow_registry().get("train_and_track")
+
+    assert template.workflow_id == "train_and_track"
+    assert [workflow_input.name for workflow_input in template.required_inputs] == [
+        "project_path",
+        "timeout_seconds",
+        "max_epochs",
+        "device",
+        "data_subset",
+    ]
+    assert [step.step_id for step in template.steps] == [
+        "detect_training_project",
+        "run_bounded_training",
+    ]
+    assert template.step_by_id("detect_training_project").tool_functions == (
+        "detect_training_project",
+    )
+    assert template.step_by_id("run_bounded_training").tool_functions == (
+        "run_bounded_training",
+    )
+    assert [check.name for check in template.success_contract.checks] == [
+        "training_project_detected",
+        "training_entrypoint_detected",
+        "hydra_config_detected",
+        "bounded_training_controls_present",
+        "bounded_training_command_completed",
+        "training_metric_captured",
+        "training_artifact_captured",
+        "training_run_evidence_captured",
     ]
     assert all(check.evidence_type == "observed" for check in template.success_contract.checks)
 
@@ -437,11 +471,11 @@ def test_select_workflow_routes_natural_language_training_request():
 
     selection = registry.select_workflow("Train this project")
 
-    assert selection.workflow_id == "detect_training_project"
+    assert selection.workflow_id == "train_and_track"
     assert selection.status is WorkflowStatus.PENDING
     assert selection.matched_aliases == ("train this project",)
     assert selection.missing_inputs == ()
-    assert "detect_training_project" in selection.selection_reason
+    assert "train_and_track" in selection.selection_reason
 
 
 def test_select_workflow_blocks_conflicting_alias_matches():

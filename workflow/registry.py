@@ -711,12 +711,119 @@ def get_workflow_registry() -> WorkflowRegistry:
         (
             _setup_pipeline_template(),
             _detect_training_project_template(),
+            _train_and_track_template(),
             _deploy_litserve_preflight_template(),
             _deploy_litserve_gpu_template(),
             _deploy_gpu_inference_template(),
             _deploy_gradio_demo_template(),
             _deploy_kserve_production_template(),
         )
+    )
+
+
+def _train_and_track_template() -> WorkflowTemplate:
+    return WorkflowTemplate(
+        workflow_id="train_and_track",
+        name="Train And Track",
+        description=(
+            "Run a supported Hydra/PyTorch/TIMM training project with bounded controls "
+            "and capture metrics, logs, duration, and artifacts."
+        ),
+        required_inputs=(
+            WorkflowInput(
+                name="project_path",
+                description="Path to the detected training project.",
+            ),
+            WorkflowInput(
+                name="timeout_seconds",
+                description="Maximum allowed wall-clock seconds for the training command.",
+            ),
+            WorkflowInput(
+                name="max_epochs",
+                description="Maximum epochs or equivalent Hydra override for the training run.",
+            ),
+            WorkflowInput(
+                name="device",
+                description="Training device such as cpu or cuda.",
+            ),
+            WorkflowInput(
+                name="data_subset",
+                description="Dataset subset or size control for bounded training.",
+            ),
+        ),
+        steps=(
+            WorkflowStep(
+                step_id="detect_training_project",
+                name="Detect Training Project",
+                description=(
+                    "Inspect project files for supported training evidence before any "
+                    "training command is allowed."
+                ),
+                order=1,
+                tool_functions=("detect_training_project",),
+            ),
+            WorkflowStep(
+                step_id="run_bounded_training",
+                name="Run Bounded Training",
+                description=(
+                    "Execute the detected training entrypoint with explicit timeout, "
+                    "epoch, device, subset, and Hydra override controls."
+                ),
+                order=2,
+                tool_functions=("run_bounded_training",),
+                default_args={"target_metric": "accuracy"},
+            ),
+        ),
+        success_contract=SuccessContract(
+            checks=(
+                SuccessContractCheck(
+                    name="training_project_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="training_entrypoint_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="hydra_config_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="bounded_training_controls_present",
+                    evidence_type="observed",
+                    source_step="run_bounded_training",
+                ),
+                SuccessContractCheck(
+                    name="bounded_training_command_completed",
+                    evidence_type="observed",
+                    source_step="run_bounded_training",
+                ),
+                SuccessContractCheck(
+                    name="training_metric_captured",
+                    evidence_type="observed",
+                    source_step="run_bounded_training",
+                ),
+                SuccessContractCheck(
+                    name="training_artifact_captured",
+                    evidence_type="observed",
+                    source_step="run_bounded_training",
+                ),
+                SuccessContractCheck(
+                    name="training_run_evidence_captured",
+                    evidence_type="observed",
+                    source_step="run_bounded_training",
+                ),
+            ),
+        ),
+        routing_aliases=(
+            "train and track",
+            "train this project",
+            "train this model",
+            "run training",
+        ),
     )
 
 
@@ -788,8 +895,6 @@ def _detect_training_project_template() -> WorkflowTemplate:
         routing_aliases=(
             "detect this training project",
             "detect training project",
-            "train this project",
-            "train this model",
         ),
     )
 

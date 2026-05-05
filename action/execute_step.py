@@ -182,6 +182,7 @@ AVAILABLE_TOOLS = [
     "add_workflow_step",
     # Training Control
     "detect_training_project",
+    "run_bounded_training",
     "analyze_training_results",
     "suggest_improvements",
     "check_accuracy_threshold",
