@@ -1920,6 +1920,221 @@ def test_build_smoke_check_capstone_container_image_fails_from_structured_build_
     assert verification_by_name["image_build_succeeded"]["passed"] is False
 
 
+def test_configure_validate_capstone_registry_target_defaults_to_ghcr_local_ready(
+    tmp_path, monkeypatch
+):
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "config").write_text(
+        "[remote \"origin\"]\n"
+        "\turl = git@github.com:Octo-Org/capstone-model.git\n"
+    )
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_detect_container_registry_auth_capability",
+        lambda *args, **kwargs: {"available": False, "source": None, "checked": []},
+        raising=False,
+    )
+
+    result = mcp_mlops_tools.configure_validate_capstone_registry_target(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_local_ready"},
+        capstone_container_build_result={
+            "container": {"image_build": {"image_tag": "capstone-runtime:local"}}
+        },
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "deferred"
+    registry = result["registry"]
+    assert registry["provider"] == "ghcr"
+    assert registry["provider_support"] == "first_class_default"
+    assert registry["image_name"] == "capstone-runtime"
+    assert registry["image_tag"] == "local"
+    assert registry["redacted_image_reference"] == (
+        "ghcr.io/octo-org/capstone-runtime:local"
+    )
+    assert registry["auth_capability"]["available"] is False
+    assert {
+        item["capability"] for item in result["deferred_capabilities"]
+    } == {"registry_auth_capability_verified"}
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["registry_target_validated"]["passed"] is True
+    assert verification_by_name["registry_auth_capability_verified"]["passed"] is False
+    assert verification_by_name["secret_safety_validated"]["passed"] is True
+    assert result["artifact_manifest"]["entries"] == [
+        {
+            "artifact_type": "container_registry_target",
+            "producing_step": "configure_validate_registry_target",
+            "state": "selected",
+            "uri": "registry://ghcr.io/octo-org/capstone-runtime:local",
+            "metadata": {
+                "provider": "ghcr",
+                "image_name": "capstone-runtime",
+                "image_tag": "local",
+                "auth_capability_available": False,
+            },
+        }
+    ]
+    assert not (tmp_path / ".auto_mlops" / "capstone" / "container_ci_evidence.json").exists()
+
+
+def test_configure_validate_capstone_registry_target_accepts_explicit_dockerhub_and_ecr(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_detect_container_registry_auth_capability",
+        lambda provider: {
+            "available": provider in {"dockerhub", "ecr"},
+            "source": "test",
+            "checked": [],
+        },
+    )
+
+    dockerhub_result = mcp_mlops_tools.configure_validate_capstone_registry_target(
+        project_path=str(tmp_path),
+        workflow_inputs={
+            "completion_mode": "container_capstone_complete",
+            "registry_target": "docker.io/octo-org/capstone-runtime:release",
+        },
+    )
+    ecr_result = mcp_mlops_tools.configure_validate_capstone_registry_target(
+        project_path=str(tmp_path),
+        workflow_inputs={
+            "completion_mode": "container_capstone_complete",
+            "registry_target": (
+                "123456789012.dkr.ecr.us-east-1.amazonaws.com/"
+                "capstone-runtime:release"
+            ),
+        },
+    )
+
+    assert dockerhub_result["status"] == "validated"
+    assert dockerhub_result["registry"].items() >= {
+        "provider": "dockerhub",
+        "provider_support": "declared_target",
+        "redacted_image_reference": "docker.io/octo-org/capstone-runtime:release",
+        "image_name": "octo-org/capstone-runtime",
+        "image_tag": "release",
+    }.items()
+    assert ecr_result["status"] == "validated"
+    assert ecr_result["registry"].items() >= {
+        "provider": "ecr",
+        "provider_support": "declared_target",
+        "redacted_image_reference": (
+            "<redacted-account>.dkr.ecr.us-east-1.amazonaws.com/"
+            "capstone-runtime:release"
+        ),
+        "image_name": "capstone-runtime",
+        "image_tag": "release",
+    }.items()
+
+
+def test_configure_validate_capstone_registry_target_blocks_capstone_complete_without_auth(
+    tmp_path, monkeypatch
+):
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "config").write_text(
+        "[remote \"origin\"]\n"
+        "\turl = https://github.com/octo-org/capstone-model.git\n"
+    )
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_detect_container_registry_auth_capability",
+        lambda provider: {"available": False, "source": None, "checked": []},
+    )
+
+    result = mcp_mlops_tools.configure_validate_capstone_registry_target(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+    )
+
+    assert result["status"] == "blocked"
+    assert {
+        item["capability"] for item in result["blocked_capabilities"]
+    } == {"registry_auth_capability_verified"}
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["registry_target_validated"]["passed"] is True
+    assert verification_by_name["registry_auth_capability_verified"]["passed"] is False
+
+
+def test_configure_validate_capstone_registry_target_defers_missing_local_target(tmp_path):
+    result = mcp_mlops_tools.configure_validate_capstone_registry_target(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_local_ready"},
+    )
+
+    assert result["status"] == "deferred"
+    assert result["registry"]["status"] == "missing"
+    assert result["artifact_manifest"]["entries"] == []
+    assert {
+        item["capability"] for item in result["deferred_capabilities"]
+    } == {"registry_target_validated"}
+
+
+def test_configure_validate_capstone_registry_target_fails_invalid_target_without_push(
+    tmp_path, monkeypatch
+):
+    def forbidden_run(*args, **kwargs):
+        raise AssertionError("registry validation must not run login or push commands")
+
+    monkeypatch.setattr(mcp_mlops_tools.subprocess, "run", forbidden_run)
+
+    result = mcp_mlops_tools.configure_validate_capstone_registry_target(
+        project_path=str(tmp_path),
+        workflow_inputs={
+            "completion_mode": "container_capstone_complete",
+            "registry_target": "registry.example.com/Bad_Name:latest",
+        },
+    )
+
+    assert result["status"] == "failed"
+    assert result["registry"]["status"] == "invalid"
+    assert result["blocked_capabilities"] == [
+        {
+            "capability": "registry_target_validated",
+            "reason": "registry_target must be a GHCR, DockerHub, or ECR image reference.",
+            "next_action": "Provide a valid GHCR, DockerHub, or ECR image reference.",
+        }
+    ]
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["registry_target_validated"]["passed"] is False
+    assert result["artifact_manifest"]["entries"] == []
+
+
+def test_configure_validate_capstone_registry_target_does_not_store_secret_values(
+    tmp_path, monkeypatch
+):
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "config").write_text(
+        "[remote \"origin\"]\n"
+        "\turl = https://github.com/octo-org/capstone-model.git\n"
+    )
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_raw_secret_value_that_must_not_leak")
+
+    result = mcp_mlops_tools.configure_validate_capstone_registry_target(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+    )
+
+    serialized = json.dumps(result)
+    assert result["status"] == "validated"
+    assert result["registry"]["auth_capability"]["available"] is True
+    assert "ghp_raw_secret_value_that_must_not_leak" not in serialized
+    assert "registry_push_succeeded" not in serialized
+    assert "docker login" not in serialized
+    assert "docker push" not in serialized
+
+
 def test_record_capstone_orchestrator_skeleton_references_data_stage_evidence(tmp_path):
     evidence_dir = tmp_path / ".auto_mlops" / "capstone"
     evidence_dir.mkdir(parents=True)
@@ -3401,6 +3616,7 @@ class TestAgentLoopRun:
             "resolve_upstream_container_evidence",
             "generate_validate_runtime_image_spec",
             "build_smoke_check_container_image",
+            "configure_validate_registry_target",
         ]
         assert mock_agent.status == "paused"
         assert "contract_status: blocked" in result
@@ -3434,6 +3650,70 @@ class TestAgentLoopRun:
             step["tool"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
         ]
         assert not (tmp_path / "Dockerfile").exists()
+        assert not (tmp_path / ".auto_mlops" / "capstone" / "container_ci_evidence.json").exists()
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_prepare_capstone_container_ci_records_registry_target_evidence(
+        self, mock_agent, tmp_path, monkeypatch
+    ):
+        """Test Issue 5 runtime records GHCR target evidence without login or push."""
+        model_path = tmp_path / "models" / "best.pt"
+        model_path.parent.mkdir()
+        model_path.write_text("model")
+        (tmp_path / "Dockerfile").write_text("FROM python:3.11-slim\n")
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+        (git_dir / "config").write_text(
+            "[remote \"origin\"]\n"
+            "\turl = https://github.com/octo-org/capstone-model.git\n"
+        )
+        monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda name: None)
+        monkeypatch.setattr(
+            mcp_mlops_tools,
+            "_detect_container_registry_auth_capability",
+            lambda provider: {"available": False, "source": None, "checked": []},
+        )
+
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("registry container CI prep must skip perception"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+        ):
+            result = await mock_agent.run(
+                "prepare capstone container CI completion_mode=container_local_ready "
+                "local_model_artifact_path=models/best.pt",
+                str(tmp_path),
+            )
+
+        assert "registry_target_validated:observed:passed" in result
+        assert "registry_auth_capability_verified:observed:failed" in result
+        assert mock_agent.ctx.globals["capstone_container_registry_target"][
+            "registry"
+        ].items() >= {
+            "provider": "ghcr",
+            "provider_support": "first_class_default",
+            "redacted_image_reference": "ghcr.io/octo-org/capstone-runtime:local",
+        }.items()
+        assert mock_agent.ctx.globals["capstone_container_registry_target"][
+            "deferred_capabilities"
+        ] == [
+            {
+                "capability": "registry_auth_capability_verified",
+                "reason": "Registry authentication capability was not detected locally.",
+                "next_action": (
+                    "Provide GHCR-capable GitHub token evidence before approval-gated push."
+                ),
+            }
+        ]
+        assert "push_docker_image" not in [
+            step["tool"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
+        ]
         assert not (tmp_path / ".auto_mlops" / "capstone" / "container_ci_evidence.json").exists()
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()

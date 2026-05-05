@@ -252,7 +252,10 @@ def test_prepare_capstone_container_ci_declares_issue_1_contract_shape():
     assert template.steps[3].tool_functions == (
         "build_smoke_check_capstone_container_image",
     )
-    assert all(step.tool_functions == () for step in template.steps[4:])
+    assert template.steps[4].tool_functions == (
+        "configure_validate_capstone_registry_target",
+    )
+    assert all(step.tool_functions == () for step in template.steps[5:])
     assert {
         gate.step_id: gate.risk_categories for gate in template.approval_gates
     } == {
