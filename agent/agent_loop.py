@@ -381,6 +381,7 @@ class AgentLoop:
             "detect_training_project",
             "train_and_track",
             "build_capstone_pipeline",
+            "prepare_capstone_data",
             "deploy_litserve_gpu",
         }
 
@@ -1109,6 +1110,7 @@ class AgentLoop:
             verification_results=tuple(self.ctx.globals.get("verification_results", ())),
             artifact_manifest=self.ctx.globals.get("artifact_manifest"),
             rollback_plan=self.ctx.globals.get("rollback_plan"),
+            workflow_inputs=self.ctx.globals.get("workflow_inputs"),
         )
         self.ctx.globals["contract_status"] = contract_status
         self.ctx.globals["workflow_status"] = contract_status.status
@@ -1283,6 +1285,11 @@ class AgentLoop:
             self.ctx.globals["mlflow_tracking_result"] = payload
         elif step_id == "record_capstone_orchestrator_skeleton":
             self.ctx.globals["capstone_orchestrator_summary"] = payload
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "prepare_capstone_data_contract"
+        ):
+            self.ctx.globals["capstone_data_detection"] = payload
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1427,6 +1434,16 @@ class AgentLoop:
             endpoint_url = self.ctx.globals.get("litserve_endpoint_url")
             if endpoint_url:
                 runtime_args["endpoint_url"] = endpoint_url
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "prepare_capstone_data_contract"
+        ):
+            workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+            if isinstance(workflow_inputs, dict):
+                for key in ("dataset_1_path", "dataset_2_path", "completion_mode"):
+                    if key in workflow_inputs:
+                        runtime_args[key] = workflow_inputs[key]
         return runtime_args
 
     def _port_from_endpoint_url(self, endpoint_url: Any) -> int | None:

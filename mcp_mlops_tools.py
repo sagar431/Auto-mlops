@@ -442,6 +442,15 @@ class RecordCapstoneOrchestratorSkeletonInput(BaseModel):
     )
 
 
+class DetectCapstoneDataLayoutsInput(BaseModel):
+    """Detect two user-provided canonical image-folder datasets read-only."""
+
+    project_path: str = Field(..., description="Path to the project")
+    dataset_1_path: str = Field(..., description="First user-provided dataset path")
+    dataset_2_path: str = Field(..., description="Second user-provided dataset path")
+    completion_mode: str = Field(default="local_ready", description="Phase 4 completion mode")
+
+
 # --- Data Quality Tools ---
 
 
@@ -2292,6 +2301,311 @@ def add_workflow_step(
 
 
 # --- Training Control Tools ---
+
+
+CAPSTONE_IMAGE_EXTENSIONS = {
+    ".bmp",
+    ".gif",
+    ".jpeg",
+    ".jpg",
+    ".png",
+    ".tif",
+    ".tiff",
+    ".webp",
+}
+
+
+def detect_capstone_data_layouts(
+    project_path: str,
+    dataset_1_path: str,
+    dataset_2_path: str,
+    completion_mode: str = "local_ready",
+) -> dict[str, Any]:
+    """Detect two capstone image-folder datasets without mutating files or DVC state."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+    if not path.is_dir():
+        return {"success": False, "error": f"Project path {project_path} is not a directory"}
+
+    datasets = [
+        _detect_capstone_image_folder_dataset("dataset_1", dataset_1_path),
+        _detect_capstone_image_folder_dataset("dataset_2", dataset_2_path),
+    ]
+    paths_passed = all(dataset["path_exists"] and dataset["is_directory"] for dataset in datasets)
+    layouts_passed = all(dataset["status"] == "succeeded" for dataset in datasets)
+    workflow_status = "succeeded" if paths_passed and layouts_passed else "blocked"
+    blocked_dataset_ids = [
+        dataset["dataset_id"] for dataset in datasets if dataset["status"] != "succeeded"
+    ]
+    next_actions = [
+        action
+        for dataset in datasets
+        for action in dataset["next_actions"]
+    ]
+    artifact_entries = [
+        {
+            "artifact_type": "capstone_source_dataset",
+            "producing_step": "prepare_capstone_data_contract",
+            "state": "external",
+            "path": dataset["source_path"],
+            "metadata": {
+                "dataset_id": dataset["dataset_id"],
+                "status": dataset["status"],
+                "layout": dataset["layout"],
+                "class_count": dataset["class_count"],
+                "total_image_count": dataset["total_image_count"],
+                "source_path_kind": "user_provided_local_or_mounted",
+            },
+        }
+        for dataset in datasets
+        if dataset["path_exists"] and dataset["is_directory"]
+    ]
+    dataset_evidence = {
+        "completion_mode": completion_mode,
+        "workflow_status": workflow_status,
+        "dataset_count": len(datasets),
+        "blocked_dataset_ids": blocked_dataset_ids,
+        "datasets": datasets,
+    }
+
+    return {
+        "success": True,
+        "status": workflow_status,
+        "completion_mode": completion_mode,
+        "datasets": datasets,
+        "missing_inputs": sorted(
+            {
+                missing_input
+                for dataset in datasets
+                for missing_input in dataset["missing_inputs"]
+            }
+        ),
+        "next_actions": next_actions,
+        "verification_results": [
+            {
+                "check_name": "two_dataset_paths_provided",
+                "evidence_type": "observed",
+                "source_step": "prepare_capstone_data_contract",
+                "passed": paths_passed,
+                "evidence": json.dumps(
+                    {
+                        "dataset_paths": [
+                            {
+                                "dataset_id": dataset["dataset_id"],
+                                "source_path": dataset["source_path"],
+                                "path_exists": dataset["path_exists"],
+                                "is_directory": dataset["is_directory"],
+                                "missing_inputs": dataset["missing_inputs"],
+                            }
+                            for dataset in datasets
+                        ]
+                    },
+                    sort_keys=True,
+                ),
+            },
+            {
+                "check_name": "two_dataset_layouts_supported",
+                "evidence_type": "observed",
+                "source_step": "prepare_capstone_data_contract",
+                "passed": layouts_passed,
+                "evidence": json.dumps(dataset_evidence, sort_keys=True),
+            },
+        ],
+        "artifact_manifest": {"entries": artifact_entries},
+    }
+
+
+def _detect_capstone_image_folder_dataset(dataset_id: str, source_path: str) -> dict[str, Any]:
+    path = Path(source_path).expanduser()
+    record = {
+        "dataset_id": dataset_id,
+        "status": "blocked",
+        "source_path": str(path),
+        "layout": "unknown",
+        "existing_train_path": None,
+        "existing_test_path": None,
+        "class_names": [],
+        "class_count": 0,
+        "per_class_counts": {},
+        "split_counts": {},
+        "total_image_count": 0,
+        "path_exists": path.exists(),
+        "is_directory": path.is_dir(),
+        "missing_inputs": [],
+        "next_actions": [],
+        "blocked_reason": None,
+    }
+    input_name = f"{dataset_id}_path"
+    if not source_path:
+        record["missing_inputs"].append(input_name)
+        record["blocked_reason"] = "missing_dataset_path"
+        record["next_actions"].append(f"Provide {input_name} as a local or mounted dataset path.")
+        return record
+    if not path.exists():
+        record["missing_inputs"].append(input_name)
+        record["blocked_reason"] = "missing_dataset_path"
+        record["next_actions"].append(f"Provide an existing local or mounted path for {input_name}.")
+        return record
+    if not path.is_dir():
+        record["blocked_reason"] = "unsupported_not_directory"
+        record["next_actions"].append(
+            f"Provide {input_name} as a directory with class-labelled image subdirectories."
+        )
+        return record
+
+    direct_images = _direct_image_files(path)
+    train_dir = _case_insensitive_child_dir(path, "train")
+    test_dir = _case_insensitive_child_dir(path, "test")
+    if bool(train_dir) != bool(test_dir):
+        record["layout"] = "ambiguous_partial_train_test_split"
+        record["blocked_reason"] = "ambiguous_layout"
+        record["next_actions"].append(
+            "Provide both train/ and test/ folders, or provide one unsplit class-folder dataset."
+        )
+        return record
+    if train_dir is not None and test_dir is not None:
+        return _detect_existing_train_test_dataset(record, train_dir, test_dir)
+    if direct_images:
+        record["layout"] = "unsupported_root_images"
+        record["blocked_reason"] = "unsupported_layout"
+        record["next_actions"].append(
+            "Move root-level images under class-labelled subdirectories before detection."
+        )
+        return record
+    return _detect_unsplit_class_folder_dataset(record, path)
+
+
+def _detect_existing_train_test_dataset(
+    record: dict[str, Any],
+    train_dir: Path,
+    test_dir: Path,
+) -> dict[str, Any]:
+    train_summary = _class_folder_summary(train_dir)
+    test_summary = _class_folder_summary(test_dir)
+    record["layout"] = "existing_train_test_split"
+    record["existing_train_path"] = str(train_dir)
+    record["existing_test_path"] = str(test_dir)
+    record["split_counts"] = {
+        "train": train_summary["per_class_counts"],
+        "test": test_summary["per_class_counts"],
+    }
+    train_classes = set(train_summary["class_names"])
+    test_classes = set(test_summary["class_names"])
+    if not train_summary["supported"] or not test_summary["supported"]:
+        record["blocked_reason"] = "unsupported_train_test_layout"
+        record["missing_inputs"].extend(train_summary["missing_inputs"])
+        record["missing_inputs"].extend(test_summary["missing_inputs"])
+        record["next_actions"].extend(train_summary["next_actions"])
+        record["next_actions"].extend(test_summary["next_actions"])
+        return record
+    if train_classes != test_classes:
+        record["blocked_reason"] = "ambiguous_split_class_mismatch"
+        record["next_actions"].append(
+            "Ensure train/ and test/ contain the same class-labelled subdirectories."
+        )
+        return record
+
+    record["status"] = "succeeded"
+    record["class_names"] = sorted(train_classes)
+    record["class_count"] = len(record["class_names"])
+    record["per_class_counts"] = {
+        class_name: train_summary["per_class_counts"].get(class_name, 0)
+        + test_summary["per_class_counts"].get(class_name, 0)
+        for class_name in record["class_names"]
+    }
+    record["total_image_count"] = sum(record["per_class_counts"].values())
+    return record
+
+
+def _detect_unsplit_class_folder_dataset(record: dict[str, Any], path: Path) -> dict[str, Any]:
+    summary = _class_folder_summary(path)
+    record["layout"] = "class_folders"
+    record["missing_inputs"].extend(summary["missing_inputs"])
+    record["next_actions"].extend(summary["next_actions"])
+    if not summary["supported"]:
+        record["blocked_reason"] = summary["blocked_reason"]
+        return record
+
+    record["status"] = "succeeded"
+    record["class_names"] = summary["class_names"]
+    record["class_count"] = len(summary["class_names"])
+    record["per_class_counts"] = summary["per_class_counts"]
+    record["total_image_count"] = summary["total_image_count"]
+    return record
+
+
+def _class_folder_summary(path: Path) -> dict[str, Any]:
+    class_dirs = [
+        child
+        for child in sorted(path.iterdir(), key=lambda item: item.name.casefold())
+        if child.is_dir() and not child.name.startswith(".")
+    ]
+    if not class_dirs:
+        return {
+            "supported": False,
+            "blocked_reason": "unsupported_empty_dataset",
+            "class_names": [],
+            "per_class_counts": {},
+            "total_image_count": 0,
+            "missing_inputs": ["class_label_subdirectories"],
+            "next_actions": [
+                "Add class-labelled subdirectories with at least one image file per class."
+            ],
+        }
+
+    per_class_counts = {
+        class_dir.name: len(_image_files_under(class_dir))
+        for class_dir in class_dirs
+    }
+    empty_classes = [
+        class_name for class_name, image_count in per_class_counts.items() if image_count == 0
+    ]
+    if empty_classes:
+        return {
+            "supported": False,
+            "blocked_reason": "empty_class_folder",
+            "class_names": sorted(per_class_counts),
+            "per_class_counts": per_class_counts,
+            "total_image_count": sum(per_class_counts.values()),
+            "missing_inputs": ["non_empty_class_folders"],
+            "next_actions": [
+                "Add at least one supported image file to every class-labelled subdirectory."
+            ],
+        }
+
+    return {
+        "supported": True,
+        "blocked_reason": None,
+        "class_names": sorted(per_class_counts),
+        "per_class_counts": per_class_counts,
+        "total_image_count": sum(per_class_counts.values()),
+        "missing_inputs": [],
+        "next_actions": [],
+    }
+
+
+def _case_insensitive_child_dir(path: Path, name: str) -> Path | None:
+    for child in path.iterdir():
+        if child.is_dir() and child.name.casefold() == name.casefold():
+            return child
+    return None
+
+
+def _direct_image_files(path: Path) -> tuple[Path, ...]:
+    return tuple(
+        child
+        for child in path.iterdir()
+        if child.is_file() and child.suffix.casefold() in CAPSTONE_IMAGE_EXTENSIONS
+    )
+
+
+def _image_files_under(path: Path) -> tuple[Path, ...]:
+    return tuple(
+        file
+        for file in path.rglob("*")
+        if file.is_file() and file.suffix.casefold() in CAPSTONE_IMAGE_EXTENSIONS
+    )
 
 
 def detect_training_project(project_path: str) -> dict[str, Any]:
@@ -8639,6 +8953,11 @@ async def list_tools() -> list[Tool]:
             inputSchema=DetectTrainingProjectInput.model_json_schema(),
         ),
         Tool(
+            name="detect_capstone_data_layouts",
+            description="Detect two user-provided canonical image-folder datasets without mutating files or DVC state",
+            inputSchema=DetectCapstoneDataLayoutsInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -9113,6 +9432,15 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         elif name == "detect_training_project":
             input_data = DetectTrainingProjectInput(**arguments)
             result = detect_training_project(input_data.project_path)
+
+        elif name == "detect_capstone_data_layouts":
+            input_data = DetectCapstoneDataLayoutsInput(**arguments)
+            result = detect_capstone_data_layouts(
+                project_path=input_data.project_path,
+                dataset_1_path=input_data.dataset_1_path,
+                dataset_2_path=input_data.dataset_2_path,
+                completion_mode=input_data.completion_mode,
+            )
 
         elif name == "run_bounded_training":
             input_data = RunBoundedTrainingInput(**arguments)

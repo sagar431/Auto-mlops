@@ -134,7 +134,7 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
     assert [step.step_id for step in template.steps] == [
         "prepare_capstone_data_contract"
     ]
-    assert template.steps[0].tool_functions == ()
+    assert template.steps[0].tool_functions == ("detect_capstone_data_layouts",)
     assert [check.name for check in template.success_contract.checks] == [
         "two_dataset_paths_provided",
         "two_dataset_layouts_supported",
@@ -155,6 +155,42 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
         "s3_remote_validated": "completion_mode == capstone_complete",
         "s3_transfer_completed": "completion_mode == capstone_complete",
     }
+
+
+def test_prepare_capstone_data_layout_failures_block_instead_of_fail():
+    registry = get_workflow_registry()
+
+    validation = registry.validate_success_contract(
+        "prepare_capstone_data",
+        verification_results=(
+            VerificationResult(
+                check_name="two_dataset_paths_provided",
+                evidence_type="observed",
+                source_step="prepare_capstone_data_contract",
+                passed=True,
+                evidence="both dataset paths exist",
+            ),
+            VerificationResult(
+                check_name="two_dataset_layouts_supported",
+                evidence_type="observed",
+                source_step="prepare_capstone_data_contract",
+                passed=False,
+                evidence='{"blocked_dataset_ids": ["dataset_2"]}',
+            ),
+        ),
+        workflow_inputs={"completion_mode": "local_ready"},
+    )
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert validation.failed_checks == ()
+    assert [failure.check_name for failure in validation.missing_evidence] == [
+        "two_dataset_layouts_supported",
+        "split_evidence_recorded",
+        "capstone_data_package_tracked",
+        "dvc_repo_validated",
+        "data_stage_evidence_artifact_reported",
+        "dataset_lineage_artifacts_reported",
+    ]
 
 
 def test_build_capstone_pipeline_blocks_until_future_capabilities_are_implemented():

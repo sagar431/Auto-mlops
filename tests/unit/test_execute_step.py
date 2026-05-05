@@ -503,6 +503,7 @@ class TestAvailableTools:
     def test_contains_training_tools(self):
         """Test AVAILABLE_TOOLS contains training control tools."""
         assert "detect_training_project" in AVAILABLE_TOOLS
+        assert "detect_capstone_data_layouts" in AVAILABLE_TOOLS
         assert "run_bounded_training" in AVAILABLE_TOOLS
         assert "track_training_in_mlflow" in AVAILABLE_TOOLS
         assert "select_best_model_artifact" in AVAILABLE_TOOLS

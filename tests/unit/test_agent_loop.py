@@ -39,6 +39,11 @@ from workflow.registry import (
 )
 
 
+def _write_tiny_image(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"not-a-real-image")
+
+
 def test_select_best_model_artifact_finds_training_output_pickle(tmp_path):
     outputs_dir = tmp_path / "outputs"
     outputs_dir.mkdir()
@@ -50,6 +55,33 @@ def test_select_best_model_artifact_finds_training_output_pickle(tmp_path):
     assert result["model_path"] == "outputs/model.pkl"
     assert result["model_type"] == "tabular_regressor"
     assert result["artifact_manifest"]["entries"][0]["path"] == "outputs/model.pkl"
+
+
+def test_detect_capstone_data_layouts_blocks_empty_class_folder(tmp_path):
+    dataset_1 = tmp_path / "source_one"
+    dataset_2 = tmp_path / "source_two"
+    _write_tiny_image(dataset_1 / "cats" / "cat-1.jpg")
+    (dataset_2 / "empty_class").mkdir(parents=True)
+
+    result = mcp_mlops_tools.detect_capstone_data_layouts(
+        project_path=str(tmp_path),
+        dataset_1_path=str(dataset_1),
+        dataset_2_path=str(dataset_2),
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert result["datasets"][0]["status"] == "succeeded"
+    assert result["datasets"][1]["status"] == "blocked"
+    assert result["datasets"][1]["blocked_reason"] == "empty_class_folder"
+    assert result["datasets"][1]["missing_inputs"] == ["non_empty_class_folders"]
+    layout_result = next(
+        item
+        for item in result["verification_results"]
+        if item["check_name"] == "two_dataset_layouts_supported"
+    )
+    assert layout_result["passed"] is False
+    assert "empty_class_folder" in layout_result["evidence"]
 
 
 def test_select_best_model_artifact_selects_latest_run_that_beats_baseline(tmp_path):
@@ -1592,10 +1624,17 @@ class TestAgentLoopRun:
         mock_execute_step.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_run_prepare_capstone_data_defaults_to_local_ready_without_tools(
+    async def test_run_prepare_capstone_data_detects_two_valid_image_folder_datasets(
         self, mock_agent, tmp_path
     ):
-        """Test Issue 1 selects registry workflow and defaults completion_mode without tools."""
+        """Test Issue 2 records read-only dataset layout evidence for two datasets."""
+        dataset_1 = tmp_path / "source_one"
+        dataset_2 = tmp_path / "source_two"
+        _write_tiny_image(dataset_1 / "cats" / "cat-1.jpg")
+        _write_tiny_image(dataset_1 / "dogs" / "dog-1.png")
+        _write_tiny_image(dataset_2 / "apple" / "apple-1.jpeg")
+        _write_tiny_image(dataset_2 / "banana" / "banana-1.webp")
+
         with (
             patch.object(
                 mock_agent.perception,
@@ -1604,10 +1643,10 @@ class TestAgentLoopRun:
                 side_effect=AssertionError("perception should not run for registry data prep"),
             ) as mock_perception,
             patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
-            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
         ):
             result = await mock_agent.run(
-                "Prepare capstone data dataset_1_path=/data/one dataset_2_path=/data/two",
+                "Prepare capstone data "
+                f"dataset_1_path={dataset_1} dataset_2_path={dataset_2}",
                 str(tmp_path),
             )
 
@@ -1616,14 +1655,108 @@ class TestAgentLoopRun:
         assert mock_agent.ctx.globals["workflow_inputs"] == {
             "project_path": str(tmp_path),
             "completion_mode": "local_ready",
-            "dataset_1_path": "/data/one",
-            "dataset_2_path": "/data/two",
+            "dataset_1_path": str(dataset_1),
+            "dataset_2_path": str(dataset_2),
         }
-        assert "Workflow execution is not enabled yet" in result
-        assert mock_agent.ctx.get_pending_steps() == []
+        completed_tool_steps = [
+            step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
+        ]
+        assert completed_tool_steps == ["prepare_capstone_data_contract"]
+        assert "prepare_capstone_data final workflow status derived from SuccessContract" in result
+        assert "contract_status: blocked" in result
+        assert "dataset_1" in result
+        assert "dataset_2" in result
+        assert "two_dataset_paths_provided:observed:passed" in result
+        assert "two_dataset_layouts_supported:observed:passed" in result
+        contract_status = mock_agent.ctx.globals["contract_status"]
+        assert contract_status.status is WorkflowStatus.BLOCKED
+        verification_results = mock_agent.ctx.globals["verification_results"]
+        assert [
+            verification_result.check_name for verification_result in verification_results
+        ] == ["two_dataset_paths_provided", "two_dataset_layouts_supported"]
+        artifact_manifest = mock_agent.ctx.globals["artifact_manifest"]
+        assert [entry.artifact_type for entry in artifact_manifest.entries] == [
+            "capstone_source_dataset",
+            "capstone_source_dataset",
+        ]
+        assert all(entry.state.value == "external" for entry in artifact_manifest.entries)
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
-        mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_prepare_capstone_data_blocks_unsupported_dataset_without_mutation(
+        self, mock_agent, tmp_path
+    ):
+        """Test unsupported layouts block with dataset-level evidence and no writes."""
+        dataset_1 = tmp_path / "source_one"
+        dataset_2 = tmp_path / "unsupported"
+        _write_tiny_image(dataset_1 / "cats" / "cat-1.jpg")
+        dataset_2.mkdir()
+        before_paths = sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*"))
+
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("perception should not run for registry data prep"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+        ):
+            result = await mock_agent.run(
+                "Prepare capstone data "
+                f"dataset_1_path={dataset_1} dataset_2_path={dataset_2}",
+                str(tmp_path),
+            )
+
+        after_paths = sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*"))
+        assert before_paths == after_paths
+        assert mock_agent.workflow_selection.workflow_id == "prepare_capstone_data"
+        assert mock_agent.status == "paused"
+        assert "contract_status: blocked" in result
+        assert "unsupported_empty_dataset" in result
+        assert "Add class-labelled subdirectories" in result
+        contract_status = mock_agent.ctx.globals["contract_status"]
+        assert contract_status.status is WorkflowStatus.BLOCKED
+        assert contract_status.failed_checks == ()
+        verification_results = mock_agent.ctx.globals["verification_results"]
+        layout_result = next(
+            result
+            for result in verification_results
+            if result.check_name == "two_dataset_layouts_supported"
+        )
+        assert layout_result.passed is False
+        assert "dataset_2" in layout_result.evidence
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_prepare_capstone_data_detects_existing_train_test_layout(
+        self, mock_agent, tmp_path
+    ):
+        """Test existing train/test folders are recorded as split evidence candidates."""
+        dataset_1 = tmp_path / "source_one"
+        dataset_2 = tmp_path / "source_two"
+        _write_tiny_image(dataset_1 / "cats" / "cat-1.jpg")
+        _write_tiny_image(dataset_1 / "dogs" / "dog-1.jpg")
+        _write_tiny_image(dataset_2 / "train" / "apple" / "apple-train.jpg")
+        _write_tiny_image(dataset_2 / "test" / "apple" / "apple-test.jpg")
+
+        with (
+            patch.object(mock_agent.perception, "run", new_callable=AsyncMock) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+        ):
+            result = await mock_agent.run(
+                "Prepare capstone data "
+                f"dataset_1_path={dataset_1} dataset_2_path={dataset_2}",
+                str(tmp_path),
+            )
+
+        assert "existing_train_test_split" in result
+        assert str(dataset_2 / "train") in result
+        assert str(dataset_2 / "test") in result
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_run_build_capstone_pipeline_records_deferred_capabilities(

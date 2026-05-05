@@ -182,6 +182,7 @@ AVAILABLE_TOOLS = [
     "add_workflow_step",
     # Training Control
     "detect_training_project",
+    "detect_capstone_data_layouts",
     "run_bounded_training",
     "track_training_in_mlflow",
     "record_capstone_orchestrator_skeleton",
