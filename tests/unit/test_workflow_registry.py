@@ -126,6 +126,8 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
         "test_size",
         "split_seed",
         "materialize_splits",
+        "dvc_remote_name",
+        "dvc_remote_url",
     ]
     completion_mode_input = template.required_inputs[3]
     assert completion_mode_input.default == "local_ready"
@@ -133,6 +135,8 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
     assert template.required_inputs[4].default == 0.2
     assert template.required_inputs[5].default == 42
     assert template.required_inputs[6].default is False
+    assert template.required_inputs[7].default == "capstone"
+    assert template.required_inputs[8].default is None
     assert [branch.name for branch in template.branches] == [
         "local_ready",
         "capstone_complete",
@@ -141,15 +145,21 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
         "prepare_capstone_data_contract",
         "generate_split_manifests",
         "track_capstone_data_package",
+        "configure_validate_dvc_remote",
     ]
     assert template.steps[0].tool_functions == ("detect_capstone_data_layouts",)
     assert template.steps[1].tool_functions == ("generate_capstone_split_manifests",)
     assert template.steps[2].tool_functions == ("track_capstone_data_package",)
+    assert template.steps[3].tool_functions == ("configure_validate_capstone_dvc_remote",)
     assert {
         gate.step_id: gate.risk_categories for gate in template.approval_gates
     } == {
         "generate_split_manifests": ("writes_project_files",),
         "track_capstone_data_package": ("writes_project_files",),
+        "configure_validate_dvc_remote": (
+            "writes_project_files",
+            "uses_cloud_credentials",
+        ),
     }
     assert [requirement.artifact_type for requirement in template.artifact_requirements] == [
         "split_manifest",

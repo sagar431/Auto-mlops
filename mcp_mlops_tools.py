@@ -14,6 +14,7 @@ Version: 1.0.0
 
 import asyncio
 import base64
+import configparser
 import hashlib
 import json
 import os
@@ -29,15 +30,18 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 try:
     import boto3
-    from botocore.exceptions import ClientError
+    from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 
     BOTO3_AVAILABLE = True
 except Exception:
     boto3 = None
+    BotoCoreError = Exception
     ClientError = Exception
+    NoCredentialsError = Exception
     BOTO3_AVAILABLE = False
 
 import yaml
@@ -479,6 +483,23 @@ class TrackCapstoneDataPackageInput(BaseModel):
     initialize_if_missing: bool = Field(
         default=True,
         description="Initialize local DVC metadata when .dvc/config is missing.",
+    )
+
+
+class ConfigureValidateCapstoneDVCRemoteInput(BaseModel):
+    """Configure or validate local/S3 DVC remote evidence without data transfer."""
+
+    project_path: str = Field(..., description="Path to the project")
+    completion_mode: str = Field(default="local_ready", description="Phase 4 completion mode")
+    remote_name: str = Field(default="capstone", description="DVC remote name")
+    remote_url: str | None = Field(
+        default=None,
+        description="Optional local or s3:// DVC remote URL to configure and validate.",
+    )
+    default: bool = Field(default=True, description="Set configured remote as DVC default")
+    source_step: str = Field(
+        default="configure_validate_dvc_remote",
+        description="Workflow step that owns emitted remote evidence.",
     )
 
 
@@ -2854,6 +2875,509 @@ def track_capstone_data_package(
         package_tracking_passed=bool(tracked_package_paths),
         evidence=evidence,
     )
+
+
+def configure_validate_capstone_dvc_remote(
+    project_path: str,
+    completion_mode: str = "local_ready",
+    remote_name: str = "capstone",
+    remote_url: str | None = None,
+    default: bool = True,
+    source_step: str = "configure_validate_dvc_remote",
+) -> dict[str, Any]:
+    """Configure or validate a local/S3 DVC remote without pushing or pulling data."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+    if not path.is_dir():
+        return {"success": False, "error": f"Project path {project_path} is not a directory"}
+    if completion_mode not in {"local_ready", "capstone_complete"}:
+        return {"success": False, "error": f"Unsupported completion_mode: {completion_mode}"}
+
+    if not check_tool_installed("dvc"):
+        remote = _capstone_remote_record(remote_name, remote_url, "missing")
+        evidence = {
+            "blocked_reason": "missing_dvc_executable",
+            "remote": remote,
+            "credential_capability": None,
+        }
+        return _capstone_remote_validation_result(
+            status="blocked",
+            remote=remote,
+            verification_results=_capstone_remote_verification_results(
+                completion_mode, source_step, False, evidence
+            ),
+            artifact_entries=[],
+            next_actions=["Install DVC before configuring or validating capstone remotes."],
+        )
+
+    dvc_config = path / ".dvc" / "config"
+    if not dvc_config.exists():
+        remote = _capstone_remote_record(remote_name, remote_url, "missing")
+        evidence = {
+            "blocked_reason": "missing_dvc_repo",
+            "remote": remote,
+            "credential_capability": None,
+        }
+        return _capstone_remote_validation_result(
+            status="blocked",
+            remote=remote,
+            verification_results=_capstone_remote_verification_results(
+                completion_mode, source_step, False, evidence
+            ),
+            artifact_entries=[],
+            next_actions=["Validate or initialize DVC metadata before remote validation."],
+        )
+
+    configure_result: dict[str, Any] | None = None
+    if remote_url:
+        configure_result = _configure_capstone_dvc_remote(
+            path,
+            remote_name,
+            remote_url,
+            default,
+        )
+        if not configure_result.get("success"):
+            remote = _capstone_remote_record(remote_name, remote_url, _remote_type(remote_url))
+            evidence = {
+                "blocked_reason": "invalid_remote_configuration",
+                "remote": remote,
+                "dvc_command_status": {
+                    "success": False,
+                    "returncode": configure_result.get("returncode"),
+                },
+                "credential_capability": None,
+            }
+            return _capstone_remote_validation_result(
+                status="failed",
+                remote=remote,
+                verification_results=_capstone_remote_verification_results(
+                    completion_mode, source_step, False, evidence
+                ),
+                artifact_entries=[],
+                next_actions=[
+                    "Fix the DVC remote URL or existing DVC remote configuration and rerun."
+                ],
+            )
+
+    resolved_url = remote_url or _read_dvc_remote_url(path, remote_name)
+    if not resolved_url:
+        remote = _capstone_remote_record(remote_name, None, "missing")
+        if completion_mode == "local_ready":
+            evidence = {
+                "remote": remote,
+                "capability": "optional_for_local_ready",
+                "credential_capability": None,
+            }
+            return _capstone_remote_validation_result(
+                status="succeeded",
+                remote=remote,
+                verification_results=[
+                    _capstone_remote_verification_result(
+                        "local_dvc_remote_validated",
+                        "observed",
+                        source_step,
+                        True,
+                        evidence,
+                    )
+                ],
+                artifact_entries=[],
+                next_actions=[],
+            )
+        evidence = {
+            "blocked_reason": "missing_s3_remote_url",
+            "remote": remote,
+            "credential_capability": None,
+        }
+        return _capstone_remote_validation_result(
+            status="blocked",
+            remote=remote,
+            verification_results=_capstone_remote_verification_results(
+                completion_mode, source_step, False, evidence
+            ),
+            artifact_entries=[],
+            next_actions=[
+                "Provide dvc_remote_url=s3://bucket/prefix or configure a default S3 DVC remote."
+            ],
+        )
+
+    remote_type = _remote_type(resolved_url)
+    remote = _capstone_remote_record(remote_name, resolved_url, remote_type)
+    if remote_type == "local":
+        validation = _validate_local_remote_url(resolved_url)
+        evidence = {
+            "remote": remote,
+            "validation": validation,
+            "dvc_remote_configured": bool(configure_result),
+            "credential_capability": None,
+        }
+        passed = bool(validation["passed"])
+        return _capstone_remote_validation_result(
+            status="succeeded" if passed else "blocked",
+            remote=remote,
+            verification_results=[
+                _capstone_remote_verification_result(
+                    "local_dvc_remote_validated",
+                    "observed",
+                    source_step,
+                    passed,
+                    evidence,
+                )
+            ],
+            artifact_entries=(
+                [_capstone_remote_artifact(source_step, remote, validation)]
+                if passed
+                else []
+            ),
+            next_actions=[] if passed else validation["next_actions"],
+        )
+
+    if remote_type != "s3":
+        evidence = {
+            "blocked_reason": "unsupported_remote_type",
+            "remote": remote,
+            "credential_capability": None,
+        }
+        return _capstone_remote_validation_result(
+            status="blocked",
+            remote=remote,
+            verification_results=_capstone_remote_verification_results(
+                completion_mode, source_step, False, evidence
+            ),
+            artifact_entries=[],
+            next_actions=["Use a local path or s3:// URL for the capstone DVC remote."],
+        )
+
+    credential_capability = _validate_s3_credential_capability(resolved_url)
+    evidence = {
+        "remote": remote,
+        "dvc_remote_configured": bool(configure_result),
+        "credential_capability": credential_capability,
+    }
+    passed = bool(credential_capability.get("passed"))
+    return _capstone_remote_validation_result(
+        status="succeeded" if passed else "blocked",
+        remote=remote,
+        verification_results=[
+            _capstone_remote_verification_result(
+                "s3_remote_validated",
+                "observed",
+                source_step,
+                passed,
+                evidence,
+            )
+        ],
+        artifact_entries=(
+            [_capstone_remote_artifact(source_step, remote, credential_capability)]
+            if passed
+            else []
+        ),
+        next_actions=credential_capability.get("next_actions", []),
+    )
+
+
+def _configure_capstone_dvc_remote(
+    project_path: Path,
+    remote_name: str,
+    remote_url: str,
+    default: bool,
+) -> dict[str, Any]:
+    cmd = ["dvc", "remote", "add"]
+    if default:
+        cmd.append("-d")
+    cmd.extend([remote_name, remote_url])
+    result = run_command(cmd, cwd=str(project_path), timeout=60)
+    if result.get("success"):
+        return result
+    modify_result = run_command(
+        ["dvc", "remote", "modify", remote_name, "url", remote_url],
+        cwd=str(project_path),
+        timeout=60,
+    )
+    if modify_result.get("success"):
+        return modify_result
+    return result
+
+
+def _read_dvc_remote_url(project_path: Path, remote_name: str | None) -> str | None:
+    config_path = project_path / ".dvc" / "config"
+    if not config_path.exists():
+        return None
+    parser = configparser.ConfigParser()
+    try:
+        parser.read_string(config_path.read_text())
+    except configparser.Error:
+        return None
+    configured_remote = remote_name
+    if not configured_remote and parser.has_section("core"):
+        configured_remote = parser.get("core", "remote", fallback=None)
+    if not configured_remote:
+        configured_remote = parser.get("core", "remote", fallback=None)
+    candidate_sections = (
+        f'remote "{configured_remote}"',
+        f"'remote \"{configured_remote}\"'",
+    )
+    for section in candidate_sections:
+        if parser.has_section(section):
+            url = parser.get(section, "url", fallback=None)
+            if url:
+                return url
+    return None
+
+
+def _remote_type(remote_url: str | None) -> str:
+    if not remote_url:
+        return "missing"
+    parsed = urlparse(remote_url)
+    if parsed.scheme == "s3":
+        return "s3"
+    if parsed.scheme in {"", "file"}:
+        return "local"
+    return parsed.scheme or "unknown"
+
+
+def _capstone_remote_record(
+    remote_name: str,
+    remote_url: str | None,
+    remote_type: str,
+) -> dict[str, Any]:
+    return {
+        "remote_name": remote_name,
+        "remote_type": remote_type,
+        "redacted_remote_url": _redact_remote_url(remote_url),
+    }
+
+
+def _redact_remote_url(remote_url: str | None) -> str | None:
+    if not remote_url:
+        return None
+    parsed = urlparse(remote_url)
+    if parsed.scheme == "s3":
+        bucket = _redact_token(parsed.netloc)
+        path_parts = [
+            _redact_token(part)
+            for part in parsed.path.split("/")
+            if part
+        ]
+        suffix = "/" + "/".join(path_parts) if path_parts else ""
+        return f"s3://{bucket}{suffix}"
+    if parsed.scheme and parsed.scheme != "file":
+        return f"{parsed.scheme}://<redacted>"
+    return str(Path(parsed.path or remote_url).expanduser())
+
+
+def _redact_token(value: str) -> str:
+    if not value:
+        return "<redacted>"
+    if len(value) <= 4:
+        return value[0] + "***"
+    return f"{value[:2]}***{value[-2:]}"
+
+
+def _validate_local_remote_url(remote_url: str) -> dict[str, Any]:
+    parsed = urlparse(remote_url)
+    path = Path(parsed.path if parsed.scheme == "file" else remote_url).expanduser()
+    passed = path.exists() and path.is_dir()
+    return {
+        "passed": passed,
+        "status": "validated" if passed else "invalid_local_remote",
+        "path_exists": path.exists(),
+        "is_directory": path.is_dir(),
+        "next_actions": []
+        if passed
+        else ["Create the local DVC remote directory or provide an existing directory."],
+    }
+
+
+def _validate_s3_credential_capability(remote_url: str) -> dict[str, Any]:
+    if not BOTO3_AVAILABLE:
+        return {
+            "passed": False,
+            "status": "missing_boto3",
+            "identity": None,
+            "bucket_reachable": False,
+            "prefix_checked": False,
+            "next_actions": ["Install boto3/botocore to validate S3 credential capability."],
+        }
+    parsed = urlparse(remote_url)
+    bucket = parsed.netloc
+    prefix = parsed.path.lstrip("/")
+    if not bucket:
+        return {
+            "passed": False,
+            "status": "missing_s3_bucket",
+            "identity": None,
+            "bucket_reachable": False,
+            "prefix_checked": False,
+            "next_actions": ["Provide an S3 DVC remote URL with a bucket name."],
+        }
+    try:
+        session = boto3.Session()
+        sts_client = session.client("sts")
+        identity = sts_client.get_caller_identity()
+        s3_client = session.client("s3")
+        s3_client.head_bucket(Bucket=bucket)
+        prefix_checked = False
+        if prefix:
+            s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=1)
+            prefix_checked = True
+        return {
+            "passed": True,
+            "status": "validated",
+            "identity": _redact_aws_identity(identity),
+            "bucket_reachable": True,
+            "prefix_checked": prefix_checked,
+            "next_actions": [],
+        }
+    except NoCredentialsError:
+        return {
+            "passed": False,
+            "status": "missing_cloud_credential_capability",
+            "identity": None,
+            "bucket_reachable": False,
+            "prefix_checked": False,
+            "next_actions": [
+                "Configure AWS credentials outside Auto-MLOps and rerun validation."
+            ],
+        }
+    except (ClientError, BotoCoreError) as exc:
+        return {
+            "passed": False,
+            "status": "invalid_s3_remote_or_credentials",
+            "identity": None,
+            "bucket_reachable": False,
+            "prefix_checked": False,
+            "error_type": type(exc).__name__,
+            "next_actions": [
+                "Verify AWS credentials and bucket or prefix permissions before rerunning."
+            ],
+        }
+
+
+def _redact_aws_identity(identity: dict[str, Any]) -> dict[str, Any]:
+    account = str(identity.get("Account", identity.get("account", "")))
+    arn = str(identity.get("Arn", identity.get("arn", "")))
+    user_id = str(identity.get("UserId", identity.get("user_id", "")))
+    redacted_account = _redact_token(account) if account else None
+    return {
+        "account": redacted_account,
+        "arn": re.sub(r"::\d{12}:", f"::{redacted_account or '<redacted>'}:", arn)
+        if arn
+        else None,
+        "user_id": _redact_token(user_id) if user_id else None,
+    }
+
+
+def _capstone_remote_verification_results(
+    completion_mode: str,
+    source_step: str,
+    passed: bool,
+    evidence: dict[str, Any],
+) -> list[dict[str, Any]]:
+    check_name = (
+        "s3_remote_validated"
+        if completion_mode == "capstone_complete"
+        else "local_dvc_remote_validated"
+    )
+    return [
+        _capstone_remote_verification_result(
+            check_name,
+            "observed",
+            source_step,
+            passed,
+            evidence,
+        )
+    ]
+
+
+def _capstone_remote_verification_result(
+    check_name: str,
+    evidence_type: str,
+    source_step: str,
+    passed: bool,
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "check_name": check_name,
+        "evidence_type": evidence_type,
+        "source_step": source_step,
+        "passed": passed,
+        "evidence": json.dumps(_redacted_evidence(evidence), sort_keys=True),
+    }
+
+
+def _capstone_remote_artifact(
+    source_step: str,
+    remote: dict[str, Any],
+    validation: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "artifact_type": "capstone_data_remote",
+        "producing_step": source_step,
+        "state": "validated",
+        "uri": remote["redacted_remote_url"] or f"dvc-remote://{remote['remote_name']}",
+        "metadata": {
+            "remote_name": remote["remote_name"],
+            "remote_type": remote["remote_type"],
+            "redacted_remote_url": remote["redacted_remote_url"],
+            "validation_status": validation.get("status"),
+            "bucket_reachable": validation.get("bucket_reachable"),
+            "credential_capability_observed": validation.get("passed"),
+        },
+    }
+
+
+def _capstone_remote_validation_result(
+    status: str,
+    remote: dict[str, Any],
+    verification_results: list[dict[str, Any]],
+    artifact_entries: list[dict[str, Any]],
+    next_actions: list[str],
+) -> dict[str, Any]:
+    return {
+        "success": True,
+        "status": status,
+        "remote": remote,
+        "missing_inputs": [] if status == "succeeded" else ["capstone_dvc_remote"],
+        "next_actions": next_actions,
+        "verification_results": verification_results,
+        "artifact_manifest": {"entries": artifact_entries},
+    }
+
+
+def _redacted_evidence(value: Any) -> Any:
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for key, item in value.items():
+            normalized_key = key.casefold()
+            if (
+                "secret" in normalized_key
+                or "token" in normalized_key
+                or "access_key" in normalized_key
+            ):
+                continue
+            if normalized_key == "account" and item is not None:
+                redacted[key] = _redact_token(str(item))
+                continue
+            if normalized_key == "arn" and item is not None:
+                redacted[key] = re.sub(
+                    r"::\d{12}:",
+                    f"::{_redact_token(str(item).split('::', 1)[-1][:12])}:",
+                    str(item),
+                )
+                continue
+            if normalized_key in {"user_id", "userid"} and item is not None:
+                redacted[key] = _redact_token(str(item))
+                continue
+            redacted[key] = _redacted_evidence(item)
+        return redacted
+    if isinstance(value, list):
+        return [_redacted_evidence(item) for item in value]
+    if isinstance(value, str):
+        if "s3://" in value:
+            return _redact_remote_url(value)
+        return value
+    return value
 
 
 def _ensure_local_dvc_repo(
@@ -9658,6 +10182,14 @@ async def list_tools() -> list[Tool]:
             inputSchema=TrackCapstoneDataPackageInput.model_json_schema(),
         ),
         Tool(
+            name="configure_validate_capstone_dvc_remote",
+            description=(
+                "Configure or validate local/S3 capstone DVC remote evidence without "
+                "pushing or pulling data"
+            ),
+            inputSchema=ConfigureValidateCapstoneDVCRemoteInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -10069,6 +10601,17 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         elif name == "dvc_reproduce":
             input_data = DVCReproduceInput(**arguments)
             result = dvc_reproduce(input_data.project_path, input_data.stages, input_data.force)
+
+        elif name == "configure_validate_capstone_dvc_remote":
+            input_data = ConfigureValidateCapstoneDVCRemoteInput(**arguments)
+            result = configure_validate_capstone_dvc_remote(
+                project_path=input_data.project_path,
+                completion_mode=input_data.completion_mode,
+                remote_name=input_data.remote_name,
+                remote_url=input_data.remote_url,
+                default=input_data.default,
+                source_step=input_data.source_step,
+            )
 
         # Docker Tools
         elif name == "create_ml_dockerfile":

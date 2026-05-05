@@ -31,7 +31,9 @@ from workflow.registry import (
     ArtifactManifestEntry,
     ContractFailure,
     ContractValidation,
+    RiskCategory,
     RollbackPlan,
+    StepApprovalValidation,
     VerificationResult,
     WorkflowSelection,
     WorkflowStatus,
@@ -536,7 +538,13 @@ class AgentLoop:
             "split_seed": 42,
             "materialize_splits": False,
         }
-        for input_name in ("dataset_1_path", "dataset_2_path", "completion_mode"):
+        for input_name in (
+            "dataset_1_path",
+            "dataset_2_path",
+            "completion_mode",
+            "dvc_remote_name",
+            "dvc_remote_url",
+        ):
             match = re.search(
                 rf"{input_name}\s*=\s*(\S+)",
                 self.query,
@@ -1055,6 +1063,11 @@ class AgentLoop:
                 and not self._capstone_split_manifest_writes_required()
             ):
                 return None
+            if (
+                self.workflow_selection.workflow_id == "prepare_capstone_data"
+                and step_id == "configure_validate_dvc_remote"
+            ):
+                return self._validate_capstone_remote_approval(step_id)
             validation = self.workflow_registry.validate_step_approval(
                 workflow_id=self.workflow_selection.workflow_id,
                 workflow_run_id=self.session_id,
@@ -1087,6 +1100,121 @@ class AgentLoop:
             return validation
         except KeyError:
             return None
+
+    def _validate_capstone_remote_approval(self, step_id: str):
+        risk_categories = self._capstone_remote_risk_categories()
+        if not risk_categories:
+            return None
+
+        workflow_id = self.workflow_selection.workflow_id
+        approval_records = tuple(self.ctx.globals.get("approval_records", ()))
+        approval_record = next(
+            (
+                record
+                for record in approval_records
+                if record.workflow_run_id == self.session_id
+                and record.step_id == step_id
+                and record.risk_categories == risk_categories
+            ),
+            None,
+        )
+        if approval_record is not None and approval_record.status.value == "approved":
+            return StepApprovalValidation(
+                workflow_id=workflow_id,
+                workflow_run_id=self.session_id,
+                step_id=step_id,
+                status=WorkflowStatus.PENDING,
+                risk_categories=risk_categories,
+                approval_record=approval_record,
+                next_action="Approval satisfied; step may run.",
+            )
+        if approval_record is not None and approval_record.status.value == "denied":
+            approver = approval_record.approver or "unknown approver"
+            return StepApprovalValidation(
+                workflow_id=workflow_id,
+                workflow_run_id=self.session_id,
+                step_id=step_id,
+                status=WorkflowStatus.FAILED,
+                risk_categories=risk_categories,
+                approval_record=approval_record,
+                next_action=(
+                    f"Approval denied by {approver}; step '{step_id}' must not run."
+                ),
+            )
+        if self.auto_approve:
+            approval_records = tuple(self.ctx.globals.get("approval_records", ()))
+            approval_record = ApprovalRecord(
+                workflow_run_id=self.session_id,
+                step_id=step_id,
+                risk_categories=risk_categories,
+                status="approved",
+                approver="auto_approve",
+                timestamp=datetime.now(timezone.utc),
+            )
+            self.ctx.globals["approval_records"] = (*approval_records, approval_record)
+            return StepApprovalValidation(
+                workflow_id=workflow_id,
+                workflow_run_id=self.session_id,
+                step_id=step_id,
+                status=WorkflowStatus.PENDING,
+                risk_categories=risk_categories,
+                approval_record=approval_record,
+                next_action="Approval satisfied; step may run.",
+            )
+        return StepApprovalValidation(
+            workflow_id=workflow_id,
+            workflow_run_id=self.session_id,
+            step_id=step_id,
+            status=WorkflowStatus.BLOCKED,
+            risk_categories=risk_categories,
+            approval_record=None,
+            next_action=(
+                f"Record approval for workflow run '{self.session_id}' "
+                f"before step '{step_id}' may run."
+            ),
+        )
+
+    def _capstone_remote_risk_categories(self) -> tuple[RiskCategory, ...]:
+        workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+        if not isinstance(workflow_inputs, dict):
+            return ()
+        remote_url = workflow_inputs.get("dvc_remote_url")
+        if not remote_url:
+            remote_url = self._configured_capstone_remote_url(
+                workflow_inputs.get("dvc_remote_name", "capstone")
+            )
+        if not isinstance(remote_url, str) or not remote_url:
+            return ()
+        risks: list[RiskCategory] = []
+        if workflow_inputs.get("dvc_remote_url"):
+            risks.append(RiskCategory.WRITES_PROJECT_FILES)
+        if remote_url.casefold().startswith("s3://"):
+            risks.append(RiskCategory.USES_CLOUD_CREDENTIALS)
+        return tuple(risks)
+
+    def _configured_capstone_remote_url(self, remote_name: Any) -> str | None:
+        project_path = self.ctx.project_path
+        if not project_path:
+            return None
+        config_path = Path(project_path) / ".dvc" / "config"
+        if not config_path.exists():
+            return None
+        try:
+            config_text = config_path.read_text()
+        except OSError:
+            return None
+        remote_name = str(remote_name or "capstone")
+        match = re.search(
+            rf"\[remote\s+\"{re.escape(remote_name)}\"\]\s+url\s*=\s*(\S+)",
+            config_text,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            return match.group(1)
+        core_match = re.search(r"\[core\]\s+remote\s*=\s*(\S+)", config_text, flags=re.IGNORECASE)
+        if core_match and core_match.group(1) != remote_name:
+            return None
+        return None
 
     def _is_pending_setup_pipeline(self) -> bool:
         """Return whether the selected workflow is an executable setup_pipeline run."""
@@ -1332,6 +1460,11 @@ class AgentLoop:
             and step_id == "track_capstone_data_package"
         ):
             self.ctx.globals["capstone_data_package_result"] = payload
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "configure_validate_dvc_remote"
+        ):
+            self.ctx.globals["capstone_data_remote_result"] = payload
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1513,6 +1646,20 @@ class AgentLoop:
             split_result = self.ctx.globals.get("capstone_split_manifest_result", {})
             if isinstance(split_result, dict):
                 runtime_args["capstone_split_manifest_result"] = split_result
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "configure_validate_dvc_remote"
+        ):
+            workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+            if isinstance(workflow_inputs, dict):
+                for source_key, target_key in (
+                    ("completion_mode", "completion_mode"),
+                    ("dvc_remote_name", "remote_name"),
+                    ("dvc_remote_url", "remote_url"),
+                ):
+                    if source_key in workflow_inputs:
+                        runtime_args[target_key] = workflow_inputs[source_key]
         return runtime_args
 
     def _capstone_split_manifest_writes_required(self) -> bool:
@@ -1622,20 +1769,21 @@ class AgentLoop:
             for check in template.success_contract.checks
             if check.source_step == step_id
         }
+        step_ids = {step.step_id for step in template.steps}
         verification_results: list[VerificationResult] = []
 
         for raw_result in raw_results:
             if isinstance(raw_result, VerificationResult):
-                if raw_result.check_name in checks_by_name and raw_result.source_step == step_id:
+                if raw_result.source_step == step_id:
                     verification_results.append(raw_result)
                 continue
             if not isinstance(raw_result, dict):
                 continue
             check_name = raw_result.get("check_name")
-            if check_name not in checks_by_name:
+            if not check_name:
                 continue
             source_step = raw_result.get("source_step")
-            if source_step != step_id:
+            if source_step != step_id or source_step not in step_ids:
                 continue
             if "passed" not in raw_result or "evidence" not in raw_result:
                 continue
@@ -1645,7 +1793,9 @@ class AgentLoop:
                     check_name=check_name,
                     evidence_type=raw_result.get(
                         "evidence_type",
-                        checks_by_name[check_name].evidence_type,
+                        checks_by_name.get(check_name).evidence_type
+                        if check_name in checks_by_name
+                        else "observed",
                     ),
                     source_step=source_step,
                     passed=bool(raw_result["passed"]),
