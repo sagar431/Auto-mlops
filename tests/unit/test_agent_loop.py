@@ -1189,6 +1189,254 @@ def test_record_capstone_data_stage_evidence_writes_durable_redacted_artifact(tm
     assert verification_by_name["dataset_lineage_artifacts_reported"]["passed"] is True
 
 
+def _write_capstone_data_stage_evidence(
+    project_path,
+    *,
+    completion_mode="capstone_complete",
+    status="succeeded",
+):
+    evidence_dir = project_path / ".auto_mlops" / "capstone"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    evidence_path = evidence_dir / "data_stage_evidence.json"
+    evidence_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "phase4.data_stage_evidence.v1",
+                "workflow_id": "prepare_capstone_data",
+                "status": status,
+                "completion_mode": completion_mode,
+                "datasets": [
+                    {"dataset_id": "dataset_1", "status": "succeeded"},
+                    {"dataset_id": "dataset_2", "status": "succeeded"},
+                ],
+                "dvc": {
+                    "remote": {"remote_type": "s3"},
+                    "transfer": {"status": "succeeded"},
+                },
+                "blocked_capabilities": [],
+                "verification_results": [
+                    {
+                        "check_name": "data_stage_evidence_artifact_reported",
+                        "evidence_type": "observed",
+                        "source_step": "record_data_stage_evidence",
+                        "passed": True,
+                        "evidence": "{}",
+                    }
+                ],
+                "artifact_manifest": {"entries": []},
+            },
+            sort_keys=True,
+        )
+    )
+    return evidence_path
+
+
+def test_resolve_capstone_container_upstream_local_ready_uses_local_model_fallback(
+    tmp_path,
+):
+    model_path = tmp_path / "models" / "best.pt"
+    model_path.parent.mkdir()
+    model_path.write_text("model")
+
+    result = mcp_mlops_tools.resolve_capstone_container_upstream_evidence(
+        project_path=str(tmp_path),
+        workflow_inputs={
+            "completion_mode": "container_local_ready",
+            "local_model_artifact_path": "models/best.pt",
+        },
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "resolved"
+    assert result["completion_mode"] == "container_local_ready"
+    assert result["upstream_evidence"]["local_model_artifact"]["status"] == "resolved"
+    assert result["upstream_evidence"]["data_stage"]["status"] == "deferred"
+    assert result["upstream_evidence"]["mlflow_best_artifact"]["status"] == "deferred"
+    assert {
+        item["capability"] for item in result["deferred_capabilities"]
+    } >= {
+        "data_stage_evidence_artifact_reported",
+        "mlflow_best_artifact_verified",
+    }
+    assert result["workflow_input_overrides"] == {
+        "local_model_artifact_available": True,
+        "mlflow_best_artifact_available": False,
+    }
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["upstream_evidence_resolved"]["passed"] is True
+    assert verification_by_name["local_model_artifact_resolved"]["passed"] is True
+    assert "data_stage_capstone_complete_verified" not in verification_by_name
+    manifest_entries = result["artifact_manifest"]["entries"]
+    assert manifest_entries == [
+        {
+            "artifact_type": "model_artifact",
+            "producing_step": "resolve_upstream_container_evidence",
+            "state": "selected",
+            "path": "models/best.pt",
+            "checksum": manifest_entries[0]["checksum"],
+            "metadata": {"source": "local_model_artifact_fallback"},
+        }
+    ]
+    assert not (tmp_path / ".auto_mlops" / "capstone" / "container_ci_evidence.json").exists()
+
+
+def test_resolve_capstone_container_upstream_capstone_complete_blocks_missing_data_stage(
+    tmp_path,
+):
+    result = mcp_mlops_tools.resolve_capstone_container_upstream_evidence(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert result["upstream_evidence"]["data_stage"]["status"] == "blocked"
+    assert result["upstream_evidence"]["mlflow_best_artifact"]["status"] == "blocked"
+    assert {
+        item["capability"] for item in result["blocked_capabilities"]
+    } >= {
+        "data_stage_evidence_artifact_reported",
+        "mlflow_best_artifact_verified",
+        "training_lineage_verified",
+    }
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["upstream_evidence_resolved"]["passed"] is False
+    assert verification_by_name["data_stage_capstone_complete_verified"]["passed"] is False
+    assert verification_by_name["mlflow_best_artifact_verified"]["passed"] is False
+    assert verification_by_name["training_lineage_verified"]["passed"] is False
+    assert result["artifact_manifest"]["entries"] == []
+
+
+def test_resolve_capstone_container_upstream_capstone_complete_requires_capstone_data(
+    tmp_path,
+):
+    _write_capstone_data_stage_evidence(tmp_path, completion_mode="local_ready")
+    model_path = tmp_path / "checkpoints" / "best.ckpt"
+    model_path.parent.mkdir()
+    model_path.write_text("checkpoint")
+    training_evidence_path = tmp_path / ".auto_mlops" / "capstone" / "training_evidence.json"
+    training_evidence_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "phase3.training_evidence.v1",
+                "workflow_id": "train_and_track",
+                "status": "succeeded",
+                "data_stage_evidence": {
+                    "path": ".auto_mlops/capstone/data_stage_evidence.json"
+                },
+                "verification_results": [
+                    {"check_name": "mlflow_run_exists", "passed": True},
+                    {"check_name": "model_artifact_selected", "passed": True},
+                    {"check_name": "training_command_completed", "passed": True},
+                ],
+                "artifact_manifest": {
+                    "entries": [
+                        {
+                            "artifact_type": "model_artifact",
+                            "producing_step": "select_best_model_artifact",
+                            "state": "selected",
+                            "path": "checkpoints/best.ckpt",
+                            "metadata": {
+                                "source_run_id": "run-1",
+                                "api_token": "SECRET_TOKEN_VALUE",
+                            },
+                        }
+                    ]
+                },
+            },
+            sort_keys=True,
+        )
+    )
+
+    result = mcp_mlops_tools.resolve_capstone_container_upstream_evidence(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+    )
+
+    assert result["status"] == "blocked"
+    assert result["upstream_evidence"]["data_stage"]["completion_mode"] == "local_ready"
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["data_stage_capstone_complete_verified"]["passed"] is False
+    assert verification_by_name["mlflow_best_artifact_verified"]["passed"] is True
+    assert verification_by_name["training_lineage_verified"]["passed"] is True
+    assert "SECRET_TOKEN_VALUE" not in json.dumps(result, sort_keys=True)
+
+
+def test_resolve_capstone_container_upstream_capstone_complete_accepts_structured_training_evidence(
+    tmp_path,
+):
+    _write_capstone_data_stage_evidence(tmp_path)
+    model_path = tmp_path / "checkpoints" / "best.ckpt"
+    model_path.parent.mkdir()
+    model_path.write_text("checkpoint")
+    training_evidence_path = tmp_path / ".auto_mlops" / "capstone" / "training_evidence.json"
+    training_evidence_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "phase3.training_evidence.v1",
+                "workflow_id": "train_and_track",
+                "status": "succeeded",
+                "data_stage_evidence": {
+                    "path": ".auto_mlops/capstone/data_stage_evidence.json"
+                },
+                "verification_results": [
+                    {"check_name": "mlflow_run_exists", "passed": True},
+                    {"check_name": "model_artifact_selected", "passed": True},
+                    {"check_name": "training_command_completed", "passed": True},
+                ],
+                "artifact_manifest": {
+                    "entries": [
+                        {
+                            "artifact_type": "mlflow_run",
+                            "producing_step": "track_training_in_mlflow",
+                            "state": "generated",
+                            "uri": "file:///tmp/mlruns/1/run-1/artifacts",
+                            "metadata": {"run_id": "run-1"},
+                        },
+                        {
+                            "artifact_type": "model_artifact",
+                            "producing_step": "select_best_model_artifact",
+                            "state": "selected",
+                            "path": "checkpoints/best.ckpt",
+                            "metadata": {"source_run_id": "run-1"},
+                        },
+                    ]
+                },
+            },
+            sort_keys=True,
+        )
+    )
+
+    result = mcp_mlops_tools.resolve_capstone_container_upstream_evidence(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "resolved"
+    assert result["blocked_capabilities"] == []
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["upstream_evidence_resolved"]["passed"] is True
+    assert verification_by_name["data_stage_capstone_complete_verified"]["passed"] is True
+    assert verification_by_name["mlflow_best_artifact_verified"]["passed"] is True
+    assert verification_by_name["training_lineage_verified"]["passed"] is True
+    assert {
+        (entry["artifact_type"], entry["state"], entry.get("path") or entry.get("uri"))
+        for entry in result["artifact_manifest"]["entries"]
+    } >= {
+        ("data_stage_evidence", "validated", ".auto_mlops/capstone/data_stage_evidence.json"),
+        ("model_artifact", "selected", "checkpoints/best.ckpt"),
+    }
+
+
 def test_record_capstone_orchestrator_skeleton_references_data_stage_evidence(tmp_path):
     evidence_dir = tmp_path / ".auto_mlops" / "capstone"
     evidence_dir.mkdir(parents=True)
@@ -2622,10 +2870,14 @@ class TestAgentLoopRun:
         mock_execute_step.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_run_prepare_capstone_container_ci_uses_registry_step_and_blocks(
+    async def test_run_prepare_capstone_container_ci_resolves_upstream_then_blocks_later_issues(
         self, mock_agent, tmp_path
     ):
-        """Test Issue 1 runtime uses registry steps and records blocked next actions."""
+        """Test Issue 2 runtime resolves upstream evidence before later Phase 5 work."""
+        model_path = tmp_path / "models" / "best.pt"
+        model_path.parent.mkdir()
+        model_path.write_text("model")
+
         with (
             patch.object(
                 mock_agent.perception,
@@ -2636,7 +2888,8 @@ class TestAgentLoopRun:
             patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
         ):
             result = await mock_agent.run(
-                "prepare capstone container CI completion_mode=container_local_ready",
+                "prepare capstone container CI completion_mode=container_local_ready "
+                "local_model_artifact_path=models/best.pt",
                 str(tmp_path),
             )
 
@@ -2646,27 +2899,34 @@ class TestAgentLoopRun:
             "project_path": str(tmp_path),
             "completion_mode": "container_local_ready",
             "data_stage_evidence_path": None,
-            "local_model_artifact_path": None,
+            "local_model_artifact_path": "models/best.pt",
             "mlflow_run_id": None,
             "mlflow_best_artifact_path": None,
             "registry_target": None,
             "image_name": None,
             "image_tag": None,
             "ci_workflow_path": None,
+            "local_model_artifact_available": True,
+            "mlflow_best_artifact_available": False,
         }
         completed_tool_steps = [
             step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
         ]
-        assert completed_tool_steps == ["prepare_capstone_container_ci_contract"]
+        assert completed_tool_steps == [
+            "prepare_capstone_container_ci_contract",
+            "resolve_upstream_container_evidence",
+        ]
         assert mock_agent.status == "paused"
         assert "contract_status: blocked" in result
-        assert "missing_inputs" in result
-        assert "next_actions" in result
-        assert "Dockerfile generation is deferred to Phase 5 Issue 3" in result
+        assert "upstream_evidence_resolved:observed:passed" in result
+        assert "local_model_artifact_resolved:observed:passed" in result
+        assert "data_stage_evidence_artifact_reported" in result
+        assert "mlflow_best_artifact_verified" in result
         assert "container_ci_evidence.json writing is deferred to Phase 5 Issue 7" in result
-        assert "docker" not in [
+        assert "create_ml_dockerfile" not in [
             step["tool"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
         ]
+        assert not (tmp_path / ".auto_mlops" / "capstone" / "container_ci_evidence.json").exists()
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
 

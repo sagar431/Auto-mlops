@@ -867,6 +867,7 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
                 name="Resolve Upstream Container Evidence",
                 description="Resolve data-stage, training, MLflow, and model artifact evidence.",
                 order=2,
+                tool_functions=("resolve_capstone_container_upstream_evidence",),
             ),
             WorkflowStep(
                 step_id="generate_validate_runtime_image_spec",
@@ -904,7 +905,7 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
                 SuccessContractCheck(
                     name="upstream_evidence_resolved",
                     evidence_type="observed",
-                    source_step=common_step,
+                    source_step="resolve_upstream_container_evidence",
                     unsatisfied_status="blocked",
                 ),
                 SuccessContractCheck(
@@ -953,14 +954,20 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
                     name="local_model_artifact_resolved",
                     evidence_type="observed",
                     source_step="resolve_upstream_container_evidence",
-                    condition="completion_mode == container_local_ready",
+                    condition=(
+                        "completion_mode == container_local_ready and "
+                        "mlflow_best_artifact_available == false"
+                    ),
                     unsatisfied_status="blocked",
                 ),
                 SuccessContractCheck(
                     name="mlflow_best_artifact_resolved",
                     evidence_type="observed",
                     source_step="resolve_upstream_container_evidence",
-                    condition="completion_mode == container_local_ready",
+                    condition=(
+                        "completion_mode == container_local_ready and "
+                        "local_model_artifact_available == false"
+                    ),
                     unsatisfied_status="blocked",
                 ),
                 SuccessContractCheck(

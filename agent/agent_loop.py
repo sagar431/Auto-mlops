@@ -1264,7 +1264,11 @@ class AgentLoop:
         if (
             self.workflow_selection is not None
             and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
-            and step_id != "prepare_capstone_container_ci_contract"
+            and step_id
+            not in {
+                "prepare_capstone_container_ci_contract",
+                "resolve_upstream_container_evidence",
+            }
         ):
             return True
         return False
@@ -1557,6 +1561,16 @@ class AgentLoop:
             and step_id == "record_data_stage_evidence"
         ):
             self.ctx.globals["capstone_data_stage_evidence"] = payload
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "resolve_upstream_container_evidence"
+        ):
+            self.ctx.globals["capstone_container_upstream_evidence"] = payload
+            workflow_input_overrides = payload.get("workflow_input_overrides")
+            workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+            if isinstance(workflow_input_overrides, dict) and isinstance(workflow_inputs, dict):
+                workflow_inputs.update(workflow_input_overrides)
+                self.ctx.globals["workflow_inputs"] = workflow_inputs
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1801,6 +1815,12 @@ class AgentLoop:
             and step_id == "prepare_capstone_container_ci_contract"
         ):
             runtime_args["workflow_inputs"] = self.ctx.globals.get("workflow_inputs", {})
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "resolve_upstream_container_evidence"
+        ):
+            runtime_args["workflow_inputs"] = self.ctx.globals.get("workflow_inputs", {})
         return runtime_args
 
     def _verification_results_payload(self) -> list[dict[str, Any]]:
@@ -1922,7 +1942,7 @@ class AgentLoop:
             and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
             and step_id == "prepare_capstone_container_ci_contract"
         ):
-            return True
+            return False
         if self._registry_step_recorded_failed_contract_evidence(step_id):
             return True
         if (
