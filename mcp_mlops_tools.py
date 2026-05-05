@@ -545,6 +545,48 @@ class PullCapstoneDataInput(BaseModel):
     )
 
 
+class RecordCapstoneDataStageEvidenceInput(BaseModel):
+    """Write the durable Phase 4 data-stage evidence handoff artifact."""
+
+    project_path: str = Field(..., description="Path to the project")
+    workflow_inputs: dict[str, Any] | None = Field(
+        default=None,
+        description="Resolved prepare_capstone_data workflow inputs",
+    )
+    capstone_data_detection: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from detect_capstone_data_layouts",
+    )
+    capstone_split_manifest_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from generate_capstone_split_manifests",
+    )
+    capstone_data_package_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from track_capstone_data_package",
+    )
+    capstone_data_remote_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from configure_validate_capstone_dvc_remote",
+    )
+    capstone_data_push_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from push_capstone_data",
+    )
+    capstone_data_pull_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from pull_capstone_data",
+    )
+    verification_results: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Verification results captured before writing data-stage evidence",
+    )
+    artifact_manifest: dict[str, Any] | None = Field(
+        default=None,
+        description="Artifact manifest captured before writing data-stage evidence",
+    )
+
+
 # --- Data Quality Tools ---
 
 
@@ -8278,6 +8320,7 @@ def _model_selection_verification_results(
 DEFAULT_CAPSTONE_STAGES = ("setup", "data", "train", "deploy", "monitor", "report")
 DEFAULT_CAPSTONE_IMPLEMENTED_SUBWORKFLOWS = (
     "setup_pipeline",
+    "prepare_capstone_data",
     "detect_training_project",
     "train_and_track",
     "deploy_litserve_preflight",
@@ -8336,6 +8379,446 @@ DEFAULT_CAPSTONE_DEFERRED_CAPABILITIES = (
 )
 
 
+DATA_STAGE_EVIDENCE_PATH = ".auto_mlops/capstone/data_stage_evidence.json"
+
+
+def record_capstone_data_stage_evidence(
+    project_path: str,
+    workflow_inputs: dict[str, Any] | None = None,
+    capstone_data_detection: dict[str, Any] | None = None,
+    capstone_split_manifest_result: dict[str, Any] | None = None,
+    capstone_data_package_result: dict[str, Any] | None = None,
+    capstone_data_remote_result: dict[str, Any] | None = None,
+    capstone_data_push_result: dict[str, Any] | None = None,
+    capstone_data_pull_result: dict[str, Any] | None = None,
+    verification_results: list[dict[str, Any]] | None = None,
+    artifact_manifest: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Write durable Phase 4 data-stage evidence for capstone handoff."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+    if not path.is_dir():
+        return {"success": False, "error": f"Project path {project_path} is not a directory"}
+
+    workflow_inputs = workflow_inputs or {}
+    capstone_data_detection = capstone_data_detection or {}
+    capstone_split_manifest_result = capstone_split_manifest_result or {}
+    capstone_data_package_result = capstone_data_package_result or {}
+    capstone_data_remote_result = capstone_data_remote_result or {}
+    capstone_data_push_result = capstone_data_push_result or {}
+    capstone_data_pull_result = capstone_data_pull_result or {}
+    verification_results = verification_results or []
+    artifact_entries = _artifact_entries_from_manifest_payload(artifact_manifest)
+
+    completion_mode = str(
+        workflow_inputs.get(
+            "completion_mode",
+            capstone_data_detection.get("completion_mode", "local_ready"),
+        )
+    )
+    transfer_result = (
+        capstone_data_pull_result
+        if capstone_data_pull_result.get("status") == "succeeded"
+        else capstone_data_push_result
+    )
+    datasets = _data_stage_dataset_records(
+        capstone_data_detection,
+        capstone_split_manifest_result,
+    )
+    dvc_state = _data_stage_dvc_state(
+        completion_mode,
+        capstone_data_package_result,
+        capstone_data_remote_result,
+        transfer_result,
+    )
+    blocked_capabilities = _data_stage_blocked_capabilities(
+        completion_mode,
+        datasets,
+        capstone_split_manifest_result,
+        capstone_data_package_result,
+        capstone_data_remote_result,
+        transfer_result,
+    )
+    status = _data_stage_status(
+        completion_mode,
+        datasets,
+        capstone_split_manifest_result,
+        capstone_data_package_result,
+        capstone_data_remote_result,
+        transfer_result,
+    )
+
+    evidence_path = path / DATA_STAGE_EVIDENCE_PATH
+    evidence_entry = {
+        "artifact_type": "data_stage_evidence",
+        "producing_step": "record_data_stage_evidence",
+        "state": "generated",
+        "path": DATA_STAGE_EVIDENCE_PATH,
+        "metadata": {
+            "schema_version": "phase4.data_stage_evidence.v1",
+            "completion_mode": completion_mode,
+            "status": status,
+        },
+    }
+    merged_entries = _dedupe_artifact_entries([*artifact_entries, evidence_entry])
+    evidence = {
+        "schema_version": "phase4.data_stage_evidence.v1",
+        "created_at": _utc_now_iso(),
+        "workflow_id": "prepare_capstone_data",
+        "status": status,
+        "completion_mode": completion_mode,
+        "datasets": datasets,
+        "dvc": dvc_state,
+        "blocked_capabilities": blocked_capabilities,
+        "verification_results": verification_results,
+        "artifact_manifest": {"entries": merged_entries},
+    }
+    redacted_evidence = _redacted_evidence(evidence)
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    evidence_path.write_text(json.dumps(redacted_evidence, indent=2, sort_keys=True) + "\n")
+
+    lineage_artifacts_reported = any(
+        entry.get("artifact_type")
+        in {
+            "capstone_source_dataset",
+            "split_manifest",
+            "capstone_data_package",
+            "dvc_tracking_file",
+            "dvc_repo_metadata",
+            "capstone_data_remote",
+            "capstone_data_transfer",
+        }
+        for entry in merged_entries
+    )
+    verification_evidence = {
+        "path": DATA_STAGE_EVIDENCE_PATH,
+        "status": status,
+        "completion_mode": completion_mode,
+        "dataset_count": len(datasets),
+        "blocked_capabilities": blocked_capabilities,
+    }
+    return {
+        "success": True,
+        "status": status,
+        "evidence_path": DATA_STAGE_EVIDENCE_PATH,
+        "data_stage_evidence": redacted_evidence,
+        "missing_inputs": [] if status == "succeeded" else ["complete_data_stage_evidence"],
+        "next_actions": [
+            capability["reason"] for capability in blocked_capabilities if capability.get("reason")
+        ],
+        "verification_results": [
+            {
+                "check_name": "data_stage_evidence_artifact_reported",
+                "evidence_type": "observed",
+                "source_step": "record_data_stage_evidence",
+                "passed": True,
+                "evidence": json.dumps(_redacted_evidence(verification_evidence), sort_keys=True),
+            },
+            {
+                "check_name": "dataset_lineage_artifacts_reported",
+                "evidence_type": "observed",
+                "source_step": "record_data_stage_evidence",
+                "passed": lineage_artifacts_reported,
+                "evidence": json.dumps(
+                    {
+                        "artifact_count": len(merged_entries),
+                        "lineage_artifacts_reported": lineage_artifacts_reported,
+                    },
+                    sort_keys=True,
+                ),
+            },
+        ],
+        "artifact_manifest": {"entries": [evidence_entry]},
+    }
+
+
+def _data_stage_dataset_records(
+    detection: dict[str, Any],
+    split_result: dict[str, Any],
+) -> list[dict[str, Any]]:
+    split_by_dataset = {
+        split.get("dataset_id"): split
+        for split in split_result.get("split_manifests", [])
+        if isinstance(split, dict) and split.get("dataset_id")
+    }
+    datasets: list[dict[str, Any]] = []
+    for dataset in detection.get("datasets", []):
+        if not isinstance(dataset, dict):
+            continue
+        split = split_by_dataset.get(dataset.get("dataset_id"), {})
+        datasets.append(
+            {
+                "dataset_id": dataset.get("dataset_id"),
+                "status": dataset.get("status", "blocked"),
+                "source_path": dataset.get("source_path"),
+                "layout": dataset.get("layout"),
+                "missing_inputs": dataset.get("missing_inputs", []),
+                "next_actions": dataset.get("next_actions", []),
+                "class_count": dataset.get("class_count", 0),
+                "total_image_count": dataset.get("total_image_count", 0),
+                "split": {
+                    "strategy": split.get("split_strategy"),
+                    "seed": split.get("seed"),
+                    "test_size": split.get("test_size"),
+                    "train_count": split.get("train_count"),
+                    "test_count": split.get("test_count"),
+                    "per_class_counts": split.get("per_class_counts", {}),
+                    "split_manifest_path": split.get("split_manifest_path"),
+                    "materialized_train_path": split.get("materialized_train_path"),
+                    "materialized_test_path": split.get("materialized_test_path"),
+                },
+                "artifacts": [
+                    value
+                    for value in (
+                        split.get("split_manifest_path"),
+                        split.get("materialized_train_path"),
+                        split.get("materialized_test_path"),
+                    )
+                    if value
+                ],
+            }
+        )
+    return datasets
+
+
+def _data_stage_dvc_state(
+    completion_mode: str,
+    package_result: dict[str, Any],
+    remote_result: dict[str, Any],
+    transfer_result: dict[str, Any],
+) -> dict[str, Any]:
+    transfer = transfer_result.get("transfer") if isinstance(transfer_result, dict) else None
+    if not isinstance(transfer, dict):
+        transfer = {}
+    transfer_status = transfer_result.get("status", "missing")
+    if completion_mode == "local_ready" and transfer_status == "missing":
+        transfer_status = "deferred"
+    return {
+        "tracked_paths": package_result.get("tracked_package_paths", []),
+        "dvc_tracking_files": package_result.get("dvc_tracking_files", []),
+        "repo": package_result.get("dvc_repo", {}),
+        "remote": remote_result.get(
+            "remote",
+            {
+                "remote_name": "capstone",
+                "remote_type": "missing",
+                "redacted_remote_url": None,
+            },
+        ),
+        "remote_validation_status": remote_result.get("status", "missing"),
+        "transfer": {
+            "status": transfer_status,
+            "direction": transfer.get("direction"),
+            "remote": transfer.get("remote"),
+            "paths": transfer.get("paths", []),
+            "pushed": transfer_result.get("status") == "succeeded"
+            and transfer.get("direction") == "push",
+            "pulled": transfer_result.get("status") == "succeeded"
+            and transfer.get("direction") == "pull",
+        },
+    }
+
+
+def _data_stage_status(
+    completion_mode: str,
+    datasets: list[dict[str, Any]],
+    split_result: dict[str, Any],
+    package_result: dict[str, Any],
+    remote_result: dict[str, Any],
+    transfer_result: dict[str, Any],
+) -> str:
+    local_ready = (
+        len(datasets) == 2
+        and all(dataset.get("status") == "succeeded" for dataset in datasets)
+        and split_result.get("status") == "succeeded"
+        and package_result.get("status") == "succeeded"
+    )
+    if not local_ready:
+        return "blocked"
+    if completion_mode != "capstone_complete":
+        return "succeeded"
+    remote = remote_result.get("remote", {})
+    capstone_complete = (
+        remote_result.get("status") == "succeeded"
+        and remote.get("remote_type") == "s3"
+        and transfer_result.get("status") == "succeeded"
+    )
+    return "succeeded" if capstone_complete else "blocked"
+
+
+def _data_stage_blocked_capabilities(
+    completion_mode: str,
+    datasets: list[dict[str, Any]],
+    split_result: dict[str, Any],
+    package_result: dict[str, Any],
+    remote_result: dict[str, Any],
+    transfer_result: dict[str, Any],
+) -> list[dict[str, Any]]:
+    blocked: list[dict[str, Any]] = []
+    if len(datasets) != 2 or any(dataset.get("status") != "succeeded" for dataset in datasets):
+        blocked.append(
+            {
+                "stage": "data",
+                "capability": "two_supported_capstone_datasets",
+                "reason": "Exactly two supported dataset entries are required.",
+                "later_phase_pointer": "Phase 4 dataset detection rerun",
+            }
+        )
+    if split_result.get("status") != "succeeded":
+        blocked.append(
+            {
+                "stage": "data",
+                "capability": "split_evidence_recorded",
+                "reason": "Split manifest or existing split evidence is incomplete.",
+                "later_phase_pointer": "Phase 4 split manifest rerun",
+            }
+        )
+    if package_result.get("status") != "succeeded":
+        blocked.append(
+            {
+                "stage": "data",
+                "capability": "capstone_data_package_tracked",
+                "reason": "DVC tracking evidence for the capstone data package is incomplete.",
+                "later_phase_pointer": "Phase 4 DVC tracking rerun",
+            }
+        )
+    remote = remote_result.get("remote", {})
+    if completion_mode == "local_ready":
+        blocked.append(
+            {
+                "stage": "data",
+                "capability": "s3_transfer_completed",
+                "reason": "S3 transfer is deferred for local_ready and still required for capstone completeness.",
+                "later_phase_pointer": "Phase 4 capstone_complete rerun",
+            }
+        )
+        return blocked
+    if remote_result.get("status") != "succeeded" or remote.get("remote_type") != "s3":
+        blocked.append(
+            {
+                "stage": "data",
+                "capability": "s3_remote_validated",
+                "reason": "Capstone-complete data stage requires validated S3 DVC remote evidence.",
+                "later_phase_pointer": "Phase 4 S3 remote validation rerun",
+            }
+        )
+    if transfer_result.get("status") != "succeeded":
+        blocked.append(
+            {
+                "stage": "data",
+                "capability": "s3_transfer_completed",
+                "reason": "Capstone-complete data stage requires approved successful S3 transfer evidence.",
+                "later_phase_pointer": "Phase 4 DVC push/pull rerun",
+            }
+        )
+    return blocked
+
+
+def _artifact_entries_from_manifest_payload(artifact_manifest: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(artifact_manifest, dict):
+        return []
+    raw_entries = artifact_manifest.get("entries", [])
+    if isinstance(raw_entries, dict):
+        raw_entries = [raw_entries]
+    return [entry for entry in raw_entries if isinstance(entry, dict)]
+
+
+def _dedupe_artifact_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[tuple[Any, Any, Any, Any]] = set()
+    for entry in entries:
+        key = (
+            entry.get("artifact_type"),
+            entry.get("producing_step"),
+            entry.get("path"),
+            entry.get("uri"),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(entry)
+    return deduped
+
+
+def _utc_now_iso() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _load_capstone_data_stage_evidence(project_path: Path) -> dict[str, Any]:
+    evidence_path = project_path / DATA_STAGE_EVIDENCE_PATH
+    if not evidence_path.exists():
+        return {
+            "status": "missing",
+            "stage_status": "blocked",
+            "completed": False,
+            "evidence_artifact": DATA_STAGE_EVIDENCE_PATH,
+            "blocked_capabilities": [
+                {
+                    "stage": "data",
+                    "capability": "data_stage_evidence_artifact_reported",
+                    "reason": (
+                        "Run prepare_capstone_data before claiming capstone data-stage "
+                        "completion."
+                    ),
+                    "later_phase_pointer": "Phase 4 data-stage evidence issue",
+                }
+            ],
+            "artifact_entry": None,
+        }
+    try:
+        evidence = json.loads(evidence_path.read_text())
+    except json.JSONDecodeError:
+        return {
+            "status": "blocked",
+            "stage_status": "blocked",
+            "completed": False,
+            "evidence_artifact": DATA_STAGE_EVIDENCE_PATH,
+            "blocked_capabilities": [
+                {
+                    "stage": "data",
+                    "capability": "data_stage_evidence_parseable",
+                    "reason": "Data-stage evidence artifact exists but is not valid JSON.",
+                    "later_phase_pointer": "Phase 4 data-stage evidence rerun",
+                }
+            ],
+            "artifact_entry": None,
+        }
+    blocked_capabilities = evidence.get("blocked_capabilities", [])
+    if not isinstance(blocked_capabilities, list):
+        blocked_capabilities = []
+    status = evidence.get("status", "blocked")
+    completion_mode = evidence.get("completion_mode")
+    completed = status == "succeeded" and completion_mode in {
+        "local_ready",
+        "capstone_complete",
+    }
+    return {
+        "status": "completed" if completed else "blocked",
+        "raw_status": status,
+        "stage_status": "completed" if completed else "blocked",
+        "completed": completed,
+        "completion_mode": completion_mode,
+        "evidence_artifact": DATA_STAGE_EVIDENCE_PATH,
+        "dataset_count": len(evidence.get("datasets", []))
+        if isinstance(evidence.get("datasets"), list)
+        else 0,
+        "blocked_capabilities": blocked_capabilities,
+        "artifact_entry": {
+            "artifact_type": "data_stage_evidence",
+            "producing_step": "record_capstone_orchestrator_skeleton",
+            "state": "validated",
+            "path": DATA_STAGE_EVIDENCE_PATH,
+            "checksum": _sha256_file(evidence_path),
+            "metadata": {
+                "source_workflow_id": "prepare_capstone_data",
+                "data_stage_status": status,
+                "completion_mode": completion_mode,
+            },
+        },
+    }
+
+
 def record_capstone_orchestrator_skeleton(
     project_path: str,
     declared_stages: list[str] | tuple[str, ...] | None = None,
@@ -8352,6 +8835,7 @@ def record_capstone_orchestrator_skeleton(
     declared = list(declared_stages or DEFAULT_CAPSTONE_STAGES)
     implemented = list(implemented_subworkflows or DEFAULT_CAPSTONE_IMPLEMENTED_SUBWORKFLOWS)
     blocked_workflows = list(blocked_subworkflows or DEFAULT_CAPSTONE_BLOCKED_SUBWORKFLOWS)
+    data_stage = _load_capstone_data_stage_evidence(path)
     blocked_stages = [
         {
             "stage": "train",
@@ -8364,6 +8848,7 @@ def record_capstone_orchestrator_skeleton(
         }
         for workflow_id in blocked_workflows
     ]
+    blocked_stages.extend(data_stage["blocked_capabilities"])
     implemented_records = [
         {
             "workflow_id": workflow_id,
@@ -8375,11 +8860,16 @@ def record_capstone_orchestrator_skeleton(
     stage_statuses = [
         {
             "stage": stage,
-            "status": "available" if stage in {"setup", "train", "deploy"} else "deferred",
+            "status": data_stage["stage_status"]
+            if stage == "data"
+            else "available"
+            if stage in {"setup", "train", "deploy"}
+            else "deferred",
             "completion_rule": "contract-derived",
         }
         for stage in declared
     ]
+    completed_stages = ["data"] if data_stage["completed"] else []
     selected_model_artifact = (
         {"path": selected_model_artifact_path, "state": "available"}
         if selected_model_artifact_path
@@ -8389,6 +8879,7 @@ def record_capstone_orchestrator_skeleton(
         {"endpoint_url": endpoint_url, "state": "available"} if endpoint_url else None
     )
     next_actions = [
+        "Run prepare_capstone_data and require its durable data-stage evidence before downstream capstone stages.",
         "Run setup_pipeline and require its SuccessContract to succeed before marking setup complete.",
         "Run train_and_track with explicit bounded controls and model-selection inputs.",
         "Add train_until_better before claiming iterative improvement stage completion.",
@@ -8409,20 +8900,28 @@ def record_capstone_orchestrator_skeleton(
             "deferred_capability_count": len(DEFAULT_CAPSTONE_DEFERRED_CAPABILITIES),
         },
     }
+    artifact_entries = [artifact_entry]
+    if data_stage["artifact_entry"] is not None:
+        artifact_entries.append(data_stage["artifact_entry"])
     plan = {
         "workflow_id": "build_capstone_pipeline",
         "name": "Capstone Orchestrator",
         "status": "blocked",
         "declared_stages": declared,
         "stage_statuses": stage_statuses,
-        "completed_stages": [],
+        "completed_stages": completed_stages,
         "blocked_stages": blocked_stages,
+        "data_stage": {
+            key: value
+            for key, value in data_stage.items()
+            if key not in {"artifact_entry", "blocked_capabilities"}
+        },
         "deferred_capabilities": list(DEFAULT_CAPSTONE_DEFERRED_CAPABILITIES),
         "deferred_stages": list(DEFAULT_CAPSTONE_DEFERRED_CAPABILITIES),
         "implemented_subworkflows": implemented_records,
         "selected_model_artifact": selected_model_artifact,
         "endpoint_evidence": endpoint_evidence,
-        "artifact_manifest": {"entries": [artifact_entry]},
+        "artifact_manifest": {"entries": artifact_entries},
         "next_actions": next_actions,
     }
     plan_path.write_text(json.dumps(plan, indent=2, sort_keys=True))
@@ -10566,6 +11065,11 @@ async def list_tools() -> list[Tool]:
             inputSchema=PullCapstoneDataInput.model_json_schema(),
         ),
         Tool(
+            name="record_capstone_data_stage_evidence",
+            description="Write durable Phase 4 data-stage evidence for capstone handoff",
+            inputSchema=RecordCapstoneDataStageEvidenceInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -11011,6 +11515,21 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 approval_record=input_data.approval_record,
                 paths=input_data.paths,
                 source_step=input_data.source_step,
+            )
+
+        elif name == "record_capstone_data_stage_evidence":
+            input_data = RecordCapstoneDataStageEvidenceInput(**arguments)
+            result = record_capstone_data_stage_evidence(
+                project_path=input_data.project_path,
+                workflow_inputs=input_data.workflow_inputs,
+                capstone_data_detection=input_data.capstone_data_detection,
+                capstone_split_manifest_result=input_data.capstone_split_manifest_result,
+                capstone_data_package_result=input_data.capstone_data_package_result,
+                capstone_data_remote_result=input_data.capstone_data_remote_result,
+                capstone_data_push_result=input_data.capstone_data_push_result,
+                capstone_data_pull_result=input_data.capstone_data_pull_result,
+                verification_results=input_data.verification_results,
+                artifact_manifest=input_data.artifact_manifest,
             )
 
         # Docker Tools

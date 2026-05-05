@@ -1060,6 +1060,186 @@ def test_record_capstone_orchestrator_skeleton_records_deferred_capabilities(tmp
     assert (tmp_path / manifest_entry["path"]).exists()
 
 
+def test_record_capstone_data_stage_evidence_writes_durable_redacted_artifact(tmp_path):
+    evidence_result = mcp_mlops_tools.record_capstone_data_stage_evidence(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "local_ready"},
+        capstone_data_detection={
+            "status": "succeeded",
+            "completion_mode": "local_ready",
+            "datasets": [
+                {
+                    "dataset_id": "dataset_1",
+                    "status": "succeeded",
+                    "source_path": str(tmp_path / "dataset_one"),
+                    "layout": "class_folders",
+                    "missing_inputs": [],
+                    "next_actions": [],
+                    "class_count": 2,
+                    "total_image_count": 4,
+                },
+                {
+                    "dataset_id": "dataset_2",
+                    "status": "succeeded",
+                    "source_path": str(tmp_path / "dataset_two"),
+                    "layout": "class_folders",
+                    "missing_inputs": [],
+                    "next_actions": [],
+                    "class_count": 2,
+                    "total_image_count": 4,
+                },
+            ],
+        },
+        capstone_split_manifest_result={
+            "status": "succeeded",
+            "split_manifests": [
+                {
+                    "dataset_id": "dataset_1",
+                    "split_strategy": "manifest",
+                    "seed": 42,
+                    "test_size": 0.2,
+                    "train_count": 2,
+                    "test_count": 2,
+                    "split_manifest_path": "data/capstone/dataset_1/split_manifest.json",
+                },
+                {
+                    "dataset_id": "dataset_2",
+                    "split_strategy": "manifest",
+                    "seed": 42,
+                    "test_size": 0.2,
+                    "train_count": 2,
+                    "test_count": 2,
+                    "split_manifest_path": "data/capstone/dataset_2/split_manifest.json",
+                },
+            ],
+        },
+        capstone_data_package_result={
+            "status": "succeeded",
+            "dvc_repo": {"status": "initialized", "dvc_config_path": ".dvc/config"},
+            "tracked_package_paths": ["data/capstone/dataset_1", "data/capstone/dataset_2"],
+            "dvc_tracking_files": [
+                "data/capstone/dataset_1.dvc",
+                "data/capstone/dataset_2.dvc",
+            ],
+        },
+        capstone_data_remote_result={
+            "status": "succeeded",
+            "remote": {
+                "remote_name": "capstone",
+                "remote_type": "s3",
+                "redacted_remote_url": "s3://se***et/te***-a",
+            },
+        },
+        capstone_data_push_result={
+            "status": "succeeded",
+            "transfer": {
+                "direction": "push",
+                "remote": {
+                    "remote_name": "capstone",
+                    "remote_type": "s3",
+                    "redacted_remote_url": "s3://se***et/te***-a",
+                },
+                "paths": ["data/capstone/dataset_1", "data/capstone/dataset_2"],
+            },
+        },
+        verification_results=[
+            {
+                "check_name": "two_dataset_paths_provided",
+                "evidence_type": "observed",
+                "source_step": "prepare_capstone_data_contract",
+                "passed": True,
+                "evidence": "{}",
+            }
+        ],
+        artifact_manifest={
+            "entries": [
+                {
+                    "artifact_type": "split_manifest",
+                    "producing_step": "generate_split_manifests",
+                    "state": "generated",
+                    "path": "data/capstone/dataset_1/split_manifest.json",
+                }
+            ]
+        },
+    )
+
+    evidence_path = tmp_path / ".auto_mlops" / "capstone" / "data_stage_evidence.json"
+    evidence = json.loads(evidence_path.read_text())
+    assert evidence_result["status"] == "succeeded"
+    assert evidence["schema_version"] == "phase4.data_stage_evidence.v1"
+    assert evidence["workflow_id"] == "prepare_capstone_data"
+    assert evidence["completion_mode"] == "local_ready"
+    assert [dataset["status"] for dataset in evidence["datasets"]] == [
+        "succeeded",
+        "succeeded",
+    ]
+    assert evidence["dvc"]["remote"]["remote_type"] == "s3"
+    assert "secret" not in json.dumps(evidence, sort_keys=True)
+    assert {
+        (entry["artifact_type"], entry["path"])
+        for entry in evidence["artifact_manifest"]["entries"]
+    } >= {
+        ("data_stage_evidence", ".auto_mlops/capstone/data_stage_evidence.json"),
+        ("split_manifest", "data/capstone/dataset_1/split_manifest.json"),
+    }
+    verification_by_name = {
+        item["check_name"]: item for item in evidence_result["verification_results"]
+    }
+    assert verification_by_name["data_stage_evidence_artifact_reported"]["passed"] is True
+    assert verification_by_name["dataset_lineage_artifacts_reported"]["passed"] is True
+
+
+def test_record_capstone_orchestrator_skeleton_references_data_stage_evidence(tmp_path):
+    evidence_dir = tmp_path / ".auto_mlops" / "capstone"
+    evidence_dir.mkdir(parents=True)
+    evidence_path = evidence_dir / "data_stage_evidence.json"
+    evidence_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "phase4.data_stage_evidence.v1",
+                "workflow_id": "prepare_capstone_data",
+                "status": "succeeded",
+                "completion_mode": "local_ready",
+                "datasets": [
+                    {"dataset_id": "dataset_1", "status": "succeeded"},
+                    {"dataset_id": "dataset_2", "status": "succeeded"},
+                ],
+                "dvc": {
+                    "remote": {"remote_type": "missing"},
+                    "transfer": {"status": "deferred"},
+                },
+                "blocked_capabilities": [
+                    {
+                        "stage": "data",
+                        "capability": "s3_transfer_completed",
+                        "reason": "S3 transfer evidence is missing for capstone completion.",
+                        "later_phase_pointer": "Phase 4 capstone_complete rerun",
+                    }
+                ],
+                "verification_results": [],
+                "artifact_manifest": {"entries": []},
+            },
+            sort_keys=True,
+        )
+    )
+
+    result = mcp_mlops_tools.record_capstone_orchestrator_skeleton(project_path=str(tmp_path))
+
+    assert "data" in result["completed_stages"]
+    assert result["data_stage"]["status"] == "completed"
+    assert result["data_stage"]["evidence_artifact"] == (
+        ".auto_mlops/capstone/data_stage_evidence.json"
+    )
+    assert any(
+        entry["artifact_type"] == "data_stage_evidence"
+        for entry in result["artifact_manifest"]["entries"]
+    )
+    assert any(
+        blocked["capability"] == "s3_transfer_completed"
+        for blocked in result["blocked_stages"]
+    )
+
+
 def test_create_litserve_api_generates_tabular_server_for_pickle_artifact(tmp_path):
     outputs_dir = tmp_path / "outputs"
     outputs_dir.mkdir()
