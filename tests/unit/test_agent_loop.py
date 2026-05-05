@@ -1368,6 +1368,37 @@ def test_resolve_capstone_container_upstream_capstone_complete_requires_capstone
     assert "SECRET_TOKEN_VALUE" not in json.dumps(result, sort_keys=True)
 
 
+def test_resolve_capstone_container_upstream_does_not_infer_from_prose_summary(tmp_path):
+    _write_capstone_data_stage_evidence(tmp_path)
+    training_evidence_path = tmp_path / ".auto_mlops" / "capstone" / "training_evidence.json"
+    training_evidence_path.write_text(
+        json.dumps(
+            {
+                "workflow_id": "train_and_track",
+                "status": "succeeded",
+                "summary": "MLflow run exists and the best model is checkpoints/best.ckpt.",
+                "latest_run": "run-1",
+            },
+            sort_keys=True,
+        )
+    )
+
+    result = mcp_mlops_tools.resolve_capstone_container_upstream_evidence(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+    )
+
+    assert result["status"] == "blocked"
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["data_stage_capstone_complete_verified"]["passed"] is True
+    assert verification_by_name["mlflow_best_artifact_verified"]["passed"] is False
+    assert verification_by_name["training_lineage_verified"]["passed"] is False
+    assert result["upstream_evidence"]["mlflow_best_artifact"]["status"] == "blocked"
+    assert result["upstream_evidence"]["training_lineage"]["status"] == "blocked"
+
+
 def test_resolve_capstone_container_upstream_capstone_complete_accepts_structured_training_evidence(
     tmp_path,
 ):
