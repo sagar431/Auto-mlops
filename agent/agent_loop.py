@@ -4,6 +4,7 @@ Graph-based execution loop with self-improvement capability.
 Orchestrates: Perception -> Decision -> Action -> (Improve if needed) -> Summarize
 """
 
+import re
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, replace
@@ -275,6 +276,7 @@ class AgentLoop:
         self.next_step_id: str = "0"
         self.final_output: str = ""
         self.workflow_selection = None
+        self._resolved_workflow_inputs: dict[str, Any] = {}
 
     async def _select_registry_workflow(self) -> bool:
         """Select a registry workflow before prompt-authored planning."""
@@ -285,7 +287,9 @@ class AgentLoop:
         selection = self._add_runtime_input_requirements(selection)
         self.workflow_selection = selection
         self.ctx.globals["workflow_selection"] = selection
-        self.ctx.globals["workflow_inputs"] = {"project_path": self.ctx.project_path}
+        self.ctx.globals["workflow_inputs"] = self._resolved_workflow_inputs or {
+            "project_path": self.ctx.project_path
+        }
 
         await self._emit(
             "workflow_selection",
@@ -370,7 +374,12 @@ class AgentLoop:
         return setup_requested and additional_phase_requested and not explicit_litserve_gpu
 
     def _is_executable_registry_workflow(self, workflow_id: str | None) -> bool:
-        return workflow_id in {"setup_pipeline", "detect_training_project", "deploy_litserve_gpu"}
+        return workflow_id in {
+            "setup_pipeline",
+            "detect_training_project",
+            "train_and_track",
+            "deploy_litserve_gpu",
+        }
 
     def _first_blocking_registry_approval(self):
         """Return the first selected registry approval gate that lacks approval."""
@@ -399,6 +408,14 @@ class AgentLoop:
         """Return a deterministic question for missing workflow inputs."""
         if "project_path" in missing_inputs:
             return "What project path should I set up MLOps for?"
+        if any(
+            missing_input in missing_inputs
+            for missing_input in ("timeout_seconds", "max_epochs", "device", "data_subset")
+        ):
+            return (
+                "What timeout, max epochs, device, and dataset subset should I use "
+                "for bounded training?"
+            )
         return "Which workflow should I run?"
 
     async def _project_registry_workflow(self, workflow_id: str) -> tuple[str, ...]:
@@ -434,14 +451,31 @@ class AgentLoop:
 
         template = self.workflow_registry.get(selection.workflow_id)
         missing_inputs = list(selection.missing_inputs)
+        resolved_inputs: dict[str, Any] = {"project_path": self.ctx.project_path}
+        training_controls = (
+            self._bounded_training_controls_from_query()
+            if selection.workflow_id == "train_and_track"
+            else {}
+        )
+        resolved_inputs.update(training_controls)
         for workflow_input in template.required_inputs:
             if workflow_input.required and workflow_input.name == "project_path":
                 if not self.ctx.project_path and "project_path" not in missing_inputs:
                     missing_inputs.append("project_path")
+                continue
+            if (
+                workflow_input.required
+                and selection.workflow_id == "train_and_track"
+                and workflow_input.name not in resolved_inputs
+                and workflow_input.name not in missing_inputs
+            ):
+                missing_inputs.append(workflow_input.name)
 
         if not missing_inputs:
+            self._resolved_workflow_inputs = resolved_inputs
             return selection
 
+        self._resolved_workflow_inputs = resolved_inputs
         return replace(
             selection,
             status=WorkflowStatus.BLOCKED,
@@ -451,6 +485,38 @@ class AgentLoop:
                 f"{', '.join(missing_inputs)}."
             ),
         )
+
+    def _bounded_training_controls_from_query(self) -> dict[str, Any]:
+        """Extract explicit bounded training controls from the user query."""
+        normalized_query = self.query.casefold()
+        controls: dict[str, Any] = {}
+
+        timeout_match = re.search(
+            r"(?:timeout|timeout_seconds)\s*[=:]?\s*(\d+)", normalized_query
+        )
+        if timeout_match:
+            controls["timeout_seconds"] = int(timeout_match.group(1))
+
+        max_epochs_match = re.search(
+            r"(?:max[_\s-]?epochs?|epochs?)\s*[=:]?\s*(\d+)", normalized_query
+        )
+        if max_epochs_match:
+            controls["max_epochs"] = int(max_epochs_match.group(1))
+
+        device_match = re.search(r"device\s*[=:]?\s*(cpu|cuda|mps)", normalized_query)
+        if device_match:
+            controls["device"] = device_match.group(1)
+        elif re.search(r"\bcpu\b", normalized_query):
+            controls["device"] = "cpu"
+
+        subset_match = re.search(
+            r"(?:data[_\s-]?subset|subset|dataset[_\s-]?size)\s*[=:]?\s*(\d+)",
+            normalized_query,
+        )
+        if subset_match:
+            controls["data_subset"] = int(subset_match.group(1))
+
+        return controls
 
     def _should_block_for_workflow_selection(self, selection: WorkflowSelection) -> bool:
         """Block registry-like requests that did not yield an executable selection."""
@@ -786,7 +852,7 @@ class AgentLoop:
             # Update result
             self.ctx.update_step_result(self.next_step_id, result)
             self._capture_registry_workflow_evidence(self.next_step_id, result)
-            if self._registry_step_recorded_failed_contract_evidence(self.next_step_id):
+            if self._registry_step_blocks_remaining_execution(self.next_step_id):
                 self._finalize_registry_workflow_contract()
                 return
 
@@ -1075,6 +1141,11 @@ class AgentLoop:
                 self.ctx.globals["selected_model_artifact_path"] = selected_model_path
             if payload.get("model_type"):
                 self.ctx.globals["selected_model_type"] = payload["model_type"]
+        elif (
+            self.workflow_selection.workflow_id == "train_and_track"
+            and step_id == "detect_training_project"
+        ):
+            self.ctx.globals["training_detection"] = payload
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1090,6 +1161,25 @@ class AgentLoop:
     ) -> dict[str, Any]:
         runtime_args = dict(args)
         if (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "train_and_track"
+            and step_id == "run_bounded_training"
+        ):
+            training_detection = self.ctx.globals.get("training_detection", {})
+            workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+            if isinstance(training_detection, dict):
+                for source_key, target_key in (
+                    ("training_entrypoint", "training_entrypoint"),
+                    ("hydra_config_path", "hydra_config_path"),
+                    ("hydra_config_name", "hydra_config_name"),
+                ):
+                    if training_detection.get(source_key):
+                        runtime_args[target_key] = training_detection[source_key]
+            if isinstance(workflow_inputs, dict):
+                for key in ("timeout_seconds", "max_epochs", "device", "data_subset"):
+                    if key in workflow_inputs:
+                        runtime_args[key] = workflow_inputs[key]
+        elif (
             self.workflow_selection is not None
             and self.workflow_selection.workflow_id == "deploy_litserve_gpu"
             and step_id == "generate_litserve_api"
@@ -1169,6 +1259,28 @@ class AgentLoop:
             and result.source_step == step_id
             and not result.passed
             for result in tuple(self.ctx.globals.get("verification_results", ()))
+        )
+
+    def _registry_step_blocks_remaining_execution(self, step_id: str) -> bool:
+        """Return whether a step's own contract evidence blocks later workflow steps."""
+        if self._registry_step_recorded_failed_contract_evidence(step_id):
+            return True
+        if (
+            self.workflow_selection is None
+            or self.workflow_selection.workflow_id != "train_and_track"
+            or step_id != "detect_training_project"
+        ):
+            return False
+
+        contract_status = self.workflow_registry.validate_success_contract(
+            self.workflow_selection.workflow_id,
+            verification_results=tuple(self.ctx.globals.get("verification_results", ())),
+            artifact_manifest=self.ctx.globals.get("artifact_manifest"),
+            rollback_plan=self.ctx.globals.get("rollback_plan"),
+        )
+        return any(
+            failure.source_step == step_id
+            for failure in (*contract_status.missing_evidence, *contract_status.failed_checks)
         )
 
     def _verification_results_from_step_result(

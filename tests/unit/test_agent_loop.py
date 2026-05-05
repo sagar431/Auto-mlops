@@ -212,6 +212,11 @@ def _write_session_06_training_project(project_path):
     )
 
 
+def _write_bounded_training_fixture(project_path, script_body):
+    _write_session_06_training_project(project_path)
+    (project_path / "src" / "train.py").write_text(script_body)
+
+
 def test_detect_training_project_recognizes_session_06_shape(tmp_path):
     _write_session_06_training_project(tmp_path)
 
@@ -269,6 +274,128 @@ def test_detect_training_project_blocks_ambiguous_entrypoints(tmp_path):
     assert "training_entrypoint_detected" not in {
         item["check_name"] for item in result["verification_results"]
     }
+
+
+def test_run_bounded_training_captures_metrics_logs_duration_and_artifacts(tmp_path):
+    _write_bounded_training_fixture(
+        tmp_path,
+        "import json\n"
+        "from pathlib import Path\n"
+        "Path('checkpoints').mkdir(exist_ok=True)\n"
+        "Path('checkpoints/model.ckpt').write_text('checkpoint')\n"
+        "print(json.dumps({'metrics': {'accuracy': 0.91, 'loss': 0.12}}))\n",
+    )
+
+    result = mcp_mlops_tools.run_bounded_training(
+        project_path=str(tmp_path),
+        training_entrypoint="src/train.py",
+        hydra_config_path="configs",
+        hydra_config_name="train",
+        timeout_seconds=10,
+        max_epochs=1,
+        device="cpu",
+        data_subset=4,
+        hydra_overrides=["trainer.fast_dev_run=true"],
+        target_metric="accuracy",
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "succeeded"
+    assert result["exit_code"] == 0
+    assert result["metrics"]["accuracy"] == 0.91
+    assert result["duration_seconds"] >= 0
+    assert result["command"][0].endswith("python")
+    assert "trainer.max_epochs=1" in result["effective_overrides"]
+    assert "device=cpu" in result["effective_overrides"]
+    assert "data.subset=4" in result["effective_overrides"]
+    assert result["log_path"].endswith("training.log")
+    assert result["config_snapshot_path"].endswith("config_snapshot.yaml")
+    assert "checkpoints/model.ckpt" in result["checkpoint_artifact_paths"]
+
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["bounded_training_controls_present"]["passed"] is True
+    assert verification_by_name["bounded_training_command_completed"]["passed"] is True
+    assert verification_by_name["training_metric_captured"]["passed"] is True
+    assert verification_by_name["training_artifact_captured"]["passed"] is True
+    assert verification_by_name["training_run_evidence_captured"]["passed"] is True
+    assert {
+        (entry["artifact_type"], entry["state"], entry["path"])
+        for entry in result["artifact_manifest"]["entries"]
+    }.issuperset(
+        {
+            ("training_log", "generated", result["log_path"]),
+            ("config_snapshot", "generated", result["config_snapshot_path"]),
+            ("checkpoint_or_model_artifact", "generated", "checkpoints/model.ckpt"),
+        }
+    )
+
+
+def test_run_bounded_training_records_nonzero_exit_as_failed(tmp_path):
+    _write_bounded_training_fixture(
+        tmp_path,
+        "import sys\n"
+        "print('about to fail')\n"
+        "print('boom', file=sys.stderr)\n"
+        "raise SystemExit(3)\n",
+    )
+
+    result = mcp_mlops_tools.run_bounded_training(
+        project_path=str(tmp_path),
+        training_entrypoint="src/train.py",
+        hydra_config_path="configs",
+        hydra_config_name="train",
+        timeout_seconds=10,
+        max_epochs=1,
+        device="cpu",
+        data_subset=4,
+        hydra_overrides=[],
+        target_metric="accuracy",
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "failed"
+    assert result["exit_code"] == 3
+    assert "non-zero" in result["failure_reason"]
+    assert "about to fail" in result["stdout_summary"]
+    assert "boom" in result["stderr_summary"]
+    assert result["next_actions"]
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["bounded_training_command_completed"]["passed"] is False
+
+
+def test_run_bounded_training_zero_exit_without_metric_or_artifact_does_not_succeed(tmp_path):
+    _write_bounded_training_fixture(
+        tmp_path,
+        "print('finished without metric or artifact')\n",
+    )
+
+    result = mcp_mlops_tools.run_bounded_training(
+        project_path=str(tmp_path),
+        training_entrypoint="src/train.py",
+        hydra_config_path="configs",
+        hydra_config_name="train",
+        timeout_seconds=10,
+        max_epochs=1,
+        device="cpu",
+        data_subset=4,
+        hydra_overrides=[],
+        target_metric="accuracy",
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "failed"
+    assert result["exit_code"] == 0
+    assert "target metric" in result["failure_reason"]
+    assert "checkpoint" in result["failure_reason"]
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["training_metric_captured"]["passed"] is False
+    assert verification_by_name["training_artifact_captured"]["passed"] is False
 
 
 # ============================================================================
@@ -959,7 +1086,7 @@ class TestAgentLoopRun:
             patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
         ):
             result = await mock_agent.run(
-                "Train this project",
+                "Detect this training project",
                 str(project_path),
             )
 
@@ -1028,6 +1155,130 @@ class TestAgentLoopRun:
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
         mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_train_and_track_blocks_missing_bounded_controls(
+        self, mock_agent, tmp_path
+    ):
+        """Test train_and_track blocks before tools when bounded controls are missing."""
+        _write_session_06_training_project(tmp_path)
+
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("perception should not run while training is blocked"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+        ):
+            result = await mock_agent.run("Train this project", str(tmp_path))
+
+        assert mock_agent.workflow_selection.workflow_id == "train_and_track"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.BLOCKED
+        assert set(mock_agent.workflow_selection.missing_inputs) == {
+            "timeout_seconds",
+            "max_epochs",
+            "device",
+            "data_subset",
+        }
+        assert "missing_inputs" in result
+        assert "timeout_seconds" in result
+        assert mock_agent.ctx.get_pending_steps() == []
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+        mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_train_and_track_blocks_missing_detection_evidence_before_training(
+        self, mock_agent, tmp_path
+    ):
+        """Test train_and_track stops after unsupported detection evidence."""
+        project_path = tmp_path / "incomplete-training-project"
+        project_path.mkdir()
+        (project_path / "pyproject.toml").write_text("[project]\ndependencies = ['torch']\n")
+        executed_step_ids = []
+
+        async def execute_registry_step(step_id, tool, args, ctx, tools_module):
+            executed_step_ids.append(step_id)
+            if step_id == "detect_training_project":
+                result = mcp_mlops_tools.detect_training_project(str(project_path))
+                return True, {
+                    "success": True,
+                    "result": result,
+                    "step_id": step_id,
+                    "tool": tool,
+                }
+            raise AssertionError(f"training executed without detection evidence: {step_id}")
+
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("registry training must skip perception"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch(
+                "agent.agent_loop.execute_step",
+                new_callable=AsyncMock,
+                side_effect=execute_registry_step,
+            ),
+        ):
+            result = await mock_agent.run(
+                "Train this project timeout 30 max epochs 1 device cpu subset 8",
+                str(project_path),
+            )
+
+        assert executed_step_ids == ["detect_training_project"]
+        assert mock_agent.workflow_selection.workflow_id == "train_and_track"
+        assert mock_agent.status == "paused"
+        assert "contract_status: blocked" in result
+        assert "training_entrypoint_detected" in result
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_train_and_track_succeeds_from_bounded_training_evidence(
+        self, mock_agent, tmp_path
+    ):
+        """Test train_and_track completes when detection and bounded training evidence exist."""
+        _write_bounded_training_fixture(
+            tmp_path,
+            "# config_path='../configs', config_name='train.yaml'\n"
+            "import json\n"
+            "from pathlib import Path\n"
+            "Path('checkpoints').mkdir(exist_ok=True)\n"
+            "Path('checkpoints/model.ckpt').write_text('checkpoint')\n"
+            "print(json.dumps({'metrics': {'accuracy': 0.93}}))\n",
+        )
+
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("registry training must skip perception"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+        ):
+            result = await mock_agent.run(
+                "Train this project timeout 30 max epochs 1 device cpu subset 8",
+                str(tmp_path),
+            )
+
+        completed_tool_steps = [
+            step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
+        ]
+        assert mock_agent.workflow_selection.workflow_id == "train_and_track"
+        assert completed_tool_steps == ["detect_training_project", "run_bounded_training"]
+        assert mock_agent.status == "success"
+        assert "contract_status: succeeded" in result
+        assert "accuracy" in result
+        assert "checkpoints/model.ckpt" in result
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_run_litserve_gpu_succeeds_from_observed_runtime_evidence(

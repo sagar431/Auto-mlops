@@ -385,6 +385,23 @@ class DetectTrainingProjectInput(BaseModel):
     project_path: str = Field(..., description="Path to the training project")
 
 
+class RunBoundedTrainingInput(BaseModel):
+    """Run a detected training entrypoint with explicit bounded controls."""
+
+    project_path: str = Field(..., description="Path to the detected training project")
+    training_entrypoint: str = Field(..., description="Detected training script path")
+    hydra_config_path: str | None = Field(default=None, description="Hydra config root path")
+    hydra_config_name: str | None = Field(default=None, description="Hydra config name")
+    timeout_seconds: int = Field(..., description="Maximum training command duration")
+    max_epochs: int = Field(..., description="Maximum epochs or equivalent control")
+    device: str = Field(..., description="Training device control")
+    data_subset: int = Field(..., description="Dataset subset or size control")
+    hydra_overrides: list[str] | None = Field(
+        default=None, description="Additional explicit Hydra overrides"
+    )
+    target_metric: str = Field(default="accuracy", description="Required metric for success")
+
+
 # --- Data Quality Tools ---
 
 
@@ -2680,6 +2697,329 @@ def _training_detection_artifact_entries(
     for artifact_candidate in checkpoint_artifact_candidates:
         add("checkpoint_or_model_artifact", artifact_candidate)
     return entries
+
+
+def run_bounded_training(
+    project_path: str,
+    training_entrypoint: str,
+    hydra_config_path: str | None,
+    hydra_config_name: str | None,
+    timeout_seconds: int,
+    max_epochs: int,
+    device: str,
+    data_subset: int,
+    hydra_overrides: list[str] | None = None,
+    target_metric: str = "accuracy",
+) -> dict[str, Any]:
+    """Run a detected training entrypoint with bounded controls and capture evidence."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+    if not path.is_dir():
+        return {"success": False, "error": f"Project path {project_path} is not a directory"}
+
+    missing_controls = [
+        name
+        for name, value in (
+            ("timeout_seconds", timeout_seconds),
+            ("max_epochs", max_epochs),
+            ("device", device),
+            ("data_subset", data_subset),
+        )
+        if value in (None, "")
+    ]
+    if missing_controls:
+        return _bounded_training_blocked_result(
+            missing_controls=missing_controls,
+            target_metric=target_metric,
+        )
+
+    if not (path / training_entrypoint).is_file():
+        return _bounded_training_blocked_result(
+            missing_controls=["training_entrypoint"],
+            target_metric=target_metric,
+        )
+
+    run_dir = path / ".auto_mlops" / "training" / f"run-{int(time.time() * 1000)}"
+    log_path = run_dir / "training.log"
+    config_snapshot_path = run_dir / "config_snapshot.yaml"
+    started_at = time.time()
+    run_dir.mkdir(parents=True, exist_ok=True)
+    effective_overrides = list(hydra_overrides or [])
+    effective_overrides.extend(
+        [
+            f"trainer.max_epochs={max_epochs}",
+            f"device={device}",
+            f"data.subset={data_subset}",
+        ]
+    )
+    command = [sys.executable, training_entrypoint, *effective_overrides]
+    config_snapshot_relative = _write_training_config_snapshot(
+        project_path=path,
+        hydra_config_path=hydra_config_path,
+        hydra_config_name=hydra_config_name,
+        config_snapshot_path=config_snapshot_path,
+    )
+
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=path,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+        exit_code = completed.returncode
+        stdout = completed.stdout or ""
+        stderr = completed.stderr or ""
+        timed_out = False
+    except subprocess.TimeoutExpired as exc:
+        exit_code = None
+        stdout = exc.stdout or ""
+        stderr = exc.stderr or ""
+        timed_out = True
+
+    duration_seconds = time.time() - started_at
+    if isinstance(stdout, bytes):
+        stdout = stdout.decode(errors="ignore")
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode(errors="ignore")
+
+    log_path.write_text(
+        "\n".join(
+            (
+                f"command: {' '.join(command)}",
+                f"exit_code: {exit_code}",
+                f"duration_seconds: {duration_seconds:.6f}",
+                "--- stdout ---",
+                stdout,
+                "--- stderr ---",
+                stderr,
+            )
+        )
+    )
+
+    metrics = _parse_training_metrics(stdout, stderr)
+    checkpoint_artifact_paths = _find_training_artifacts(path)
+    log_relative = relative_to_project(str(path), log_path)
+    failure_reasons: list[str] = []
+    if timed_out:
+        failure_reasons.append(f"command timed out after {timeout_seconds}s")
+    elif exit_code != 0:
+        failure_reasons.append(f"non-zero exit code {exit_code}")
+    if target_metric not in metrics:
+        failure_reasons.append(f"missing target metric '{target_metric}'")
+    if not checkpoint_artifact_paths:
+        failure_reasons.append("missing checkpoint/model artifact")
+
+    status = "succeeded" if not failure_reasons else "failed"
+    artifact_entries = [
+        {
+            "artifact_type": "training_log",
+            "producing_step": "run_bounded_training",
+            "state": "generated",
+            "path": log_relative,
+        },
+        {
+            "artifact_type": "config_snapshot",
+            "producing_step": "run_bounded_training",
+            "state": "generated",
+            "path": config_snapshot_relative,
+        },
+    ]
+    artifact_entries.extend(
+        {
+            "artifact_type": "checkpoint_or_model_artifact",
+            "producing_step": "run_bounded_training",
+            "state": "generated",
+            "path": artifact_path,
+        }
+        for artifact_path in checkpoint_artifact_paths
+    )
+
+    return {
+        "success": True,
+        "status": status,
+        "command": command,
+        "exit_code": exit_code,
+        "duration_seconds": duration_seconds,
+        "stdout_summary": _summarize_text(stdout),
+        "stderr_summary": _summarize_text(stderr),
+        "log_path": log_relative,
+        "metrics": metrics,
+        "target_metric": target_metric,
+        "effective_overrides": effective_overrides,
+        "config_snapshot_path": config_snapshot_relative,
+        "checkpoint_artifact_paths": list(checkpoint_artifact_paths),
+        "failure_reason": "; ".join(failure_reasons) if failure_reasons else None,
+        "next_actions": _training_failure_next_actions(failure_reasons, log_relative),
+        "verification_results": _bounded_training_verification_results(
+            controls_present=True,
+            command_completed=status == "succeeded" or exit_code == 0,
+            metric_captured=target_metric in metrics,
+            artifact_captured=bool(checkpoint_artifact_paths),
+            run_evidence_captured=True,
+            evidence_summary=(
+                f"command={' '.join(command)}; exit_code={exit_code}; "
+                f"duration_seconds={duration_seconds:.6f}; log_path={log_relative}; "
+                f"metrics={metrics}; artifacts={checkpoint_artifact_paths}"
+            ),
+        ),
+        "artifact_manifest": {"entries": artifact_entries},
+    }
+
+
+def _bounded_training_blocked_result(
+    missing_controls: list[str],
+    target_metric: str,
+) -> dict[str, Any]:
+    next_actions = [
+        "Provide timeout_seconds, max_epochs, device, and data_subset before training."
+    ]
+    if "training_entrypoint" in missing_controls:
+        next_actions = ["Provide a detected training entrypoint before running training."]
+
+    return {
+        "success": True,
+        "status": "blocked",
+        "missing_required_pieces": missing_controls,
+        "target_metric": target_metric,
+        "failure_reason": f"missing bounded training prerequisites: {', '.join(missing_controls)}",
+        "next_actions": next_actions,
+        "verification_results": _bounded_training_verification_results(
+            controls_present=False,
+            command_completed=False,
+            metric_captured=False,
+            artifact_captured=False,
+            run_evidence_captured=False,
+            evidence_summary=f"missing_controls={missing_controls}",
+        ),
+        "artifact_manifest": {"entries": []},
+    }
+
+
+def _write_training_config_snapshot(
+    project_path: Path,
+    hydra_config_path: str | None,
+    hydra_config_name: str | None,
+    config_snapshot_path: Path,
+) -> str:
+    config_snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    source_config = None
+    if hydra_config_path and hydra_config_name:
+        source_config = project_path / hydra_config_path / f"{_strip_yaml_suffix(hydra_config_name)}.yaml"
+    if source_config is not None and source_config.exists():
+        shutil.copyfile(source_config, config_snapshot_path)
+    else:
+        config_snapshot_path.write_text("config_snapshot: unavailable\n")
+    return relative_to_project(str(project_path), config_snapshot_path)
+
+
+def _parse_training_metrics(*streams: str) -> dict[str, float]:
+    metrics: dict[str, float] = {}
+    for stream in streams:
+        for line in stream.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, dict):
+                raw_metrics = parsed.get("metrics", parsed)
+                if isinstance(raw_metrics, dict):
+                    for key, value in raw_metrics.items():
+                        if isinstance(value, int | float):
+                            metrics[key] = float(value)
+                    continue
+            for key, value in re.findall(
+                r"([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?)",
+                stripped,
+            ):
+                metrics[key] = float(value)
+    return metrics
+
+
+def _find_training_artifacts(project_path: Path) -> tuple[str, ...]:
+    artifact_paths: list[str] = []
+    for directory_name in ("checkpoints", "models", "outputs", "artifacts"):
+        directory = project_path / directory_name
+        if not directory.exists():
+            continue
+        for artifact_path in directory.rglob("*"):
+            if artifact_path.is_file() and artifact_path.suffix in {
+                ".ckpt",
+                ".pt",
+                ".pth",
+                ".onnx",
+            }:
+                artifact_paths.append(relative_to_project(str(project_path), artifact_path))
+    return tuple(sorted(artifact_paths))
+
+
+def _summarize_text(value: str, limit: int = 1000) -> str:
+    stripped = value.strip()
+    if len(stripped) <= limit:
+        return stripped
+    return stripped[:limit] + "...<truncated>"
+
+
+def _training_failure_next_actions(failure_reasons: list[str], log_path: str) -> list[str]:
+    if not failure_reasons:
+        return []
+    return [
+        f"Inspect {log_path} for the bounded training command output.",
+        "Re-run with a small fixture, target metric emission, and checkpoint artifact output.",
+    ]
+
+
+def _bounded_training_verification_results(
+    *,
+    controls_present: bool,
+    command_completed: bool,
+    metric_captured: bool,
+    artifact_captured: bool,
+    run_evidence_captured: bool,
+    evidence_summary: str,
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "check_name": "bounded_training_controls_present",
+            "evidence_type": "observed",
+            "source_step": "run_bounded_training",
+            "passed": controls_present,
+            "evidence": evidence_summary,
+        },
+        {
+            "check_name": "bounded_training_command_completed",
+            "evidence_type": "observed",
+            "source_step": "run_bounded_training",
+            "passed": command_completed,
+            "evidence": evidence_summary,
+        },
+        {
+            "check_name": "training_metric_captured",
+            "evidence_type": "observed",
+            "source_step": "run_bounded_training",
+            "passed": metric_captured,
+            "evidence": evidence_summary,
+        },
+        {
+            "check_name": "training_artifact_captured",
+            "evidence_type": "observed",
+            "source_step": "run_bounded_training",
+            "passed": artifact_captured,
+            "evidence": evidence_summary,
+        },
+        {
+            "check_name": "training_run_evidence_captured",
+            "evidence_type": "observed",
+            "source_step": "run_bounded_training",
+            "passed": run_evidence_captured,
+            "evidence": evidence_summary,
+        },
+    ]
 
 
 def analyze_training_results(
@@ -7426,6 +7766,11 @@ async def list_tools() -> list[Tool]:
             inputSchema=DetectTrainingProjectInput.model_json_schema(),
         ),
         Tool(
+            name="run_bounded_training",
+            description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
+            inputSchema=RunBoundedTrainingInput.model_json_schema(),
+        ),
+        Tool(
             name="analyze_training_results",
             description="Analyze training results and suggest improvements",
             inputSchema=AnalyzeTrainingResultsInput.model_json_schema(),
@@ -7885,6 +8230,21 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         elif name == "detect_training_project":
             input_data = DetectTrainingProjectInput(**arguments)
             result = detect_training_project(input_data.project_path)
+
+        elif name == "run_bounded_training":
+            input_data = RunBoundedTrainingInput(**arguments)
+            result = run_bounded_training(
+                project_path=input_data.project_path,
+                training_entrypoint=input_data.training_entrypoint,
+                hydra_config_path=input_data.hydra_config_path,
+                hydra_config_name=input_data.hydra_config_name,
+                timeout_seconds=input_data.timeout_seconds,
+                max_epochs=input_data.max_epochs,
+                device=input_data.device,
+                data_subset=input_data.data_subset,
+                hydra_overrides=input_data.hydra_overrides,
+                target_metric=input_data.target_metric,
+            )
 
         elif name == "analyze_training_results":
             input_data = AnalyzeTrainingResultsInput(**arguments)
