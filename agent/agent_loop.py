@@ -4,6 +4,7 @@ Graph-based execution loop with self-improvement capability.
 Orchestrates: Perception -> Decision -> Action -> (Improve if needed) -> Summarize
 """
 
+import json
 import re
 import uuid
 from collections.abc import Callable
@@ -378,6 +379,7 @@ class AgentLoop:
             "setup_pipeline",
             "detect_training_project",
             "train_and_track",
+            "build_capstone_pipeline",
             "deploy_litserve_gpu",
         }
 
@@ -1091,6 +1093,7 @@ class AgentLoop:
             f"failed_checks: {failed_checks}. "
             f"evidence: {self._format_verification_results()}. "
             f"artifacts: {self._format_artifacts()}. "
+            f"capstone_summary: {self._format_capstone_summary()}. "
             f"approvals: {self._format_approval_records()}. "
             f"rollback: {self._format_rollback_plan()}."
         )
@@ -1126,6 +1129,23 @@ class AgentLoop:
             )
             for result in verification_results
         )
+
+    def _format_capstone_summary(self) -> str:
+        summary = self.ctx.globals.get("capstone_orchestrator_summary")
+        if not isinstance(summary, dict):
+            return "none"
+        compact_summary = {
+            key: summary.get(key)
+            for key in (
+                "completed_stages",
+                "blocked_stages",
+                "deferred_stages",
+                "selected_model_artifact",
+                "endpoint_evidence",
+                "next_actions",
+            )
+        }
+        return json.dumps(compact_summary, sort_keys=True)
 
     def _format_approval_records(self) -> str:
         approval_records = tuple(self.ctx.globals.get("approval_records", ()))
@@ -1211,6 +1231,8 @@ class AgentLoop:
             and step_id == "track_training_in_mlflow"
         ):
             self.ctx.globals["mlflow_tracking_result"] = payload
+        elif step_id == "record_capstone_orchestrator_skeleton":
+            self.ctx.globals["capstone_orchestrator_summary"] = payload
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1344,6 +1366,17 @@ class AgentLoop:
             )
             if port:
                 runtime_args["port"] = port
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "build_capstone_pipeline"
+            and step_id == "record_capstone_orchestrator_skeleton"
+        ):
+            selected_model_path = self.ctx.globals.get("selected_model_artifact_path")
+            if selected_model_path:
+                runtime_args["selected_model_artifact_path"] = selected_model_path
+            endpoint_url = self.ctx.globals.get("litserve_endpoint_url")
+            if endpoint_url:
+                runtime_args["endpoint_url"] = endpoint_url
         return runtime_args
 
     def _port_from_endpoint_url(self, endpoint_url: Any) -> int | None:
