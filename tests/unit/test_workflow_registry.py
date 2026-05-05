@@ -98,6 +98,7 @@ def test_build_capstone_pipeline_declares_orchestrator_skeleton():
     )
     assert skeleton_step.default_args["implemented_subworkflows"] == (
         "setup_pipeline",
+        "prepare_capstone_data",
         "detect_training_project",
         "train_and_track",
         "deploy_litserve_preflight",
@@ -151,6 +152,7 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
         "configure_validate_dvc_remote",
         "push_capstone_data",
         "pull_capstone_data",
+        "record_data_stage_evidence",
     ]
     assert template.steps[0].tool_functions == ("detect_capstone_data_layouts",)
     assert template.steps[1].tool_functions == ("generate_capstone_split_manifests",)
@@ -158,6 +160,7 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
     assert template.steps[3].tool_functions == ("configure_validate_capstone_dvc_remote",)
     assert template.steps[4].tool_functions == ("push_capstone_data",)
     assert template.steps[5].tool_functions == ("pull_capstone_data",)
+    assert template.steps[6].tool_functions == ("record_capstone_data_stage_evidence",)
     assert {
         gate.step_id: gate.risk_categories for gate in template.approval_gates
     } == {
@@ -177,6 +180,7 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
         "split_manifest",
         "capstone_data_package",
         "dvc_tracking_file",
+        "data_stage_evidence",
     ]
     assert [check.name for check in template.success_contract.checks] == [
         "two_dataset_paths_provided",

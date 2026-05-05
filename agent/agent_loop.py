@@ -1518,6 +1518,11 @@ class AgentLoop:
             and step_id == "pull_capstone_data"
         ):
             self.ctx.globals["capstone_data_pull_result"] = payload
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "record_data_stage_evidence"
+        ):
+            self.ctx.globals["capstone_data_stage_evidence"] = payload
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1737,7 +1742,53 @@ class AgentLoop:
                 runtime_args["approval_record"] = self._approval_record_to_payload(
                     approval_record
                 )
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "record_data_stage_evidence"
+        ):
+            runtime_args["workflow_inputs"] = self.ctx.globals.get("workflow_inputs", {})
+            for context_key, runtime_key in (
+                ("capstone_data_detection", "capstone_data_detection"),
+                ("capstone_split_manifest_result", "capstone_split_manifest_result"),
+                ("capstone_data_package_result", "capstone_data_package_result"),
+                ("capstone_data_remote_result", "capstone_data_remote_result"),
+                ("capstone_data_push_result", "capstone_data_push_result"),
+                ("capstone_data_pull_result", "capstone_data_pull_result"),
+            ):
+                value = self.ctx.globals.get(context_key, {})
+                if isinstance(value, dict):
+                    runtime_args[runtime_key] = value
+            runtime_args["verification_results"] = self._verification_results_payload()
+            runtime_args["artifact_manifest"] = self._artifact_manifest_payload()
         return runtime_args
+
+    def _verification_results_payload(self) -> list[dict[str, Any]]:
+        payloads: list[dict[str, Any]] = []
+        for result in tuple(self.ctx.globals.get("verification_results", ())):
+            if isinstance(result, VerificationResult):
+                payload = asdict(result)
+                evidence_type = payload.get("evidence_type")
+                if hasattr(evidence_type, "value"):
+                    payload["evidence_type"] = evidence_type.value
+                payloads.append(payload)
+            elif isinstance(result, dict):
+                payloads.append(result)
+        return payloads
+
+    def _artifact_manifest_payload(self) -> dict[str, Any]:
+        raw_manifest = self.ctx.globals.get("artifact_manifest")
+        if not isinstance(raw_manifest, ArtifactManifest):
+            return {"entries": []}
+        entries: list[dict[str, Any]] = []
+        for entry in raw_manifest.entries:
+            if isinstance(entry, ArtifactManifestEntry):
+                payload = asdict(entry)
+                state = payload.get("state")
+                if hasattr(state, "value"):
+                    payload["state"] = state.value
+                entries.append(payload)
+        return {"entries": entries}
 
     def _approval_record_for_step(self, step_id: str) -> ApprovalRecord | None:
         approval_records = tuple(self.ctx.globals.get("approval_records", ()))

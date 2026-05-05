@@ -761,7 +761,8 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
         name="Prepare Capstone Data",
         description=(
             "Declare the Phase 4 capstone data automation workflow for two "
-            "user-provided datasets without mutating data, DVC, remotes, or S3."
+            "user-provided datasets with approval-gated data package, DVC remote, "
+            "transfer, and durable evidence handoff checks."
         ),
         required_inputs=(
             WorkflowInput(
@@ -893,6 +894,16 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 order=6,
                 tool_functions=("pull_capstone_data",),
             ),
+            WorkflowStep(
+                step_id="record_data_stage_evidence",
+                name="Record Data Stage Evidence",
+                description=(
+                    "Write the durable data-stage evidence artifact for downstream "
+                    "capstone orchestration handoff."
+                ),
+                order=7,
+                tool_functions=("record_capstone_data_stage_evidence",),
+            ),
         ),
         success_contract=SuccessContract(
             checks=(
@@ -928,7 +939,7 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 SuccessContractCheck(
                     name="data_stage_evidence_artifact_reported",
                     evidence_type="observed",
-                    source_step="prepare_capstone_data_contract",
+                    source_step="record_data_stage_evidence",
                 ),
                 SuccessContractCheck(
                     name="dataset_lineage_artifacts_reported",
@@ -990,6 +1001,13 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 artifact_type="dvc_tracking_file",
                 source_step="track_capstone_data_package",
                 state="generated",
+            ),
+            ArtifactRequirement(
+                name="data_stage_evidence",
+                artifact_type="data_stage_evidence",
+                source_step="record_data_stage_evidence",
+                state="generated",
+                contract_check_name="data_stage_evidence_artifact_reported",
             ),
         ),
         approval_gates=(
@@ -1053,6 +1071,7 @@ def _build_capstone_pipeline_template() -> WorkflowTemplate:
                     ),
                     "implemented_subworkflows": (
                         "setup_pipeline",
+                        "prepare_capstone_data",
                         "detect_training_project",
                         "train_and_track",
                         "deploy_litserve_preflight",

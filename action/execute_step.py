@@ -188,6 +188,7 @@ AVAILABLE_TOOLS = [
     "configure_validate_capstone_dvc_remote",
     "push_capstone_data",
     "pull_capstone_data",
+    "record_capstone_data_stage_evidence",
     "run_bounded_training",
     "track_training_in_mlflow",
     "record_capstone_orchestrator_skeleton",

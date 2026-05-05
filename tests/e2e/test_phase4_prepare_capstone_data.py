@@ -1,3 +1,4 @@
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -253,12 +254,29 @@ async def test_prepare_capstone_data_dvc_tracks_capstone_package_after_approval(
     ]
     assert all(str(dataset_1) not in " ".join(command) for command, _, _ in commands)
     assert all(str(dataset_2) not in " ".join(command) for command, _, _ in commands)
-    assert agent.status == "paused"
-    assert agent.ctx.globals["contract_status"].status is WorkflowStatus.BLOCKED
+    assert agent.status == "success"
+    assert agent.ctx.globals["contract_status"].status is WorkflowStatus.SUCCEEDED
     assert "dvc_repo_validated:observed:passed" in result
     assert "capstone_data_package_tracked:observed:passed" in result
     assert "s3_remote_validated" not in result
-    assert not (project_path / ".auto_mlops" / "capstone" / "data_stage_evidence.json").exists()
+    evidence_path = project_path / ".auto_mlops" / "capstone" / "data_stage_evidence.json"
+    evidence = json.loads(evidence_path.read_text())
+    assert evidence["schema_version"] == "phase4.data_stage_evidence.v1"
+    assert evidence["status"] == "succeeded"
+    assert evidence["completion_mode"] == "local_ready"
+    assert evidence["dvc"]["transfer"]["status"] == "deferred"
+    assert [dataset["status"] for dataset in evidence["datasets"]] == [
+        "succeeded",
+        "succeeded",
+    ]
+    assert any(
+        entry["artifact_type"] == "data_stage_evidence"
+        for entry in evidence["artifact_manifest"]["entries"]
+    )
+    assert any(
+        item["capability"] == "s3_transfer_completed"
+        for item in evidence["blocked_capabilities"]
+    )
     artifact_manifest = agent.ctx.globals["artifact_manifest"]
     assert {
         (entry.artifact_type, entry.state.value, entry.path)
@@ -363,9 +381,17 @@ async def test_prepare_capstone_data_capstone_complete_pushes_after_approval(
     assert "secret-capstone-bucket" not in result
     assert "123456789012" not in result
     assert "AIDAEXAMPLE" not in result
-    assert agent.status == "paused"
-    assert agent.ctx.globals["contract_status"].status is WorkflowStatus.BLOCKED
-    assert not (project_path / ".auto_mlops" / "capstone" / "data_stage_evidence.json").exists()
+    assert agent.status == "success"
+    assert agent.ctx.globals["contract_status"].status is WorkflowStatus.SUCCEEDED
+    evidence_path = project_path / ".auto_mlops" / "capstone" / "data_stage_evidence.json"
+    evidence = json.loads(evidence_path.read_text())
+    assert evidence["status"] == "succeeded"
+    assert evidence["completion_mode"] == "capstone_complete"
+    assert len(evidence["datasets"]) == 2
+    assert evidence["dvc"]["remote"]["remote_type"] == "s3"
+    assert evidence["dvc"]["transfer"]["status"] == "succeeded"
+    assert raw_s3_url not in json.dumps(evidence, sort_keys=True)
+    assert "secret-capstone-bucket" not in json.dumps(evidence, sort_keys=True)
     remote_entries = [
         entry
         for entry in agent.ctx.globals["artifact_manifest"].entries
