@@ -39,6 +39,7 @@ def test_registry_contains_phase_4_prepare_capstone_data_template():
         "train_and_track",
         "build_capstone_pipeline",
         "prepare_capstone_data",
+        "prepare_capstone_container_ci",
         "deploy_litserve_preflight",
         "deploy_litserve_gpu",
         "deploy_gpu_inference",
@@ -202,6 +203,156 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
         "s3_remote_validated": "completion_mode == capstone_complete",
         "s3_transfer_completed": "completion_mode == capstone_complete",
     }
+
+
+def test_prepare_capstone_container_ci_declares_issue_1_contract_shape():
+    template = get_workflow_registry().get("prepare_capstone_container_ci")
+
+    assert template.workflow_id == "prepare_capstone_container_ci"
+    assert template.name == "Prepare Capstone Container CI"
+    assert [workflow_input.name for workflow_input in template.required_inputs] == [
+        "project_path",
+        "completion_mode",
+        "data_stage_evidence_path",
+        "local_model_artifact_path",
+        "mlflow_run_id",
+        "mlflow_best_artifact_path",
+        "registry_target",
+        "image_name",
+        "image_tag",
+        "ci_workflow_path",
+    ]
+    completion_mode_input = template.required_inputs[1]
+    assert completion_mode_input.default == "container_local_ready"
+    assert completion_mode_input.allowed_values == (
+        "container_local_ready",
+        "container_capstone_complete",
+    )
+    assert all(not workflow_input.required for workflow_input in template.required_inputs[2:])
+    assert [branch.name for branch in template.branches] == [
+        "container_local_ready",
+        "container_capstone_complete",
+    ]
+    assert [step.step_id for step in template.steps] == [
+        "prepare_capstone_container_ci_contract",
+        "resolve_upstream_container_evidence",
+        "generate_validate_runtime_image_spec",
+        "build_smoke_check_container_image",
+        "configure_validate_registry_target",
+        "approval_gated_registry_login_push",
+        "record_container_ci_evidence_handoff",
+    ]
+    assert template.steps[0].tool_functions == ("prepare_capstone_container_ci_contract",)
+    assert all(step.tool_functions == () for step in template.steps[1:])
+    assert {
+        gate.step_id: gate.risk_categories for gate in template.approval_gates
+    } == {
+        "generate_validate_runtime_image_spec": ("writes_project_files",),
+        "build_smoke_check_container_image": (
+            "builds_image",
+            "executes_project_code",
+        ),
+        "approval_gated_registry_login_push": (
+            "uses_remote_service_credentials",
+            "pushes_registry",
+        ),
+        "record_container_ci_evidence_handoff": ("writes_project_files",),
+    }
+    assert [check.name for check in template.success_contract.checks] == [
+        "upstream_evidence_resolved",
+        "container_build_spec_reported",
+        "dependency_context_reported",
+        "container_ci_evidence_artifact_reported",
+        "container_artifact_manifest_reported",
+        "capstone_ci_workflow_reported",
+        "capstone_ci_workflow_validated",
+        "secret_safety_validated",
+        "local_model_artifact_resolved",
+        "mlflow_best_artifact_resolved",
+        "docker_availability_reported",
+        "image_build_attempt_reported",
+        "image_build_deferred_reported",
+        "data_stage_capstone_complete_verified",
+        "mlflow_best_artifact_verified",
+        "training_lineage_verified",
+        "docker_available",
+        "image_build_succeeded",
+        "container_smoke_check_passed",
+        "registry_target_validated",
+        "registry_auth_capability_verified",
+        "registry_push_approved",
+        "registry_push_succeeded",
+        "pushed_image_reference_reported",
+        "capstone_ci_registry_usage_validated",
+    ]
+    conditional_checks = {
+        check.name: check.condition
+        for check in template.success_contract.checks
+        if check.condition is not None
+    }
+    assert conditional_checks == {
+        "local_model_artifact_resolved": "completion_mode == container_local_ready",
+        "mlflow_best_artifact_resolved": "completion_mode == container_local_ready",
+        "docker_availability_reported": "completion_mode == container_local_ready",
+        "image_build_attempt_reported": (
+            "completion_mode == container_local_ready and docker_available == true"
+        ),
+        "image_build_deferred_reported": (
+            "completion_mode == container_local_ready and docker_available == false"
+        ),
+        "data_stage_capstone_complete_verified": (
+            "completion_mode == container_capstone_complete"
+        ),
+        "mlflow_best_artifact_verified": "completion_mode == container_capstone_complete",
+        "training_lineage_verified": "completion_mode == container_capstone_complete",
+        "docker_available": "completion_mode == container_capstone_complete",
+        "image_build_succeeded": "completion_mode == container_capstone_complete",
+        "container_smoke_check_passed": "completion_mode == container_capstone_complete",
+        "registry_target_validated": "completion_mode == container_capstone_complete",
+        "registry_auth_capability_verified": "completion_mode == container_capstone_complete",
+        "registry_push_approved": "completion_mode == container_capstone_complete",
+        "registry_push_succeeded": "completion_mode == container_capstone_complete",
+        "pushed_image_reference_reported": "completion_mode == container_capstone_complete",
+        "capstone_ci_registry_usage_validated": (
+            "completion_mode == container_capstone_complete"
+        ),
+    }
+
+
+def test_select_workflow_routes_capstone_container_ci_requests():
+    registry = get_workflow_registry()
+
+    prompts = {
+        "prepare capstone container CI for this project": "prepare capstone container CI",
+        "create capstone Docker and CI evidence": "create capstone Docker and CI evidence",
+        "package capstone runtime image": "package capstone runtime image",
+        "prepare container_ci_evidence": "prepare container_ci_evidence",
+    }
+
+    for prompt, expected_alias in prompts.items():
+        selection = registry.select_workflow(prompt)
+        assert selection.workflow_id == "prepare_capstone_container_ci"
+        assert selection.status is WorkflowStatus.PENDING
+        assert selection.matched_aliases == (expected_alias,)
+
+
+def test_select_workflow_rejects_container_ci_for_later_phase_requests():
+    registry = get_workflow_registry()
+
+    for prompt in (
+        "prepare capstone container CI then deploy to KServe",
+        "prepare capstone container CI and generate Helm chart",
+        "prepare capstone container CI for ArgoCD GitOps",
+        "prepare capstone container CI and provision EKS",
+        "prepare capstone container CI endpoint deployment",
+        "prepare capstone container CI stress-test",
+        "prepare capstone container CI frontend timeline",
+        "prepare capstone container CI final report",
+        "prepare capstone container CI video",
+    ):
+        selection = registry.select_workflow(prompt)
+        assert selection.workflow_id != "prepare_capstone_container_ci"
+        assert "prepare_capstone_container_ci" in selection.rejected_workflows
 
 
 def test_prepare_capstone_data_transfer_approval_gates_are_enforced():

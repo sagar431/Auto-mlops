@@ -384,6 +384,7 @@ class AgentLoop:
             "train_and_track",
             "build_capstone_pipeline",
             "prepare_capstone_data",
+            "prepare_capstone_container_ci",
             "deploy_litserve_gpu",
         }
 
@@ -397,7 +398,7 @@ class AgentLoop:
             return None
 
         workflow_id = self.workflow_selection.workflow_id
-        if workflow_id == "prepare_capstone_data":
+        if workflow_id in {"prepare_capstone_data", "prepare_capstone_container_ci"}:
             return None
         template = self.workflow_registry.get(workflow_id)
         approval_records = tuple(self.ctx.globals.get("approval_records", ()))
@@ -468,6 +469,8 @@ class AgentLoop:
         resolved_inputs.update(training_controls)
         if selection.workflow_id == "prepare_capstone_data":
             resolved_inputs.update(self._capstone_data_inputs_from_query())
+        if selection.workflow_id == "prepare_capstone_container_ci":
+            resolved_inputs.update(self._capstone_container_ci_inputs_from_query())
         for workflow_input in template.required_inputs:
             if workflow_input.required and workflow_input.name == "project_path":
                 if not self.ctx.project_path and "project_path" not in missing_inputs:
@@ -488,6 +491,8 @@ class AgentLoop:
                     and workflow_input.name not in missing_inputs
                 ):
                     missing_inputs.append(workflow_input.name)
+                continue
+            if selection.workflow_id == "prepare_capstone_container_ci":
                 continue
             if (
                 workflow_input.required
@@ -571,6 +576,29 @@ class AgentLoop:
                 "1",
                 "yes",
             }
+        return inputs
+
+    def _capstone_container_ci_inputs_from_query(self) -> dict[str, Any]:
+        """Extract declared Phase 5 Issue 1 container/CI inputs from the query."""
+        inputs: dict[str, Any] = {
+            "completion_mode": "container_local_ready",
+            "data_stage_evidence_path": None,
+            "local_model_artifact_path": None,
+            "mlflow_run_id": None,
+            "mlflow_best_artifact_path": None,
+            "registry_target": None,
+            "image_name": None,
+            "image_tag": None,
+            "ci_workflow_path": None,
+        }
+        for input_name in inputs:
+            match = re.search(
+                rf"{input_name}\s*=\s*(\S+)",
+                self.query,
+                flags=re.IGNORECASE,
+            )
+            if match:
+                inputs[input_name] = match.group(1)
         return inputs
 
     def _bounded_training_controls_from_query(self) -> dict[str, Any]:
@@ -1233,6 +1261,12 @@ class AgentLoop:
             and step_id in {"push_capstone_data", "pull_capstone_data"}
         ):
             return not self._capstone_transfer_step_selected(step_id)
+        if (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id != "prepare_capstone_container_ci_contract"
+        ):
+            return True
         return False
 
     def _configured_capstone_remote_url(self, remote_name: Any) -> str | None:
@@ -1761,6 +1795,12 @@ class AgentLoop:
                     runtime_args[runtime_key] = value
             runtime_args["verification_results"] = self._verification_results_payload()
             runtime_args["artifact_manifest"] = self._artifact_manifest_payload()
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "prepare_capstone_container_ci_contract"
+        ):
+            runtime_args["workflow_inputs"] = self.ctx.globals.get("workflow_inputs", {})
         return runtime_args
 
     def _verification_results_payload(self) -> list[dict[str, Any]]:
@@ -1877,6 +1917,12 @@ class AgentLoop:
                 isinstance(detection, dict)
                 and detection.get("status") == "succeeded"
             )
+        if (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "prepare_capstone_container_ci_contract"
+        ):
+            return True
         if self._registry_step_recorded_failed_contract_evidence(step_id):
             return True
         if (

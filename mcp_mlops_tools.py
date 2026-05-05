@@ -587,6 +587,16 @@ class RecordCapstoneDataStageEvidenceInput(BaseModel):
     )
 
 
+class PrepareCapstoneContainerCIContractInput(BaseModel):
+    """Validate Phase 5 Issue 1 container/CI inputs without later behavior."""
+
+    project_path: str = Field(..., description="Path to the project")
+    workflow_inputs: dict[str, Any] | None = Field(
+        default=None,
+        description="Resolved prepare_capstone_container_ci workflow inputs",
+    )
+
+
 # --- Data Quality Tools ---
 
 
@@ -8819,6 +8829,95 @@ def _load_capstone_data_stage_evidence(project_path: Path) -> dict[str, Any]:
     }
 
 
+def prepare_capstone_container_ci_contract(
+    project_path: str,
+    workflow_inputs: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Record Phase 5 Issue 1 blocked/deferred evidence without running container tooling."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    inputs = workflow_inputs or {}
+    completion_mode = inputs.get("completion_mode", "container_local_ready")
+    optional_inputs = (
+        "data_stage_evidence_path",
+        "local_model_artifact_path",
+        "mlflow_run_id",
+        "mlflow_best_artifact_path",
+        "registry_target",
+        "image_name",
+        "image_tag",
+        "ci_workflow_path",
+    )
+    missing_inputs = [
+        input_name for input_name in optional_inputs if not inputs.get(input_name)
+    ]
+    deferred_capabilities = [
+        {
+            "capability": "resolve_upstream_container_evidence",
+            "issue": "Phase 5 Issue 2",
+            "reason": "Upstream data, training, MLflow, and model artifact evidence resolution is deferred.",
+        },
+        {
+            "capability": "generate_validate_runtime_image_spec",
+            "issue": "Phase 5 Issue 3",
+            "reason": "Dockerfile generation is deferred to Phase 5 Issue 3.",
+        },
+        {
+            "capability": "build_smoke_check_container_image",
+            "issue": "Phase 5 Issue 4",
+            "reason": "Docker image build and smoke checks are deferred.",
+        },
+        {
+            "capability": "configure_validate_registry_target",
+            "issue": "Phase 5 Issue 5",
+            "reason": "Registry target configuration and validation are deferred.",
+        },
+        {
+            "capability": "approval_gated_registry_login_push",
+            "issue": "Phase 5 Issue 6",
+            "reason": "Registry login and push are deferred until approval-gated implementation.",
+        },
+        {
+            "capability": "record_container_ci_evidence_handoff",
+            "issue": "Phase 5 Issue 7",
+            "reason": "container_ci_evidence.json writing is deferred to Phase 5 Issue 7.",
+        },
+    ]
+    next_actions = [
+        "Provide upstream data-stage, training, MLflow, or local model artifact evidence before Issue 2.",
+        "Implement Phase 5 Issue 2 before resolving upstream evidence.",
+        "Do not generate Dockerfiles, run Docker, configure registries, mutate secrets, or write CI workflows in Issue 1.",
+    ]
+    evidence_payload = {
+        "workflow_id": "prepare_capstone_container_ci",
+        "status": "blocked",
+        "completion_mode": completion_mode,
+        "missing_inputs": missing_inputs,
+        "deferred_capabilities": deferred_capabilities,
+        "next_actions": next_actions,
+    }
+    return {
+        "success": True,
+        "status": "blocked",
+        "workflow_id": "prepare_capstone_container_ci",
+        "completion_mode": completion_mode,
+        "missing_inputs": missing_inputs,
+        "deferred_capabilities": deferred_capabilities,
+        "next_actions": next_actions,
+        "verification_results": [
+            {
+                "check_name": "upstream_evidence_resolved",
+                "evidence_type": "observed",
+                "source_step": "prepare_capstone_container_ci_contract",
+                "passed": False,
+                "evidence": json.dumps(evidence_payload, sort_keys=True),
+            }
+        ],
+    }
+
+
 def record_capstone_orchestrator_skeleton(
     project_path: str,
     declared_stages: list[str] | tuple[str, ...] | None = None,
@@ -11070,6 +11169,14 @@ async def list_tools() -> list[Tool]:
             inputSchema=RecordCapstoneDataStageEvidenceInput.model_json_schema(),
         ),
         Tool(
+            name="prepare_capstone_container_ci_contract",
+            description=(
+                "Validate Phase 5 container/CI workflow inputs and record blocked "
+                "deferred evidence without running Docker, registry, CI, or secret behavior"
+            ),
+            inputSchema=PrepareCapstoneContainerCIContractInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -11530,6 +11637,13 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 capstone_data_pull_result=input_data.capstone_data_pull_result,
                 verification_results=input_data.verification_results,
                 artifact_manifest=input_data.artifact_manifest,
+            )
+
+        elif name == "prepare_capstone_container_ci_contract":
+            input_data = PrepareCapstoneContainerCIContractInput(**arguments)
+            result = prepare_capstone_container_ci_contract(
+                project_path=input_data.project_path,
+                workflow_inputs=input_data.workflow_inputs,
             )
 
         # Docker Tools

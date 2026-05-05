@@ -43,6 +43,8 @@ class RiskCategory(str, Enum):
     BUILDS_IMAGE = "builds_image"
     PUSHES_REGISTRY = "pushes_registry"
     USES_CLOUD_CREDENTIALS = "uses_cloud_credentials"
+    USES_REMOTE_SERVICE_CREDENTIALS = "uses_remote_service_credentials"
+    EXECUTES_PROJECT_CODE = "executes_project_code"
     USES_GPU = "uses_gpu"
     EXPOSES_PORT = "exposes_port"
 
@@ -387,16 +389,23 @@ class WorkflowRegistry:
         rejected_workflows: list[str] = []
 
         for template in self._templates.values():
-            if any(
+            matched_aliases = tuple(
+                alias
+                for alias in template.routing_aliases
+                if _routing_phrase_matches(normalized_request, alias)
+            )
+            negative_rule_matched = any(
                 _routing_phrase_matches(normalized_request, negative_rule)
                 for negative_rule in template.negative_routing_rules
+            )
+            if negative_rule_matched and (
+                matched_aliases or template.workflow_id != "prepare_capstone_container_ci"
             ):
                 rejected_workflows.append(template.workflow_id)
                 continue
 
-            for alias in template.routing_aliases:
-                if _routing_phrase_matches(normalized_request, alias):
-                    matches.append((template.workflow_id, alias))
+            for alias in matched_aliases:
+                matches.append((template.workflow_id, alias))
 
         if not matches:
             return WorkflowSelection(
@@ -709,10 +718,21 @@ def _contract_check_condition_applies(
 ) -> bool:
     if check.condition is None:
         return True
-    if "==" not in check.condition:
-        return True
-    input_name, expected_value = (part.strip() for part in check.condition.split("==", 1))
-    return workflow_inputs.get(input_name) == expected_value
+    condition_parts = tuple(part.strip() for part in check.condition.split(" and "))
+    for condition_part in condition_parts:
+        if "==" not in condition_part:
+            continue
+        input_name, expected_value = (part.strip() for part in condition_part.split("==", 1))
+        actual_value = workflow_inputs.get(input_name)
+        if expected_value == "true":
+            expected: Any = True
+        elif expected_value == "false":
+            expected = False
+        else:
+            expected = expected_value
+        if actual_value != expected:
+            return False
+    return True
 
 
 def _artifact_requirement_satisfied(
@@ -746,12 +766,366 @@ def get_workflow_registry() -> WorkflowRegistry:
             _train_and_track_template(),
             _build_capstone_pipeline_template(),
             _prepare_capstone_data_template(),
+            _prepare_capstone_container_ci_template(),
             _deploy_litserve_preflight_template(),
             _deploy_litserve_gpu_template(),
             _deploy_gpu_inference_template(),
             _deploy_gradio_demo_template(),
             _deploy_kserve_production_template(),
         )
+    )
+
+
+def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
+    common_step = "prepare_capstone_container_ci_contract"
+    return WorkflowTemplate(
+        workflow_id="prepare_capstone_container_ci",
+        name="Prepare Capstone Container CI",
+        description=(
+            "Declare the Phase 5 capstone container and CI automation workflow, its "
+            "stable inputs, branch contracts, routing, deferred milestones, and "
+            "approval boundaries without executing Docker, registry, CI, secret, or "
+            "deployment behavior."
+        ),
+        required_inputs=(
+            WorkflowInput(
+                name="project_path",
+                description="Path to the project that should receive container/CI evidence.",
+            ),
+            WorkflowInput(
+                name="completion_mode",
+                description=(
+                    "Whether to validate local container/CI readiness or capstone-complete "
+                    "container/CI evidence."
+                ),
+                default="container_local_ready",
+                allowed_values=("container_local_ready", "container_capstone_complete"),
+            ),
+            WorkflowInput(
+                name="data_stage_evidence_path",
+                description="Optional Phase 4 data-stage evidence artifact path.",
+                required=False,
+                default=None,
+            ),
+            WorkflowInput(
+                name="local_model_artifact_path",
+                description="Optional local model artifact for container-local readiness.",
+                required=False,
+                default=None,
+            ),
+            WorkflowInput(
+                name="mlflow_run_id",
+                description="Optional MLflow run id for later upstream evidence resolution.",
+                required=False,
+                default=None,
+            ),
+            WorkflowInput(
+                name="mlflow_best_artifact_path",
+                description="Optional MLflow-linked best artifact path.",
+                required=False,
+                default=None,
+            ),
+            WorkflowInput(
+                name="registry_target",
+                description="Optional registry target for later validation.",
+                required=False,
+                default=None,
+            ),
+            WorkflowInput(
+                name="image_name",
+                description="Optional container image name for later build evidence.",
+                required=False,
+                default=None,
+            ),
+            WorkflowInput(
+                name="image_tag",
+                description="Optional container image tag for later build evidence.",
+                required=False,
+                default=None,
+            ),
+            WorkflowInput(
+                name="ci_workflow_path",
+                description="Optional capstone CI workflow path for later validation.",
+                required=False,
+                default=None,
+            ),
+        ),
+        steps=(
+            WorkflowStep(
+                step_id=common_step,
+                name="Prepare Capstone Container CI Contract",
+                description=(
+                    "Validate Phase 5 Issue 1 inputs and report structured deferred "
+                    "container/CI evidence without mutating project files or invoking "
+                    "Docker, registry, CI, secret, training, deployment, or Kubernetes tools."
+                ),
+                order=1,
+                tool_functions=("prepare_capstone_container_ci_contract",),
+            ),
+            WorkflowStep(
+                step_id="resolve_upstream_container_evidence",
+                name="Resolve Upstream Container Evidence",
+                description="Resolve data-stage, training, MLflow, and model artifact evidence.",
+                order=2,
+            ),
+            WorkflowStep(
+                step_id="generate_validate_runtime_image_spec",
+                name="Generate Or Validate Runtime Image Spec",
+                description="Generate or validate the default Capstone Runtime Image build spec.",
+                order=3,
+            ),
+            WorkflowStep(
+                step_id="build_smoke_check_container_image",
+                name="Build And Smoke Check Container Image",
+                description="Build the runtime image and run bounded smoke checks when approved.",
+                order=4,
+            ),
+            WorkflowStep(
+                step_id="configure_validate_registry_target",
+                name="Configure And Validate Registry Target",
+                description="Configure or validate the selected container registry target.",
+                order=5,
+            ),
+            WorkflowStep(
+                step_id="approval_gated_registry_login_push",
+                name="Approval-Gated Registry Login Push",
+                description="Login and push only after explicit approval and safe credential use.",
+                order=6,
+            ),
+            WorkflowStep(
+                step_id="record_container_ci_evidence_handoff",
+                name="Record Container CI Evidence Handoff",
+                description="Write durable container CI evidence for orchestrator handoff.",
+                order=7,
+            ),
+        ),
+        success_contract=SuccessContract(
+            checks=(
+                SuccessContractCheck(
+                    name="upstream_evidence_resolved",
+                    evidence_type="observed",
+                    source_step=common_step,
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="container_build_spec_reported",
+                    evidence_type="declared_or_observed",
+                    source_step="generate_validate_runtime_image_spec",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="dependency_context_reported",
+                    evidence_type="declared_or_observed",
+                    source_step="generate_validate_runtime_image_spec",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="container_ci_evidence_artifact_reported",
+                    evidence_type="observed",
+                    source_step="record_container_ci_evidence_handoff",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="container_artifact_manifest_reported",
+                    evidence_type="declared_or_observed",
+                    source_step="record_container_ci_evidence_handoff",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="capstone_ci_workflow_reported",
+                    evidence_type="declared_or_observed",
+                    source_step="record_container_ci_evidence_handoff",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="capstone_ci_workflow_validated",
+                    evidence_type="observed",
+                    source_step="record_container_ci_evidence_handoff",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="secret_safety_validated",
+                    evidence_type="observed",
+                    source_step="record_container_ci_evidence_handoff",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="local_model_artifact_resolved",
+                    evidence_type="observed",
+                    source_step="resolve_upstream_container_evidence",
+                    condition="completion_mode == container_local_ready",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_best_artifact_resolved",
+                    evidence_type="observed",
+                    source_step="resolve_upstream_container_evidence",
+                    condition="completion_mode == container_local_ready",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="docker_availability_reported",
+                    evidence_type="observed",
+                    source_step="build_smoke_check_container_image",
+                    condition="completion_mode == container_local_ready",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="image_build_attempt_reported",
+                    evidence_type="observed",
+                    source_step="build_smoke_check_container_image",
+                    condition="completion_mode == container_local_ready and docker_available == true",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="image_build_deferred_reported",
+                    evidence_type="declared_or_observed",
+                    source_step="build_smoke_check_container_image",
+                    condition="completion_mode == container_local_ready and docker_available == false",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="data_stage_capstone_complete_verified",
+                    evidence_type="observed",
+                    source_step="resolve_upstream_container_evidence",
+                    condition="completion_mode == container_capstone_complete",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="mlflow_best_artifact_verified",
+                    evidence_type="observed",
+                    source_step="resolve_upstream_container_evidence",
+                    condition="completion_mode == container_capstone_complete",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="training_lineage_verified",
+                    evidence_type="observed",
+                    source_step="resolve_upstream_container_evidence",
+                    condition="completion_mode == container_capstone_complete",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="docker_available",
+                    evidence_type="observed",
+                    source_step="build_smoke_check_container_image",
+                    condition="completion_mode == container_capstone_complete",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="image_build_succeeded",
+                    evidence_type="observed",
+                    source_step="build_smoke_check_container_image",
+                    condition="completion_mode == container_capstone_complete",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="container_smoke_check_passed",
+                    evidence_type="observed",
+                    source_step="build_smoke_check_container_image",
+                    condition="completion_mode == container_capstone_complete",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="registry_target_validated",
+                    evidence_type="observed",
+                    source_step="configure_validate_registry_target",
+                    condition="completion_mode == container_capstone_complete",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="registry_auth_capability_verified",
+                    evidence_type="observed",
+                    source_step="configure_validate_registry_target",
+                    condition="completion_mode == container_capstone_complete",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="registry_push_approved",
+                    evidence_type="observed",
+                    source_step="approval_gated_registry_login_push",
+                    condition="completion_mode == container_capstone_complete",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="registry_push_succeeded",
+                    evidence_type="observed",
+                    source_step="approval_gated_registry_login_push",
+                    condition="completion_mode == container_capstone_complete",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="pushed_image_reference_reported",
+                    evidence_type="observed",
+                    source_step="approval_gated_registry_login_push",
+                    condition="completion_mode == container_capstone_complete",
+                    unsatisfied_status="blocked",
+                ),
+                SuccessContractCheck(
+                    name="capstone_ci_registry_usage_validated",
+                    evidence_type="observed",
+                    source_step="record_container_ci_evidence_handoff",
+                    condition="completion_mode == container_capstone_complete",
+                    unsatisfied_status="blocked",
+                ),
+            ),
+        ),
+        branches=(
+            WorkflowBranch(
+                name="container_local_ready",
+                selection_rule=(
+                    "Requires local model artifact or MLflow best artifact evidence, "
+                    "Docker availability reporting, deferred or attempted image build "
+                    "evidence, and common container/CI checks."
+                ),
+            ),
+            WorkflowBranch(
+                name="container_capstone_complete",
+                selection_rule=(
+                    "Requires capstone-complete data, MLflow best artifact, training "
+                    "lineage, image build, smoke check, registry, push, and CI registry "
+                    "usage evidence."
+                ),
+            ),
+        ),
+        routing_aliases=(
+            "prepare capstone container CI",
+            "create capstone Docker and CI evidence",
+            "package capstone runtime image",
+            "prepare container_ci_evidence",
+        ),
+        negative_routing_rules=(
+            "Kubernetes",
+            "KServe",
+            "Helm",
+            "ArgoCD",
+            "GitOps",
+            "EKS",
+            "endpoint deployment",
+            "frontend",
+            "final report",
+            "stress-test",
+            "stress test",
+            "video",
+        ),
+        approval_gates=(
+            ApprovalGate(
+                step_id="generate_validate_runtime_image_spec",
+                risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="build_smoke_check_container_image",
+                risk_categories=("builds_image", "executes_project_code"),
+            ),
+            ApprovalGate(
+                step_id="approval_gated_registry_login_push",
+                risk_categories=("uses_remote_service_credentials", "pushes_registry"),
+            ),
+            ApprovalGate(
+                step_id="record_container_ci_evidence_handoff",
+                risk_categories=("writes_project_files",),
+            ),
+        ),
     )
 
 
