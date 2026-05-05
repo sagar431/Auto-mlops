@@ -402,6 +402,19 @@ class RunBoundedTrainingInput(BaseModel):
     target_metric: str = Field(default="accuracy", description="Required metric for success")
 
 
+class TrackTrainingInMLflowInput(BaseModel):
+    """Track a bounded training result in a verified local MLflow run."""
+
+    project_path: str = Field(..., description="Path to the training project")
+    training_result: dict[str, Any] = Field(..., description="Bounded training result payload")
+    experiment_name: str = Field(default="mlops-training", description="MLflow experiment name")
+    tracking_uri: str | None = Field(default=None, description="Local or file MLflow tracking URI")
+    run_name: str | None = Field(default=None, description="Optional MLflow run name")
+    params: dict[str, Any] | None = Field(
+        default=None, description="Additional bounded controls and detected params to log"
+    )
+
+
 # --- Data Quality Tools ---
 
 
@@ -3019,6 +3032,315 @@ def _bounded_training_verification_results(
             "passed": run_evidence_captured,
             "evidence": evidence_summary,
         },
+    ]
+
+
+def track_training_in_mlflow(
+    project_path: str,
+    training_result: dict[str, Any],
+    experiment_name: str = "mlops-training",
+    tracking_uri: str | None = None,
+    run_name: str | None = None,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Log bounded training evidence to a verified local MLflow run."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+    if not path.is_dir():
+        return {"success": False, "error": f"Project path {project_path} is not a directory"}
+
+    tracking_uri_result = _resolve_local_mlflow_tracking_uri(path, tracking_uri)
+    if not tracking_uri_result["success"]:
+        return _mlflow_tracking_blocked_result(
+            reason=tracking_uri_result["error"],
+            next_action="Use a local path or file:// MLflow tracking URI for this workflow.",
+        )
+    resolved_tracking_uri = tracking_uri_result["tracking_uri"]
+
+    try:
+        import mlflow
+        from mlflow.tracking import MlflowClient
+    except ImportError:
+        return _mlflow_tracking_blocked_result(
+            reason="MLflow not installed.",
+            next_action="Install MLflow in the project environment before tracking training.",
+        )
+
+    target_metric = str(training_result.get("target_metric") or "accuracy")
+    metrics = {
+        key: float(value)
+        for key, value in dict(training_result.get("metrics") or {}).items()
+        if isinstance(value, int | float)
+    }
+    checkpoint_paths = list(training_result.get("checkpoint_artifact_paths") or [])
+    log_path = training_result.get("log_path")
+    config_snapshot_path = training_result.get("config_snapshot_path")
+    training_status = str(training_result.get("status") or "unknown")
+    run_status = "FINISHED" if training_status == "succeeded" else "FAILED"
+    logged_artifacts: list[str] = []
+
+    mlflow.set_tracking_uri(resolved_tracking_uri)
+    client = MlflowClient(tracking_uri=resolved_tracking_uri)
+    experiment = mlflow.get_experiment_by_name(experiment_name)
+    if experiment is None:
+        experiment_id = mlflow.create_experiment(experiment_name)
+    else:
+        experiment_id = experiment.experiment_id
+    mlflow.set_experiment(experiment_name)
+
+    run = mlflow.start_run(run_name=run_name)
+    run_id = run.info.run_id
+    artifact_uri = run.info.artifact_uri
+    checkpoint_artifact_uri = None
+    try:
+        logged_params = _mlflow_training_params(training_result, params)
+        for key, value in logged_params.items():
+            mlflow.log_param(key, value)
+        if metrics:
+            mlflow.log_metrics(metrics, step=0)
+
+        for artifact_path, artifact_dest, recorded_path in (
+            (log_path, "logs", "training.log"),
+            (config_snapshot_path, "configs", "config_snapshot.yaml"),
+        ):
+            if artifact_path and _log_project_artifact_to_mlflow(path, artifact_path, artifact_dest):
+                logged_artifacts.append(recorded_path)
+
+        for checkpoint_path in checkpoint_paths:
+            if _log_project_artifact_to_mlflow(path, checkpoint_path, "checkpoints"):
+                logged_artifacts.append(checkpoint_path)
+                if checkpoint_artifact_uri is None:
+                    checkpoint_artifact_uri = (
+                        f"{artifact_uri.rstrip('/')}/checkpoints/{Path(checkpoint_path).name}"
+                    )
+
+        mlflow.set_tag("training_status", training_status)
+        mlflow.set_tag("bounded_training_exit_code", str(training_result.get("exit_code")))
+        if training_result.get("failure_reason"):
+            mlflow.set_tag("failure_reason", str(training_result["failure_reason"])[:500])
+    finally:
+        mlflow.end_run(status=run_status)
+
+    verified_run = client.get_run(run_id)
+    verified_experiment = client.get_experiment(experiment_id)
+    verified_params = dict(verified_run.data.params)
+    verified_metrics = dict(verified_run.data.metrics)
+    verified_artifacts = client.list_artifacts(run_id)
+    artifact_names = {artifact.path for artifact in verified_artifacts}
+    has_checkpoint_artifact = any(
+        artifact.path.startswith("checkpoints/") or artifact.path == "checkpoints"
+        for artifact in verified_artifacts
+    )
+
+    verification_results = _mlflow_tracking_verification_results(
+        experiment_exists=verified_experiment is not None,
+        run_exists=verified_run.info.run_id == run_id,
+        tracking_uri_recorded=bool(resolved_tracking_uri),
+        artifact_uri_recorded=bool(verified_run.info.artifact_uri),
+        params_logged=_mlflow_required_params_logged(verified_params),
+        metrics_logged=target_metric in verified_metrics,
+        artifacts_logged="logs/training.log" in artifact_names or bool(logged_artifacts),
+        checkpoint_logged=has_checkpoint_artifact and checkpoint_artifact_uri is not None,
+        run_status_recorded=verified_run.info.status == run_status,
+        evidence_summary=(
+            f"experiment_id={experiment_id}; run_id={run_id}; "
+            f"tracking_uri={resolved_tracking_uri}; artifact_uri={verified_run.info.artifact_uri}; "
+            f"run_status={verified_run.info.status}; params={sorted(verified_params)}; "
+            f"metrics={verified_metrics}; artifacts={sorted(artifact_names)}"
+        ),
+    )
+    status = "succeeded" if all(item["passed"] for item in verification_results) else "failed"
+
+    artifact_entries = [
+        {
+            "artifact_type": "mlflow_run",
+            "producing_step": "track_training_in_mlflow",
+            "state": "generated",
+            "uri": verified_run.info.artifact_uri,
+        }
+    ]
+    if checkpoint_artifact_uri:
+        artifact_entries.append(
+            {
+                "artifact_type": "mlflow_checkpoint_or_model_artifact",
+                "producing_step": "track_training_in_mlflow",
+                "state": "generated",
+                "path": checkpoint_paths[0] if checkpoint_paths else None,
+                "uri": checkpoint_artifact_uri,
+            }
+        )
+
+    return {
+        "success": True,
+        "status": status,
+        "experiment_id": experiment_id,
+        "experiment_name": experiment_name,
+        "run_id": run_id,
+        "tracking_uri": resolved_tracking_uri,
+        "artifact_uri": verified_run.info.artifact_uri,
+        "run_status": verified_run.info.status,
+        "params": verified_params,
+        "metrics": verified_metrics,
+        "logged_artifacts": logged_artifacts,
+        "checkpoint_artifact_uri": checkpoint_artifact_uri,
+        "failure_reason": None if status == "succeeded" else "MLflow run verification failed.",
+        "next_actions": []
+        if status == "succeeded"
+        else ["Inspect the local MLflow run and verify params, metrics, and artifacts."],
+        "verification_results": verification_results,
+        "artifact_manifest": {"entries": artifact_entries},
+    }
+
+
+def _resolve_local_mlflow_tracking_uri(
+    project_path: Path, tracking_uri: str | None
+) -> dict[str, Any]:
+    if tracking_uri is None:
+        return {"success": True, "tracking_uri": (project_path / "mlruns").resolve().as_uri()}
+    if tracking_uri.startswith("file://"):
+        return {"success": True, "tracking_uri": tracking_uri}
+    if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", tracking_uri):
+        return {
+            "success": False,
+            "error": f"Remote MLflow tracking URI is not allowed: {tracking_uri}",
+        }
+    tracking_path = Path(tracking_uri)
+    if not tracking_path.is_absolute():
+        tracking_path = project_path / tracking_path
+    return {"success": True, "tracking_uri": tracking_path.resolve().as_uri()}
+
+
+def _mlflow_tracking_blocked_result(reason: str, next_action: str) -> dict[str, Any]:
+    return {
+        "success": True,
+        "status": "blocked",
+        "failure_reason": reason,
+        "next_actions": [next_action],
+        "verification_results": _mlflow_tracking_verification_results(
+            experiment_exists=False,
+            run_exists=False,
+            tracking_uri_recorded=False,
+            artifact_uri_recorded=False,
+            params_logged=False,
+            metrics_logged=False,
+            artifacts_logged=False,
+            checkpoint_logged=False,
+            run_status_recorded=False,
+            evidence_summary=reason,
+        ),
+        "artifact_manifest": {"entries": []},
+    }
+
+
+def _mlflow_training_params(
+    training_result: dict[str, Any],
+    extra_params: dict[str, Any] | None,
+) -> dict[str, str]:
+    params: dict[str, Any] = dict(extra_params or {})
+    params.update(
+        {
+            "command": " ".join(str(part) for part in training_result.get("command") or ()),
+            "effective_overrides": ",".join(
+                str(override) for override in training_result.get("effective_overrides") or ()
+            ),
+            "target_metric": training_result.get("target_metric"),
+            "training_status": training_result.get("status"),
+            "exit_code": training_result.get("exit_code"),
+            "duration_seconds": training_result.get("duration_seconds"),
+            "log_path": training_result.get("log_path"),
+            "config_snapshot_path": training_result.get("config_snapshot_path"),
+            "checkpoint_artifact_paths": ",".join(
+                str(path) for path in training_result.get("checkpoint_artifact_paths") or ()
+            ),
+        }
+    )
+    return {
+        key: _stringify_mlflow_param(value)
+        for key, value in params.items()
+        if value is not None and value != ""
+    }
+
+
+def _stringify_mlflow_param(value: Any) -> str:
+    if isinstance(value, str):
+        return value[:500]
+    if isinstance(value, int | float | bool):
+        return str(value)
+    return json.dumps(value, sort_keys=True)[:500]
+
+
+def _log_project_artifact_to_mlflow(
+    project_path: Path,
+    artifact_path: str,
+    artifact_dest: str,
+) -> bool:
+    path = Path(artifact_path)
+    if not path.is_absolute():
+        path = project_path / path
+    if not path.exists():
+        return False
+
+    import mlflow
+
+    if path.is_dir():
+        mlflow.log_artifacts(str(path), artifact_dest)
+    else:
+        mlflow.log_artifact(str(path), artifact_dest)
+    return True
+
+
+def _mlflow_required_params_logged(params: dict[str, str]) -> bool:
+    required_params = {
+        "command",
+        "effective_overrides",
+        "target_metric",
+        "training_status",
+        "exit_code",
+        "duration_seconds",
+        "log_path",
+        "checkpoint_artifact_paths",
+        "timeout_seconds",
+        "max_epochs",
+        "device",
+        "data_subset",
+    }
+    return required_params.issubset(params)
+
+
+def _mlflow_tracking_verification_results(
+    *,
+    experiment_exists: bool,
+    run_exists: bool,
+    tracking_uri_recorded: bool,
+    artifact_uri_recorded: bool,
+    params_logged: bool,
+    metrics_logged: bool,
+    artifacts_logged: bool,
+    checkpoint_logged: bool,
+    run_status_recorded: bool,
+    evidence_summary: str,
+) -> list[dict[str, Any]]:
+    checks = (
+        ("mlflow_experiment_exists", experiment_exists),
+        ("mlflow_run_exists", run_exists),
+        ("mlflow_tracking_uri_recorded", tracking_uri_recorded),
+        ("mlflow_artifact_uri_recorded", artifact_uri_recorded),
+        ("mlflow_params_logged", params_logged),
+        ("mlflow_metrics_logged", metrics_logged),
+        ("mlflow_artifacts_logged", artifacts_logged),
+        ("mlflow_checkpoint_artifact_logged", checkpoint_logged),
+        ("mlflow_run_status_recorded", run_status_recorded),
+    )
+    return [
+        {
+            "check_name": check_name,
+            "evidence_type": "observed",
+            "source_step": "track_training_in_mlflow",
+            "passed": passed,
+            "evidence": evidence_summary,
+        }
+        for check_name, passed in checks
     ]
 
 
@@ -7771,6 +8093,11 @@ async def list_tools() -> list[Tool]:
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
         ),
         Tool(
+            name="track_training_in_mlflow",
+            description="Track bounded training evidence in a verified local MLflow run",
+            inputSchema=TrackTrainingInMLflowInput.model_json_schema(),
+        ),
+        Tool(
             name="analyze_training_results",
             description="Analyze training results and suggest improvements",
             inputSchema=AnalyzeTrainingResultsInput.model_json_schema(),
@@ -8244,6 +8571,17 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 data_subset=input_data.data_subset,
                 hydra_overrides=input_data.hydra_overrides,
                 target_metric=input_data.target_metric,
+            )
+
+        elif name == "track_training_in_mlflow":
+            input_data = TrackTrainingInMLflowInput(**arguments)
+            result = track_training_in_mlflow(
+                project_path=input_data.project_path,
+                training_result=input_data.training_result,
+                experiment_name=input_data.experiment_name,
+                tracking_uri=input_data.tracking_uri,
+                run_name=input_data.run_name,
+                params=input_data.params,
             )
 
         elif name == "analyze_training_results":

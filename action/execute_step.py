@@ -183,6 +183,7 @@ AVAILABLE_TOOLS = [
     # Training Control
     "detect_training_project",
     "run_bounded_training",
+    "track_training_in_mlflow",
     "analyze_training_results",
     "suggest_improvements",
     "check_accuracy_threshold",

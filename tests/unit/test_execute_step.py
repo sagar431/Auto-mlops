@@ -504,6 +504,7 @@ class TestAvailableTools:
         """Test AVAILABLE_TOOLS contains training control tools."""
         assert "detect_training_project" in AVAILABLE_TOOLS
         assert "run_bounded_training" in AVAILABLE_TOOLS
+        assert "track_training_in_mlflow" in AVAILABLE_TOOLS
         assert "analyze_training_results" in AVAILABLE_TOOLS
         assert "suggest_improvements" in AVAILABLE_TOOLS
         assert "check_accuracy_threshold" in AVAILABLE_TOOLS

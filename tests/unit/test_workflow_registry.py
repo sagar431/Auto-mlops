@@ -87,12 +87,16 @@ def test_train_and_track_declares_bounded_training_template():
     assert [step.step_id for step in template.steps] == [
         "detect_training_project",
         "run_bounded_training",
+        "track_training_in_mlflow",
     ]
     assert template.step_by_id("detect_training_project").tool_functions == (
         "detect_training_project",
     )
     assert template.step_by_id("run_bounded_training").tool_functions == (
         "run_bounded_training",
+    )
+    assert template.step_by_id("track_training_in_mlflow").tool_functions == (
+        "track_training_in_mlflow",
     )
     assert [check.name for check in template.success_contract.checks] == [
         "training_project_detected",
@@ -103,8 +107,44 @@ def test_train_and_track_declares_bounded_training_template():
         "training_metric_captured",
         "training_artifact_captured",
         "training_run_evidence_captured",
+        "mlflow_experiment_exists",
+        "mlflow_run_exists",
+        "mlflow_tracking_uri_recorded",
+        "mlflow_artifact_uri_recorded",
+        "mlflow_params_logged",
+        "mlflow_metrics_logged",
+        "mlflow_artifacts_logged",
+        "mlflow_checkpoint_artifact_logged",
+        "mlflow_run_status_recorded",
     ]
     assert all(check.evidence_type == "observed" for check in template.success_contract.checks)
+
+
+def test_train_and_track_requires_verified_mlflow_run_for_success():
+    registry = get_workflow_registry()
+    template = registry.get("train_and_track")
+    verification_results = tuple(
+        VerificationResult(
+            check_name=check.name,
+            evidence_type="observed",
+            source_step=check.source_step,
+            passed=True,
+            evidence=f"{check.name}=ok",
+        )
+        for check in template.success_contract.checks
+        if check.name != "mlflow_run_exists"
+    )
+
+    validation = registry.validate_success_contract(
+        "train_and_track",
+        verification_results=verification_results,
+        artifact_manifest=ArtifactManifest(entries=()),
+    )
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert [failure.check_name for failure in validation.missing_evidence] == [
+        "mlflow_run_exists"
+    ]
 
 
 def test_setup_pipeline_declares_ordered_workflow_steps():
