@@ -84,6 +84,72 @@ def test_detect_capstone_data_layouts_blocks_empty_class_folder(tmp_path):
     assert "empty_class_folder" in layout_result["evidence"]
 
 
+def test_generate_capstone_split_manifests_writes_deterministic_manifest(tmp_path):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    dataset_1 = tmp_path / "source_one"
+    dataset_2 = tmp_path / "source_two"
+    for class_name in ("cats", "dogs"):
+        for index in range(5):
+            _write_tiny_image(dataset_1 / class_name / f"{class_name}-{index}.jpg")
+            _write_tiny_image(dataset_2 / class_name / f"{class_name}-{index}.jpg")
+    detection = mcp_mlops_tools.detect_capstone_data_layouts(
+        project_path=str(project_path),
+        dataset_1_path=str(dataset_1),
+        dataset_2_path=str(dataset_2),
+    )
+
+    first = mcp_mlops_tools.generate_capstone_split_manifests(
+        project_path=str(project_path),
+        capstone_data_detection=detection,
+        test_size=0.4,
+        split_seed=7,
+    )
+    first_manifest = (
+        project_path / first["split_manifests"][0]["split_manifest_path"]
+    ).read_text()
+    second = mcp_mlops_tools.generate_capstone_split_manifests(
+        project_path=str(project_path),
+        capstone_data_detection=detection,
+        test_size=0.4,
+        split_seed=7,
+    )
+
+    assert first["success"] is True
+    assert first["status"] == "succeeded"
+    assert first_manifest == (
+        project_path / second["split_manifests"][0]["split_manifest_path"]
+    ).read_text()
+    manifest = json.loads(first_manifest)
+    assert manifest["dataset_id"] == "dataset_1"
+    assert manifest["source_path"] == str(dataset_1)
+    assert manifest["split_strategy"] == "manifest"
+    assert manifest["seed"] == 7
+    assert manifest["test_size"] == 0.4
+    assert manifest["train_count"] == 6
+    assert manifest["test_count"] == 4
+    assert manifest["per_class_counts"] == {
+        "cats": {"train": 3, "test": 2, "total": 5},
+        "dogs": {"train": 3, "test": 2, "total": 5},
+    }
+    assert [item["class_name"] for item in manifest["files"]["train"]] == [
+        "cats",
+        "cats",
+        "cats",
+        "dogs",
+        "dogs",
+        "dogs",
+    ]
+    assert first["artifact_manifest"]["entries"][0]["artifact_type"] == "split_manifest"
+    verification_by_name = {
+        item["check_name"]: item for item in first["verification_results"]
+    }
+    assert verification_by_name["split_evidence_recorded"]["passed"] is True
+    assert verification_by_name["dataset_lineage_artifacts_reported"]["passed"] is True
+    assert (dataset_1 / "cats" / "cats-0.jpg").exists()
+    assert not (project_path / "data" / "capstone" / "dataset_1" / "train").exists()
+
+
 def test_select_best_model_artifact_selects_latest_run_that_beats_baseline(tmp_path):
     checkpoints_dir = tmp_path / "checkpoints"
     checkpoints_dir.mkdir()
@@ -1657,19 +1723,19 @@ class TestAgentLoopRun:
             "completion_mode": "local_ready",
             "dataset_1_path": str(dataset_1),
             "dataset_2_path": str(dataset_2),
+            "test_size": 0.2,
+            "split_seed": 42,
+            "materialize_splits": False,
         }
         completed_tool_steps = [
             step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
         ]
         assert completed_tool_steps == ["prepare_capstone_data_contract"]
-        assert "prepare_capstone_data final workflow status derived from SuccessContract" in result
-        assert "contract_status: blocked" in result
+        assert "Approval required before executing workflow step 'generate_split_manifests'" in result
+        assert "writes_project_files" in result
         assert "dataset_1" in result
         assert "dataset_2" in result
-        assert "two_dataset_paths_provided:observed:passed" in result
-        assert "two_dataset_layouts_supported:observed:passed" in result
-        contract_status = mock_agent.ctx.globals["contract_status"]
-        assert contract_status.status is WorkflowStatus.BLOCKED
+        assert "split_manifest.json" in result
         verification_results = mock_agent.ctx.globals["verification_results"]
         assert [
             verification_result.check_name for verification_result in verification_results
@@ -1737,8 +1803,8 @@ class TestAgentLoopRun:
         """Test existing train/test folders are recorded as split evidence candidates."""
         dataset_1 = tmp_path / "source_one"
         dataset_2 = tmp_path / "source_two"
-        _write_tiny_image(dataset_1 / "cats" / "cat-1.jpg")
-        _write_tiny_image(dataset_1 / "dogs" / "dog-1.jpg")
+        _write_tiny_image(dataset_1 / "train" / "cats" / "cat-train.jpg")
+        _write_tiny_image(dataset_1 / "test" / "cats" / "cat-test.jpg")
         _write_tiny_image(dataset_2 / "train" / "apple" / "apple-train.jpg")
         _write_tiny_image(dataset_2 / "test" / "apple" / "apple-test.jpg")
 

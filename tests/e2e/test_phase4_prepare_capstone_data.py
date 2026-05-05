@@ -24,8 +24,8 @@ async def test_prepare_capstone_data_detects_two_image_folder_datasets_read_only
     project_path.mkdir()
     dataset_1 = tmp_path / "dataset_one"
     dataset_2 = tmp_path / "dataset_two"
-    _write_tiny_image(dataset_1 / "cats" / "cat-1.jpg")
-    _write_tiny_image(dataset_1 / "dogs" / "dog-1.jpg")
+    _write_tiny_image(dataset_1 / "train" / "cats" / "cat-train.jpg")
+    _write_tiny_image(dataset_1 / "test" / "cats" / "cat-test.jpg")
     _write_tiny_image(dataset_2 / "train" / "apple" / "apple-train.jpg")
     _write_tiny_image(dataset_2 / "test" / "apple" / "apple-test.jpg")
     agent = AgentLoop(prompts_dir=str(prompts_dir))
@@ -59,3 +59,127 @@ async def test_prepare_capstone_data_detects_two_image_folder_datasets_read_only
     assert not (project_path / ".auto_mlops").exists()
     assert not (project_path / ".dvc").exists()
     assert not (project_path / "data" / "capstone").exists()
+
+
+@pytest.mark.asyncio
+async def test_prepare_capstone_data_blocks_for_split_manifest_write_approval(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    prompts_dir.mkdir()
+    (prompts_dir / "perception_prompt.txt").write_text("Perception")
+    (prompts_dir / "decision_prompt.txt").write_text("Decision")
+    (prompts_dir / "summarizer_prompt.txt").write_text("Summarize")
+    (prompts_dir / "improvement_prompt.txt").write_text("Improve")
+
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    dataset_1 = tmp_path / "dataset_one"
+    dataset_2 = tmp_path / "dataset_two"
+    for dataset in (dataset_1, dataset_2):
+        _write_tiny_image(dataset / "cats" / "cat-1.jpg")
+        _write_tiny_image(dataset / "dogs" / "dog-1.jpg")
+    events = []
+
+    async def on_event(event_type, data):
+        events.append({"type": event_type, "data": data})
+
+    agent = AgentLoop(prompts_dir=str(prompts_dir), on_event=on_event)
+
+    with (
+        patch.object(
+            agent.perception,
+            "run",
+            new_callable=AsyncMock,
+            side_effect=AssertionError("Phase 4 registry path must not call perception"),
+        ),
+        patch.object(
+            agent.decision,
+            "run",
+            new_callable=AsyncMock,
+            side_effect=AssertionError("Phase 4 registry path must not call decision"),
+        ),
+    ):
+        result = await agent.run(
+            "Prepare capstone data "
+            f"dataset_1_path={dataset_1} dataset_2_path={dataset_2} "
+            "test_size=0.5 split_seed=11",
+            str(project_path),
+        )
+
+    approval_events = [event for event in events if event["type"] == "approval_required"]
+    assert agent.workflow_selection.workflow_id == "prepare_capstone_data"
+    assert agent.status == "paused"
+    assert approval_events
+    assert approval_events[0]["data"]["step_id"] == "generate_split_manifests"
+    assert approval_events[0]["data"]["risk_categories"] == ["writes_project_files"]
+    assert "Approval required before executing workflow step 'generate_split_manifests'" in result
+    assert "split_manifest.json" in result
+    assert '"seed": 11' in result
+    assert '"test_size": 0.5' in result
+    assert "two_dataset_layouts_supported" in {
+        item.check_name for item in agent.ctx.globals["verification_results"]
+    }
+    assert not (project_path / "data" / "capstone").exists()
+
+
+@pytest.mark.asyncio
+async def test_prepare_capstone_data_approved_run_generates_split_manifests_only(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    prompts_dir.mkdir()
+    (prompts_dir / "perception_prompt.txt").write_text("Perception")
+    (prompts_dir / "decision_prompt.txt").write_text("Decision")
+    (prompts_dir / "summarizer_prompt.txt").write_text("Summarize")
+    (prompts_dir / "improvement_prompt.txt").write_text("Improve")
+
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    dataset_1 = tmp_path / "dataset_one"
+    dataset_2 = tmp_path / "dataset_two"
+    for dataset in (dataset_1, dataset_2):
+        for class_name in ("cats", "dogs"):
+            for index in range(3):
+                _write_tiny_image(dataset / class_name / f"{class_name}-{index}.jpg")
+
+    agent = AgentLoop(prompts_dir=str(prompts_dir), auto_approve=True)
+
+    with (
+        patch.object(
+            agent.perception,
+            "run",
+            new_callable=AsyncMock,
+            side_effect=AssertionError("Phase 4 registry path must not call perception"),
+        ),
+        patch.object(
+            agent.decision,
+            "run",
+            new_callable=AsyncMock,
+            side_effect=AssertionError("Phase 4 registry path must not call decision"),
+        ),
+    ):
+        result = await agent.run(
+            "Prepare capstone data "
+            f"dataset_1_path={dataset_1} dataset_2_path={dataset_2} "
+            "test_size=0.34 split_seed=19",
+            str(project_path),
+        )
+
+    manifest_1 = project_path / "data" / "capstone" / "dataset_1" / "split_manifest.json"
+    manifest_2 = project_path / "data" / "capstone" / "dataset_2" / "split_manifest.json"
+    assert manifest_1.exists()
+    assert manifest_2.exists()
+    assert agent.status == "paused"
+    assert agent.ctx.globals["contract_status"].status is WorkflowStatus.BLOCKED
+    assert "split_evidence_recorded:observed:passed" in result
+    assert "dataset_lineage_artifacts_reported:observed:passed" in result
+    artifact_manifest = agent.ctx.globals["artifact_manifest"]
+    assert {
+        (entry.artifact_type, entry.state.value, entry.path)
+        for entry in artifact_manifest.entries
+        if entry.artifact_type == "split_manifest"
+    } == {
+        ("split_manifest", "generated", "data/capstone/dataset_1/split_manifest.json"),
+        ("split_manifest", "generated", "data/capstone/dataset_2/split_manifest.json"),
+    }
+    assert (dataset_1 / "cats" / "cats-0.jpg").exists()
+    assert not (project_path / ".dvc").exists()
+    assert not (project_path / ".auto_mlops" / "capstone" / "data_stage_evidence.json").exists()
+    assert not (project_path / "data" / "capstone" / "dataset_1" / "train").exists()

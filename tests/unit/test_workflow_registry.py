@@ -123,18 +123,32 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
         "dataset_1_path",
         "dataset_2_path",
         "completion_mode",
+        "test_size",
+        "split_seed",
+        "materialize_splits",
     ]
     completion_mode_input = template.required_inputs[3]
     assert completion_mode_input.default == "local_ready"
     assert completion_mode_input.allowed_values == ("local_ready", "capstone_complete")
+    assert template.required_inputs[4].default == 0.2
+    assert template.required_inputs[5].default == 42
+    assert template.required_inputs[6].default is False
     assert [branch.name for branch in template.branches] == [
         "local_ready",
         "capstone_complete",
     ]
     assert [step.step_id for step in template.steps] == [
-        "prepare_capstone_data_contract"
+        "prepare_capstone_data_contract",
+        "generate_split_manifests",
     ]
     assert template.steps[0].tool_functions == ("detect_capstone_data_layouts",)
+    assert template.steps[1].tool_functions == ("generate_capstone_split_manifests",)
+    assert {
+        gate.step_id: gate.risk_categories for gate in template.approval_gates
+    } == {"generate_split_manifests": ("writes_project_files",)}
+    assert [requirement.artifact_type for requirement in template.artifact_requirements] == [
+        "split_manifest"
+    ]
     assert [check.name for check in template.success_contract.checks] == [
         "two_dataset_paths_provided",
         "two_dataset_layouts_supported",

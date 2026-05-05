@@ -183,6 +183,7 @@ AVAILABLE_TOOLS = [
     # Training Control
     "detect_training_project",
     "detect_capstone_data_layouts",
+    "generate_capstone_split_manifests",
     "run_bounded_training",
     "track_training_in_mlflow",
     "record_capstone_orchestrator_skeleton",

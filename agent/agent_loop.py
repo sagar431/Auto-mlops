@@ -395,6 +395,8 @@ class AgentLoop:
             return None
 
         workflow_id = self.workflow_selection.workflow_id
+        if workflow_id == "prepare_capstone_data":
+            return None
         template = self.workflow_registry.get(workflow_id)
         approval_records = tuple(self.ctx.globals.get("approval_records", ()))
         for step in template.steps:
@@ -528,7 +530,12 @@ class AgentLoop:
 
     def _capstone_data_inputs_from_query(self) -> dict[str, Any]:
         """Extract declared Phase 4 Issue 1 capstone data inputs from the query."""
-        inputs: dict[str, Any] = {"completion_mode": "local_ready"}
+        inputs: dict[str, Any] = {
+            "completion_mode": "local_ready",
+            "test_size": 0.2,
+            "split_seed": 42,
+            "materialize_splits": False,
+        }
         for input_name in ("dataset_1_path", "dataset_2_path", "completion_mode"):
             match = re.search(
                 rf"{input_name}\s*=\s*(\S+)",
@@ -537,6 +544,23 @@ class AgentLoop:
             )
             if match:
                 inputs[input_name] = match.group(1)
+        test_size_match = re.search(r"test_size\s*=\s*(0(?:\.\d+)?|1(?:\.0+)?)", self.query)
+        if test_size_match:
+            inputs["test_size"] = float(test_size_match.group(1))
+        split_seed_match = re.search(r"split_seed\s*=\s*(\d+)", self.query)
+        if split_seed_match:
+            inputs["split_seed"] = int(split_seed_match.group(1))
+        materialize_match = re.search(
+            r"materialize_splits\s*=\s*(true|false|1|0|yes|no)",
+            self.query,
+            flags=re.IGNORECASE,
+        )
+        if materialize_match:
+            inputs["materialize_splits"] = materialize_match.group(1).casefold() in {
+                "true",
+                "1",
+                "yes",
+            }
         return inputs
 
     def _bounded_training_controls_from_query(self) -> dict[str, Any]:
@@ -863,7 +887,9 @@ class AgentLoop:
                         "Approval required before executing workflow step "
                         f"'{approval_validation.step_id}'. risk_categories: "
                         f"{', '.join(risk_categories)}. "
-                        f"next_action: {approval_validation.next_action}"
+                        f"next_action: {approval_validation.next_action}. "
+                        f"evidence: {self._format_verification_results()}. "
+                        f"artifacts: {self._format_artifacts()}"
                     )
                     return
                 if approval_validation.status is WorkflowStatus.FAILED:
@@ -1023,6 +1049,12 @@ class AgentLoop:
             return None
 
         try:
+            if (
+                self.workflow_selection.workflow_id == "prepare_capstone_data"
+                and step_id == "generate_split_manifests"
+                and not self._capstone_split_manifest_writes_required()
+            ):
+                return None
             validation = self.workflow_registry.validate_step_approval(
                 workflow_id=self.workflow_selection.workflow_id,
                 workflow_run_id=self.session_id,
@@ -1290,6 +1322,11 @@ class AgentLoop:
             and step_id == "prepare_capstone_data_contract"
         ):
             self.ctx.globals["capstone_data_detection"] = payload
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "generate_split_manifests"
+        ):
+            self.ctx.globals["capstone_split_manifest_result"] = payload
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1441,10 +1478,36 @@ class AgentLoop:
         ):
             workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
             if isinstance(workflow_inputs, dict):
-                for key in ("dataset_1_path", "dataset_2_path", "completion_mode"):
+                for key in (
+                    "dataset_1_path",
+                    "dataset_2_path",
+                    "completion_mode",
+                    "test_size",
+                    "split_seed",
+                ):
+                    if key in workflow_inputs:
+                        runtime_args[key] = workflow_inputs[key]
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "generate_split_manifests"
+        ):
+            detection = self.ctx.globals.get("capstone_data_detection", {})
+            workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+            if isinstance(detection, dict):
+                runtime_args["capstone_data_detection"] = detection
+            if isinstance(workflow_inputs, dict):
+                for key in ("test_size", "split_seed", "materialize_splits"):
                     if key in workflow_inputs:
                         runtime_args[key] = workflow_inputs[key]
         return runtime_args
+
+    def _capstone_split_manifest_writes_required(self) -> bool:
+        detection = self.ctx.globals.get("capstone_data_detection", {})
+        return bool(
+            isinstance(detection, dict)
+            and detection.get("split_manifest_writes_required")
+        )
 
     def _port_from_endpoint_url(self, endpoint_url: Any) -> int | None:
         if not isinstance(endpoint_url, str):
@@ -1497,6 +1560,16 @@ class AgentLoop:
             and step_id == "run_bounded_training"
         ):
             return False
+        if (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "prepare_capstone_data_contract"
+        ):
+            detection = self.ctx.globals.get("capstone_data_detection", {})
+            return not (
+                isinstance(detection, dict)
+                and detection.get("status") == "succeeded"
+            )
         if self._registry_step_recorded_failed_contract_evidence(step_id):
             return True
         if (
