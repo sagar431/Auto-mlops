@@ -537,6 +537,7 @@ class AgentLoop:
             "test_size": 0.2,
             "split_seed": 42,
             "materialize_splits": False,
+            "dvc_transfer_direction": "push",
         }
         for input_name in (
             "dataset_1_path",
@@ -544,6 +545,7 @@ class AgentLoop:
             "completion_mode",
             "dvc_remote_name",
             "dvc_remote_url",
+            "dvc_transfer_direction",
         ):
             match = re.search(
                 rf"{input_name}\s*=\s*(\S+)",
@@ -874,6 +876,20 @@ class AgentLoop:
                 break
 
             step_data = self.ctx.graph.nodes[self.next_step_id]["data"]
+            if self._should_skip_registry_step(self.next_step_id):
+                self.ctx.mark_step_completed(self.next_step_id)
+                await self._emit(
+                    "step_skipped",
+                    {
+                        "step_id": self.next_step_id,
+                        "reason": "registry inclusion rule did not select this step",
+                    },
+                )
+                self.next_step_id = self._pick_next_step()
+                if self.next_step_id is None:
+                    break
+                continue
+
             approval_validation = await self._validate_registry_step_approval(self.next_step_id)
             if approval_validation is not None:
                 if approval_validation.status is WorkflowStatus.BLOCKED:
@@ -1068,6 +1084,12 @@ class AgentLoop:
                 and step_id == "configure_validate_dvc_remote"
             ):
                 return self._validate_capstone_remote_approval(step_id)
+            if (
+                self.workflow_selection.workflow_id == "prepare_capstone_data"
+                and step_id in {"push_capstone_data", "pull_capstone_data"}
+                and not self._capstone_transfer_step_selected(step_id)
+            ):
+                return None
             validation = self.workflow_registry.validate_step_approval(
                 workflow_id=self.workflow_selection.workflow_id,
                 workflow_run_id=self.session_id,
@@ -1191,6 +1213,27 @@ class AgentLoop:
         if remote_url.casefold().startswith("s3://"):
             risks.append(RiskCategory.USES_CLOUD_CREDENTIALS)
         return tuple(risks)
+
+    def _capstone_transfer_step_selected(self, step_id: str) -> bool:
+        workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+        if not isinstance(workflow_inputs, dict):
+            return False
+        if workflow_inputs.get("completion_mode") != "capstone_complete":
+            return False
+        direction = workflow_inputs.get("dvc_transfer_direction", "push")
+        return (
+            (step_id == "push_capstone_data" and direction == "push")
+            or (step_id == "pull_capstone_data" and direction == "pull")
+        )
+
+    def _should_skip_registry_step(self, step_id: str) -> bool:
+        if (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id in {"push_capstone_data", "pull_capstone_data"}
+        ):
+            return not self._capstone_transfer_step_selected(step_id)
+        return False
 
     def _configured_capstone_remote_url(self, remote_name: Any) -> str | None:
         project_path = self.ctx.project_path
@@ -1465,6 +1508,16 @@ class AgentLoop:
             and step_id == "configure_validate_dvc_remote"
         ):
             self.ctx.globals["capstone_data_remote_result"] = payload
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "push_capstone_data"
+        ):
+            self.ctx.globals["capstone_data_push_result"] = payload
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "pull_capstone_data"
+        ):
+            self.ctx.globals["capstone_data_pull_result"] = payload
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1660,7 +1713,50 @@ class AgentLoop:
                 ):
                     if source_key in workflow_inputs:
                         runtime_args[target_key] = workflow_inputs[source_key]
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id in {"push_capstone_data", "pull_capstone_data"}
+        ):
+            workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+            remote_result = self.ctx.globals.get("capstone_data_remote_result", {})
+            package_result = self.ctx.globals.get("capstone_data_package_result", {})
+            if isinstance(workflow_inputs, dict):
+                for source_key, target_key in (
+                    ("completion_mode", "completion_mode"),
+                    ("dvc_remote_name", "remote_name"),
+                ):
+                    if source_key in workflow_inputs:
+                        runtime_args[target_key] = workflow_inputs[source_key]
+            if isinstance(remote_result, dict):
+                runtime_args["capstone_dvc_remote_result"] = remote_result
+            if isinstance(package_result, dict) and package_result.get("tracked_package_paths"):
+                runtime_args["paths"] = package_result["tracked_package_paths"]
+            approval_record = self._approval_record_for_step(step_id)
+            if approval_record is not None:
+                runtime_args["approval_record"] = self._approval_record_to_payload(
+                    approval_record
+                )
         return runtime_args
+
+    def _approval_record_for_step(self, step_id: str) -> ApprovalRecord | None:
+        approval_records = tuple(self.ctx.globals.get("approval_records", ()))
+        for record in approval_records:
+            if isinstance(record, ApprovalRecord) and record.step_id == step_id:
+                return record
+        return None
+
+    def _approval_record_to_payload(self, record: ApprovalRecord) -> dict[str, Any]:
+        return {
+            "workflow_run_id": record.workflow_run_id,
+            "step_id": record.step_id,
+            "risk_categories": [risk.value for risk in record.risk_categories],
+            "status": record.status.value,
+            "approver": record.approver,
+            "timestamp": record.timestamp.isoformat()
+            if hasattr(record.timestamp, "isoformat")
+            else str(record.timestamp),
+        }
 
     def _capstone_split_manifest_writes_required(self) -> bool:
         detection = self.ctx.globals.get("capstone_data_detection", {})

@@ -357,6 +357,394 @@ def test_configure_validate_capstone_dvc_remote_blocks_missing_aws_credentials(
     assert "Configure AWS credentials" in " ".join(result["next_actions"])
 
 
+def _approved_transfer_record(step_id, risks):
+    return {
+        "workflow_run_id": "run-123",
+        "step_id": step_id,
+        "risk_categories": risks,
+        "status": "approved",
+        "approver": "ops@example.com",
+        "timestamp": "2026-05-05T00:00:00+00:00",
+    }
+
+
+def test_push_capstone_data_blocks_without_approval(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    (project_path / ".dvc").mkdir()
+    (project_path / ".dvc" / "config").write_text(
+        "[core]\n    remote = capstone\n"
+        '[\'remote "capstone"\']\n'
+        "    url = s3://secret-capstone-bucket/team-a\n"
+    )
+    commands = []
+
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: tool == "dvc")
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "run_command",
+        lambda cmd, cwd=None, timeout=60: commands.append(cmd)
+        or {"success": True, "stdout": "ok", "stderr": "", "returncode": 0},
+    )
+
+    result = mcp_mlops_tools.push_capstone_data(
+        project_path=str(project_path),
+        remote_name="capstone",
+        capstone_dvc_remote_result={
+            "status": "succeeded",
+            "remote": {
+                "remote_name": "capstone",
+                "remote_type": "s3",
+                "redacted_remote_url": "s3://se***et/te***-a",
+            },
+        },
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert commands == []
+    assert "approval" in " ".join(result["next_actions"])
+    verification = result["verification_results"][0]
+    assert verification["check_name"] == "s3_transfer_completed"
+    assert verification["source_step"] == "push_capstone_data"
+    assert verification["passed"] is False
+
+
+def test_push_capstone_data_denied_approval_blocks_without_transfer(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    (project_path / ".dvc").mkdir()
+    (project_path / ".dvc" / "config").write_text(
+        "[core]\n    remote = capstone\n"
+        '[\'remote "capstone"\']\n'
+        "    url = s3://secret-capstone-bucket/team-a\n"
+    )
+    commands = []
+
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: tool == "dvc")
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "run_command",
+        lambda cmd, cwd=None, timeout=60: commands.append(cmd)
+        or {"success": True, "stdout": "ok", "stderr": "", "returncode": 0},
+    )
+
+    result = mcp_mlops_tools.push_capstone_data(
+        project_path=str(project_path),
+        remote_name="capstone",
+        approval_record={
+            **_approved_transfer_record(
+                "push_capstone_data",
+                ["uses_cloud_credentials"],
+            ),
+            "status": "denied",
+        },
+    )
+    evidence = json.loads(result["verification_results"][0]["evidence"])
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert commands == []
+    assert evidence["blocked_reason"] == "missing_or_denied_approval"
+    assert evidence["approval_record"]["status"] == "denied"
+    assert result["verification_results"][0]["passed"] is False
+
+
+def test_push_capstone_data_records_observed_transfer_evidence(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    (project_path / ".dvc").mkdir()
+    (project_path / ".dvc" / "config").write_text(
+        "[core]\n    remote = capstone\n"
+        '[\'remote "capstone"\']\n'
+        "    url = s3://secret-capstone-bucket/team-a/capstone\n"
+    )
+    commands = []
+
+    def fake_run_command(cmd, cwd=None, timeout=60):
+        commands.append((cmd, cwd, timeout))
+        return {
+            "success": True,
+            "stdout": "2 files pushed to s3://secret-capstone-bucket/team-a/capstone",
+            "stderr": "",
+            "returncode": 0,
+        }
+
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: tool == "dvc")
+    monkeypatch.setattr(mcp_mlops_tools, "run_command", fake_run_command)
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_validate_s3_credential_capability",
+        lambda remote_url: {
+            "passed": True,
+            "status": "validated",
+            "identity": {"account": "12***12"},
+            "bucket_reachable": True,
+            "prefix_checked": True,
+            "next_actions": [],
+        },
+    )
+
+    result = mcp_mlops_tools.push_capstone_data(
+        project_path=str(project_path),
+        remote_name="capstone",
+        paths=["data/capstone/dataset_1"],
+        approval_record=_approved_transfer_record(
+            "push_capstone_data",
+            ["uses_cloud_credentials"],
+        ),
+    )
+    serialized = json.dumps(result, sort_keys=True)
+
+    assert result["success"] is True
+    assert result["status"] == "succeeded"
+    assert commands == [
+        (
+            ["dvc", "push", "-r", "capstone", "data/capstone/dataset_1"],
+            str(project_path),
+            600,
+        )
+    ]
+    assert "secret-capstone-bucket" not in serialized
+    assert "s3://se***et/te***-a/ca***ne" in serialized
+    verification = result["verification_results"][0]
+    evidence = json.loads(verification["evidence"])
+    assert verification["check_name"] == "s3_transfer_completed"
+    assert verification["source_step"] == "push_capstone_data"
+    assert verification["passed"] is True
+    assert evidence["command"] == "dvc push -r capstone data/capstone/dataset_1"
+    assert evidence["returncode"] == 0
+    assert evidence["paths"] == ["data/capstone/dataset_1"]
+    assert result["artifact_manifest"]["entries"][0]["artifact_type"] == "capstone_data_transfer"
+
+
+def test_pull_capstone_data_blocks_missing_credentials(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    (project_path / ".dvc").mkdir()
+    (project_path / ".dvc" / "config").write_text(
+        "[core]\n    remote = capstone\n"
+        '[\'remote "capstone"\']\n'
+        "    url = s3://secret-capstone-bucket/team-a\n"
+    )
+    commands = []
+
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: tool == "dvc")
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "run_command",
+        lambda cmd, cwd=None, timeout=60: commands.append(cmd)
+        or {"success": True, "stdout": "ok", "stderr": "", "returncode": 0},
+    )
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_validate_s3_credential_capability",
+        lambda remote_url: {
+            "passed": False,
+            "status": "missing_cloud_credential_capability",
+            "identity": None,
+            "bucket_reachable": False,
+            "prefix_checked": False,
+            "next_actions": [
+                "Configure AWS credentials outside Auto-MLOps and rerun validation."
+            ],
+        },
+    )
+
+    result = mcp_mlops_tools.pull_capstone_data(
+        project_path=str(project_path),
+        remote_name="capstone",
+        approval_record=_approved_transfer_record(
+            "pull_capstone_data",
+            ["uses_cloud_credentials", "writes_project_files"],
+        ),
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert commands == []
+    assert "Configure AWS credentials" in " ".join(result["next_actions"])
+    assert result["verification_results"][0]["passed"] is False
+
+
+def test_push_capstone_data_blocks_when_dvc_is_missing(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    commands = []
+
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: False)
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "run_command",
+        lambda cmd, cwd=None, timeout=60: commands.append(cmd)
+        or {"success": True, "stdout": "ok", "stderr": "", "returncode": 0},
+    )
+
+    result = mcp_mlops_tools.push_capstone_data(
+        project_path=str(project_path),
+        remote_name="capstone",
+        approval_record=_approved_transfer_record(
+            "push_capstone_data",
+            ["uses_cloud_credentials"],
+        ),
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert commands == []
+    assert "Install DVC" in " ".join(result["next_actions"])
+    assert result["verification_results"][0]["passed"] is False
+
+
+def test_push_capstone_data_blocks_without_validated_s3_remote(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    (project_path / ".dvc").mkdir()
+    (project_path / ".dvc" / "config").write_text("[core]\n")
+    commands = []
+
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: tool == "dvc")
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "run_command",
+        lambda cmd, cwd=None, timeout=60: commands.append(cmd)
+        or {"success": True, "stdout": "ok", "stderr": "", "returncode": 0},
+    )
+
+    result = mcp_mlops_tools.push_capstone_data(
+        project_path=str(project_path),
+        remote_name="capstone",
+        capstone_dvc_remote_result={
+            "status": "blocked",
+            "remote": {
+                "remote_name": "capstone",
+                "remote_type": "missing",
+                "redacted_remote_url": None,
+            },
+        },
+        approval_record=_approved_transfer_record(
+            "push_capstone_data",
+            ["uses_cloud_credentials"],
+        ),
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert commands == []
+    assert "Validate an S3" in " ".join(result["next_actions"])
+    assert result["verification_results"][0]["passed"] is False
+
+
+def test_push_capstone_data_failed_transfer_records_structured_next_action(
+    tmp_path, monkeypatch
+):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    (project_path / ".dvc").mkdir()
+    (project_path / ".dvc" / "config").write_text(
+        "[core]\n    remote = capstone\n"
+        '[\'remote "capstone"\']\n'
+        "    url = s3://secret-capstone-bucket/team-a\n"
+    )
+
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: tool == "dvc")
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "run_command",
+        lambda cmd, cwd=None, timeout=60: {
+            "success": False,
+            "stdout": "",
+            "stderr": "Access denied for s3://secret-capstone-bucket/team-a",
+            "returncode": 1,
+        },
+    )
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_validate_s3_credential_capability",
+        lambda remote_url: {
+            "passed": True,
+            "status": "validated",
+            "identity": {"account": "12***12"},
+            "bucket_reachable": True,
+            "prefix_checked": True,
+            "next_actions": [],
+        },
+    )
+
+    result = mcp_mlops_tools.push_capstone_data(
+        project_path=str(project_path),
+        remote_name="capstone",
+        approval_record=_approved_transfer_record(
+            "push_capstone_data",
+            ["uses_cloud_credentials"],
+        ),
+    )
+    evidence = json.loads(result["verification_results"][0]["evidence"])
+
+    assert result["success"] is True
+    assert result["status"] == "failed"
+    assert result["verification_results"][0]["passed"] is False
+    assert evidence["returncode"] == 1
+    assert evidence["blocked_reason"] == "dvc_transfer_failed"
+    assert "secret-capstone-bucket" not in json.dumps(result, sort_keys=True)
+    assert "Inspect DVC transfer output" in " ".join(result["next_actions"])
+
+
+def test_pull_capstone_data_records_observed_transfer_evidence(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    (project_path / ".dvc").mkdir()
+    (project_path / ".dvc" / "config").write_text(
+        "[core]\n    remote = capstone\n"
+        '[\'remote "capstone"\']\n'
+        "    url = s3://secret-capstone-bucket/team-a/capstone\n"
+    )
+    commands = []
+
+    def fake_run_command(cmd, cwd=None, timeout=60):
+        commands.append((cmd, cwd, timeout))
+        return {
+            "success": True,
+            "stdout": "1 file pulled",
+            "stderr": "",
+            "returncode": 0,
+        }
+
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: tool == "dvc")
+    monkeypatch.setattr(mcp_mlops_tools, "run_command", fake_run_command)
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_validate_s3_credential_capability",
+        lambda remote_url: {
+            "passed": True,
+            "status": "validated",
+            "identity": {"account": "12***12"},
+            "bucket_reachable": True,
+            "prefix_checked": True,
+            "next_actions": [],
+        },
+    )
+
+    result = mcp_mlops_tools.pull_capstone_data(
+        project_path=str(project_path),
+        remote_name="capstone",
+        approval_record=_approved_transfer_record(
+            "pull_capstone_data",
+            ["uses_cloud_credentials", "writes_project_files"],
+        ),
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "succeeded"
+    assert commands == [(["dvc", "pull", "-r", "capstone"], str(project_path), 600)]
+    verification = result["verification_results"][0]
+    evidence = json.loads(verification["evidence"])
+    assert verification["source_step"] == "pull_capstone_data"
+    assert verification["passed"] is True
+    assert evidence["transfer_direction"] == "pull"
+    assert result["artifact_manifest"]["entries"][0]["metadata"]["transfer_direction"] == "pull"
+
+
 @pytest.mark.asyncio
 async def test_prepare_capstone_data_local_remote_configuration_requires_write_approval(
     tmp_path,
@@ -404,6 +792,49 @@ async def test_prepare_capstone_data_s3_remote_configuration_requires_cloud_appr
     assert [risk.value for risk in validation.risk_categories] == [
         "writes_project_files",
         "uses_cloud_credentials",
+    ]
+    assert "approval" in validation.next_action
+
+
+@pytest.mark.asyncio
+async def test_prepare_capstone_data_push_requires_cloud_approval(tmp_path):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    agent = AgentLoop()
+    agent._initialize_session("Prepare capstone data", str(project_path), 0.85)
+    agent.workflow_selection = agent.workflow_registry.select_workflow("Prepare capstone data")
+    agent.ctx.globals["workflow_inputs"] = {
+        "project_path": str(project_path),
+        "completion_mode": "capstone_complete",
+        "dvc_transfer_direction": "push",
+    }
+
+    validation = await agent._validate_registry_step_approval("push_capstone_data")
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert [risk.value for risk in validation.risk_categories] == ["uses_cloud_credentials"]
+    assert "approval" in validation.next_action
+
+
+@pytest.mark.asyncio
+async def test_prepare_capstone_data_pull_requires_cloud_and_write_approval(tmp_path):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    agent = AgentLoop()
+    agent._initialize_session("Prepare capstone data", str(project_path), 0.85)
+    agent.workflow_selection = agent.workflow_registry.select_workflow("Prepare capstone data")
+    agent.ctx.globals["workflow_inputs"] = {
+        "project_path": str(project_path),
+        "completion_mode": "capstone_complete",
+        "dvc_transfer_direction": "pull",
+    }
+
+    validation = await agent._validate_registry_step_approval("pull_capstone_data")
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert [risk.value for risk in validation.risk_categories] == [
+        "uses_cloud_credentials",
+        "writes_project_files",
     ]
     assert "approval" in validation.next_action
 
@@ -1984,6 +2415,7 @@ class TestAgentLoopRun:
             "test_size": 0.2,
             "split_seed": 42,
             "materialize_splits": False,
+            "dvc_transfer_direction": "push",
         }
         completed_tool_steps = [
             step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]

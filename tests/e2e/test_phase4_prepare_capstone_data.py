@@ -273,7 +273,7 @@ async def test_prepare_capstone_data_dvc_tracks_capstone_package_after_approval(
 
 
 @pytest.mark.asyncio
-async def test_prepare_capstone_data_capstone_complete_validates_s3_remote_without_transfer(
+async def test_prepare_capstone_data_capstone_complete_pushes_after_approval(
     tmp_path, monkeypatch
 ):
     prompts_dir = tmp_path / "prompts"
@@ -355,10 +355,10 @@ async def test_prepare_capstone_data_capstone_complete_validates_s3_remote_witho
         )
 
     command_names = [command[0][:2] for command in commands]
-    assert ["dvc", "push"] not in command_names
+    assert ["dvc", "push"] in command_names
     assert ["dvc", "pull"] not in command_names
     assert "s3_remote_validated:observed:passed" in result
-    assert "s3_transfer_completed" in result
+    assert "s3_transfer_completed:observed:passed" in result
     assert raw_s3_url not in result
     assert "secret-capstone-bucket" not in result
     assert "123456789012" not in result
@@ -374,3 +374,107 @@ async def test_prepare_capstone_data_capstone_complete_validates_s3_remote_witho
     assert remote_entries
     assert remote_entries[0].state.value == "validated"
     assert remote_entries[0].metadata["remote_type"] == "s3"
+    transfer_entries = [
+        entry
+        for entry in agent.ctx.globals["artifact_manifest"].entries
+        if entry.artifact_type == "capstone_data_transfer"
+    ]
+    assert transfer_entries
+    assert transfer_entries[0].producing_step == "push_capstone_data"
+    assert transfer_entries[0].metadata["transfer_direction"] == "push"
+
+
+@pytest.mark.asyncio
+async def test_prepare_capstone_data_capstone_complete_pulls_when_requested(
+    tmp_path, monkeypatch
+):
+    prompts_dir = tmp_path / "prompts"
+    prompts_dir.mkdir()
+    (prompts_dir / "perception_prompt.txt").write_text("Perception")
+    (prompts_dir / "decision_prompt.txt").write_text("Decision")
+    (prompts_dir / "summarizer_prompt.txt").write_text("Summarize")
+    (prompts_dir / "improvement_prompt.txt").write_text("Improve")
+
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    dataset_1 = tmp_path / "dataset_one"
+    dataset_2 = tmp_path / "dataset_two"
+    for dataset in (dataset_1, dataset_2):
+        for class_name in ("cats", "dogs"):
+            for index in range(3):
+                _write_tiny_image(dataset / class_name / f"{class_name}-{index}.jpg")
+    commands = []
+    raw_s3_url = "s3://secret-capstone-bucket/team-a/capstone"
+
+    def fake_run_command(cmd, cwd=None, timeout=60):
+        commands.append((cmd, cwd, timeout))
+        if cmd == ["dvc", "init", "--no-scm"]:
+            (project_path / ".dvc").mkdir(exist_ok=True)
+            (project_path / ".dvc" / "config").write_text("[core]\n")
+        elif cmd[:2] == ["dvc", "add"]:
+            package_path = cmd[2]
+            (project_path / f"{package_path}.dvc").write_text(
+                f"outs:\n- path: {package_path}\n"
+            )
+        elif cmd[:3] == ["dvc", "remote", "add"]:
+            (project_path / ".dvc" / "config").write_text(
+                "[core]\n    remote = capstone\n"
+                '[\'remote "capstone"\']\n'
+                f"    url = {raw_s3_url}\n"
+            )
+        return {"success": True, "stdout": "ok", "stderr": "", "returncode": 0}
+
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: tool == "dvc")
+    monkeypatch.setattr(mcp_mlops_tools, "run_command", fake_run_command)
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_validate_s3_credential_capability",
+        lambda remote_url: {
+            "passed": True,
+            "status": "validated",
+            "identity": {
+                "account": "123456789012",
+                "arn": "arn:aws:iam::123456789012:user/capstone",
+                "user_id": "AIDAEXAMPLE",
+            },
+            "bucket_reachable": True,
+            "prefix_checked": True,
+            "next_actions": [],
+        },
+    )
+    agent = AgentLoop(prompts_dir=str(prompts_dir), auto_approve=True)
+
+    with (
+        patch.object(
+            agent.perception,
+            "run",
+            new_callable=AsyncMock,
+            side_effect=AssertionError("Phase 4 registry path must not call perception"),
+        ),
+        patch.object(
+            agent.decision,
+            "run",
+            new_callable=AsyncMock,
+            side_effect=AssertionError("Phase 4 registry path must not call decision"),
+        ),
+    ):
+        result = await agent.run(
+            "Prepare capstone data "
+            f"dataset_1_path={dataset_1} dataset_2_path={dataset_2} "
+            "completion_mode=capstone_complete "
+            "dvc_transfer_direction=pull "
+            f"dvc_remote_name=capstone dvc_remote_url={raw_s3_url}",
+            str(project_path),
+        )
+
+    command_names = [command[0][:2] for command in commands]
+    assert ["dvc", "push"] not in command_names
+    assert ["dvc", "pull"] in command_names
+    assert "s3_transfer_completed:observed:passed" in result
+    transfer_entries = [
+        entry
+        for entry in agent.ctx.globals["artifact_manifest"].entries
+        if entry.artifact_type == "capstone_data_transfer"
+    ]
+    assert transfer_entries[0].producing_step == "pull_capstone_data"
+    assert transfer_entries[0].metadata["transfer_direction"] == "pull"

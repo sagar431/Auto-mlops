@@ -128,6 +128,7 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
         "materialize_splits",
         "dvc_remote_name",
         "dvc_remote_url",
+        "dvc_transfer_direction",
     ]
     completion_mode_input = template.required_inputs[3]
     assert completion_mode_input.default == "local_ready"
@@ -137,6 +138,8 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
     assert template.required_inputs[6].default is False
     assert template.required_inputs[7].default == "capstone"
     assert template.required_inputs[8].default is None
+    assert template.required_inputs[9].default == "push"
+    assert template.required_inputs[9].allowed_values == ("push", "pull", "none")
     assert [branch.name for branch in template.branches] == [
         "local_ready",
         "capstone_complete",
@@ -146,11 +149,15 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
         "generate_split_manifests",
         "track_capstone_data_package",
         "configure_validate_dvc_remote",
+        "push_capstone_data",
+        "pull_capstone_data",
     ]
     assert template.steps[0].tool_functions == ("detect_capstone_data_layouts",)
     assert template.steps[1].tool_functions == ("generate_capstone_split_manifests",)
     assert template.steps[2].tool_functions == ("track_capstone_data_package",)
     assert template.steps[3].tool_functions == ("configure_validate_capstone_dvc_remote",)
+    assert template.steps[4].tool_functions == ("push_capstone_data",)
+    assert template.steps[5].tool_functions == ("pull_capstone_data",)
     assert {
         gate.step_id: gate.risk_categories for gate in template.approval_gates
     } == {
@@ -159,6 +166,11 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
         "configure_validate_dvc_remote": (
             "writes_project_files",
             "uses_cloud_credentials",
+        ),
+        "push_capstone_data": ("uses_cloud_credentials",),
+        "pull_capstone_data": (
+            "uses_cloud_credentials",
+            "writes_project_files",
         ),
     }
     assert [requirement.artifact_type for requirement in template.artifact_requirements] == [
@@ -186,6 +198,31 @@ def test_prepare_capstone_data_declares_issue_1_contract_shape():
         "s3_remote_validated": "completion_mode == capstone_complete",
         "s3_transfer_completed": "completion_mode == capstone_complete",
     }
+
+
+def test_prepare_capstone_data_transfer_approval_gates_are_enforced():
+    registry = get_workflow_registry()
+
+    push_validation = registry.validate_step_approval(
+        workflow_id="prepare_capstone_data",
+        workflow_run_id="run-123",
+        step_id="push_capstone_data",
+        approval_records=(),
+    )
+    pull_validation = registry.validate_step_approval(
+        workflow_id="prepare_capstone_data",
+        workflow_run_id="run-123",
+        step_id="pull_capstone_data",
+        approval_records=(),
+    )
+
+    assert push_validation.status is WorkflowStatus.BLOCKED
+    assert push_validation.risk_categories == ("uses_cloud_credentials",)
+    assert pull_validation.status is WorkflowStatus.BLOCKED
+    assert pull_validation.risk_categories == (
+        "uses_cloud_credentials",
+        "writes_project_files",
+    )
 
 
 def test_prepare_capstone_data_layout_failures_block_instead_of_fail():
@@ -382,6 +419,42 @@ def test_prepare_capstone_data_capstone_complete_contract_requires_s3_evidence()
         "s3_remote_validated",
         "s3_transfer_completed",
     ]
+
+
+def test_prepare_capstone_data_capstone_complete_accepts_observed_transfer_evidence():
+    registry = get_workflow_registry()
+    template = registry.get("prepare_capstone_data")
+    verification_results = tuple(
+        VerificationResult(
+            check_name=check.name,
+            evidence_type=(
+                "declared"
+                if check.evidence_type == "declared_or_observed"
+                else check.evidence_type
+            ),
+            source_step=check.source_step,
+            passed=True,
+            evidence=f"{check.name}=ok",
+        )
+        for check in template.success_contract.checks
+        if check.name != "s3_transfer_completed"
+    ) + (
+        VerificationResult(
+            check_name="s3_transfer_completed",
+            evidence_type="observed",
+            source_step="push_capstone_data",
+            passed=True,
+            evidence='{"transfer_direction": "push", "returncode": 0}',
+        ),
+    )
+
+    validation = registry.validate_success_contract(
+        "prepare_capstone_data",
+        verification_results=verification_results,
+        workflow_inputs={"completion_mode": "capstone_complete"},
+    )
+
+    assert validation.status is WorkflowStatus.SUCCEEDED
 
 
 def test_train_and_track_declares_bounded_training_template():
