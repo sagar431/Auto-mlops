@@ -10,17 +10,17 @@ Phase 5 adds the **Capstone Container And CI Automation Workflow** for the **Nor
 
 The goal is to prove the container/CI handoff. Phase 5 does not deploy, load test, generate reports, provision infrastructure, or manage secrets.
 
-## Planned Issue Outline
+## Issues
 
-Individual issue files are intentionally not created yet. The planned Phase 5 milestones are:
+The planned Phase 5 milestones are:
 
-1. Register `prepare_capstone_container_ci`.
-2. Resolve upstream evidence.
-3. Generate or validate default **Capstone Runtime Image** build spec.
-4. Build and smoke-check image when Docker is available.
-5. Configure and validate registry target.
-6. Approval-gated registry login/push.
-7. Generate/validate **Capstone CI Evidence** and write `.auto_mlops/capstone/container_ci_evidence.json` with orchestrator handoff.
+1. [Register `prepare_capstone_container_ci`](./0001-register-prepare-capstone-container-ci.md)
+2. [Resolve upstream evidence](./0002-resolve-upstream-evidence.md)
+3. [Generate or validate default **Capstone Runtime Image** build spec](./0003-generate-validate-runtime-image-spec.md)
+4. [Build and smoke-check image when Docker is available](./0004-build-smoke-check-image.md)
+5. [Configure and validate registry target](./0005-configure-validate-registry-target.md)
+6. [Approval-gated registry login/push](./0006-approval-gated-registry-login-push.md)
+7. [Generate/validate **Capstone CI Evidence** and write `.auto_mlops/capstone/container_ci_evidence.json` with orchestrator handoff](./0007-container-ci-evidence-and-orchestrator-handoff.md)
 
 ## Dependency Order
 
