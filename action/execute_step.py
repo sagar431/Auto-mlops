@@ -191,6 +191,7 @@ AVAILABLE_TOOLS = [
     "record_capstone_data_stage_evidence",
     "prepare_capstone_container_ci_contract",
     "resolve_capstone_container_upstream_evidence",
+    "generate_validate_capstone_runtime_image_spec",
     "run_bounded_training",
     "track_training_in_mlflow",
     "record_capstone_orchestrator_skeleton",

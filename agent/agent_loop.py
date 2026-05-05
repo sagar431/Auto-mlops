@@ -1118,6 +1118,11 @@ class AgentLoop:
                 and not self._capstone_transfer_step_selected(step_id)
             ):
                 return None
+            if (
+                self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+                and step_id == "generate_validate_runtime_image_spec"
+            ):
+                return None
             validation = self.workflow_registry.validate_step_approval(
                 workflow_id=self.workflow_selection.workflow_id,
                 workflow_run_id=self.session_id,
@@ -1268,6 +1273,7 @@ class AgentLoop:
             not in {
                 "prepare_capstone_container_ci_contract",
                 "resolve_upstream_container_evidence",
+                "generate_validate_runtime_image_spec",
             }
         ):
             return True
@@ -1571,6 +1577,11 @@ class AgentLoop:
             if isinstance(workflow_input_overrides, dict) and isinstance(workflow_inputs, dict):
                 workflow_inputs.update(workflow_input_overrides)
                 self.ctx.globals["workflow_inputs"] = workflow_inputs
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "generate_validate_runtime_image_spec"
+        ):
+            self.ctx.globals["capstone_runtime_image_spec"] = payload
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1821,6 +1832,17 @@ class AgentLoop:
             and step_id == "resolve_upstream_container_evidence"
         ):
             runtime_args["workflow_inputs"] = self.ctx.globals.get("workflow_inputs", {})
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "generate_validate_runtime_image_spec"
+        ):
+            runtime_args["workflow_inputs"] = self.ctx.globals.get("workflow_inputs", {})
+            approval_record = self._approval_record_for_step(step_id)
+            if approval_record is not None:
+                runtime_args["approval_record"] = self._approval_record_to_payload(
+                    approval_record
+                )
         return runtime_args
 
     def _verification_results_payload(self) -> list[dict[str, Any]]:
@@ -1941,6 +1963,12 @@ class AgentLoop:
             self.workflow_selection is not None
             and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
             and step_id == "prepare_capstone_container_ci_contract"
+        ):
+            return False
+        if (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "generate_validate_runtime_image_spec"
         ):
             return False
         if self._registry_step_recorded_failed_contract_evidence(step_id):

@@ -513,6 +513,7 @@ class TestAvailableTools:
         assert "record_capstone_data_stage_evidence" in AVAILABLE_TOOLS
         assert "record_capstone_orchestrator_skeleton" in AVAILABLE_TOOLS
         assert "resolve_capstone_container_upstream_evidence" in AVAILABLE_TOOLS
+        assert "generate_validate_capstone_runtime_image_spec" in AVAILABLE_TOOLS
         assert "analyze_training_results" in AVAILABLE_TOOLS
         assert "suggest_improvements" in AVAILABLE_TOOLS
         assert "check_accuracy_threshold" in AVAILABLE_TOOLS

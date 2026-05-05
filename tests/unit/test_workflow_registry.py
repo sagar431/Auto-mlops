@@ -246,7 +246,10 @@ def test_prepare_capstone_container_ci_declares_issue_1_contract_shape():
     assert template.steps[1].tool_functions == (
         "resolve_capstone_container_upstream_evidence",
     )
-    assert all(step.tool_functions == () for step in template.steps[2:])
+    assert template.steps[2].tool_functions == (
+        "generate_validate_capstone_runtime_image_spec",
+    )
+    assert all(step.tool_functions == () for step in template.steps[3:])
     assert {
         gate.step_id: gate.risk_categories for gate in template.approval_gates
     } == {
@@ -326,6 +329,19 @@ def test_prepare_capstone_container_ci_declares_issue_1_contract_shape():
             "completion_mode == container_capstone_complete"
         ),
     }
+    checks_by_name = {check.name: check for check in template.success_contract.checks}
+    assert checks_by_name["dependency_context_reported"].evidence_type.value == "observed"
+    assert checks_by_name["secret_safety_validated"].source_step == (
+        "generate_validate_runtime_image_spec"
+    )
+    assert checks_by_name["container_artifact_manifest_reported"].source_step == (
+        "generate_validate_runtime_image_spec"
+    )
+    assert [
+        (requirement.artifact_type, requirement.source_step, requirement.state.value)
+        for requirement in template.artifact_requirements
+        if requirement.source_step == "generate_validate_runtime_image_spec"
+    ] == [("container_build_spec", "generate_validate_runtime_image_spec", "validated")]
 
 
 def test_select_workflow_routes_capstone_container_ci_requests():

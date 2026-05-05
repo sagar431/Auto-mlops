@@ -874,6 +874,7 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
                 name="Generate Or Validate Runtime Image Spec",
                 description="Generate or validate the default Capstone Runtime Image build spec.",
                 order=3,
+                tool_functions=("generate_validate_capstone_runtime_image_spec",),
             ),
             WorkflowStep(
                 step_id="build_smoke_check_container_image",
@@ -916,7 +917,7 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
                 ),
                 SuccessContractCheck(
                     name="dependency_context_reported",
-                    evidence_type="declared_or_observed",
+                    evidence_type="observed",
                     source_step="generate_validate_runtime_image_spec",
                     unsatisfied_status="blocked",
                 ),
@@ -929,7 +930,7 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
                 SuccessContractCheck(
                     name="container_artifact_manifest_reported",
                     evidence_type="declared_or_observed",
-                    source_step="record_container_ci_evidence_handoff",
+                    source_step="generate_validate_runtime_image_spec",
                     unsatisfied_status="blocked",
                 ),
                 SuccessContractCheck(
@@ -947,7 +948,7 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
                 SuccessContractCheck(
                     name="secret_safety_validated",
                     evidence_type="observed",
-                    source_step="record_container_ci_evidence_handoff",
+                    source_step="generate_validate_runtime_image_spec",
                     unsatisfied_status="blocked",
                 ),
                 SuccessContractCheck(
@@ -1131,6 +1132,15 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
             ApprovalGate(
                 step_id="record_container_ci_evidence_handoff",
                 risk_categories=("writes_project_files",),
+            ),
+        ),
+        artifact_requirements=(
+            ArtifactRequirement(
+                name="capstone_runtime_image_build_spec",
+                artifact_type="container_build_spec",
+                source_step="generate_validate_runtime_image_spec",
+                state="validated",
+                contract_check_name="container_artifact_manifest_reported",
             ),
         ),
     )
