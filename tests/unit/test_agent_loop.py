@@ -368,6 +368,367 @@ def _approved_transfer_record(step_id, risks):
     }
 
 
+def _registry_target_result(provider="ghcr", image_reference="ghcr.io/acme/capstone-runtime:abc123"):
+    registry_url = image_reference.split("/", 1)[0]
+    return {
+        "status": "validated",
+        "registry": {
+            "status": "validated",
+            "provider": provider,
+            "provider_support": "first_class_default"
+            if provider == "ghcr"
+            else "declared_target",
+            "registry_url": registry_url,
+            "redacted_registry_url": registry_url,
+            "redacted_image_reference": image_reference,
+            "image_name": image_reference.split("/", 1)[1].rsplit(":", 1)[0],
+            "image_tag": image_reference.rsplit(":", 1)[-1],
+            "auth_capability": {
+                "available": True,
+                "source": "environment",
+                "checked": ["GITHUB_TOKEN"],
+            },
+        },
+        "workflow_input_overrides": {
+            "registry_target_validated": True,
+            "registry_auth_capability_available": True,
+        },
+    }
+
+
+def _container_build_result(image_tag="capstone-runtime:abc123"):
+    return {
+        "status": "succeeded",
+        "container": {
+            "image_build": {
+                "attempted": True,
+                "image_tag": image_tag,
+                "return_code": 0,
+            },
+            "smoke_check": {"passed": True},
+        },
+        "workflow_input_overrides": {"docker_available": True},
+    }
+
+
+def test_registry_push_blocks_without_approval(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    commands = []
+
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda tool: "/usr/bin/docker")
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_do_not_record")
+    monkeypatch.setattr(
+        mcp_mlops_tools.subprocess,
+        "run",
+        lambda *args, **kwargs: commands.append(args[0])
+        or SimpleNamespace(returncode=0, stdout="ok", stderr=""),
+    )
+
+    result = mcp_mlops_tools.approval_gated_capstone_registry_login_push(
+        project_path=str(project_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+        capstone_registry_target_result=_registry_target_result(),
+        capstone_container_build_result=_container_build_result(),
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert commands == []
+    assert "approval" in " ".join(result["next_actions"])
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["registry_push_approved"]["passed"] is False
+    assert verification_by_name["registry_push_succeeded"]["passed"] is False
+
+
+def test_registry_push_records_observed_push_evidence_and_digest(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    commands = []
+
+    def fake_run(cmd, **kwargs):
+        commands.append((cmd, kwargs.get("input")))
+        if cmd[:3] == ["docker", "image", "inspect"]:
+            return SimpleNamespace(returncode=0, stdout="sha256:local-image\n", stderr="")
+        if cmd[:2] == ["docker", "login"]:
+            assert kwargs.get("input") == "ghp_do_not_record"
+            return SimpleNamespace(returncode=0, stdout="Login Succeeded", stderr="")
+        if cmd[:2] == ["docker", "tag"]:
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        if cmd[:2] == ["docker", "push"]:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "pushed ghcr.io/acme/capstone-runtime:abc123 "
+                    "digest: sha256:feedface"
+                ),
+                stderr="",
+            )
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda tool: "/usr/bin/docker")
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_do_not_record")
+    monkeypatch.setattr(mcp_mlops_tools.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_inspect_pushed_container_digest",
+        lambda image_reference: "sha256:feedface",
+        raising=False,
+    )
+
+    result = mcp_mlops_tools.approval_gated_capstone_registry_login_push(
+        project_path=str(project_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+        capstone_registry_target_result=_registry_target_result(),
+        capstone_container_build_result=_container_build_result(),
+        approval_record=_approved_transfer_record(
+            "approval_gated_registry_login_push",
+            ["uses_remote_service_credentials", "pushes_registry"],
+        ),
+    )
+    serialized = json.dumps(result, sort_keys=True)
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    push_evidence = json.loads(verification_by_name["registry_push_succeeded"]["evidence"])
+
+    assert result["success"] is True
+    assert result["status"] == "succeeded"
+    assert commands[0][0] == ["docker", "image", "inspect", "capstone-runtime:abc123"]
+    assert commands[1][0][:3] == ["docker", "login", "ghcr.io"]
+    assert commands[2][0] == [
+        "docker",
+        "tag",
+        "capstone-runtime:abc123",
+        "ghcr.io/acme/capstone-runtime:abc123",
+    ]
+    assert commands[3][0] == ["docker", "push", "ghcr.io/acme/capstone-runtime:abc123"]
+    assert "ghp_do_not_record" not in serialized
+    assert verification_by_name["registry_push_approved"]["passed"] is True
+    assert verification_by_name["registry_push_succeeded"]["passed"] is True
+    assert verification_by_name["pushed_image_reference_reported"]["passed"] is True
+    assert push_evidence["digest"] == "sha256:feedface"
+    assert push_evidence["redacted_image_reference"] == "ghcr.io/acme/capstone-runtime:abc123"
+    assert result["artifact_manifest"]["entries"][0]["artifact_type"] == "container_registry_push"
+
+
+def test_registry_push_denied_approval_blocks_before_commands(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    commands = []
+
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda tool: "/usr/bin/docker")
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_do_not_record")
+    monkeypatch.setattr(
+        mcp_mlops_tools.subprocess,
+        "run",
+        lambda *args, **kwargs: commands.append(args[0])
+        or SimpleNamespace(returncode=0, stdout="ok", stderr=""),
+    )
+
+    result = mcp_mlops_tools.approval_gated_capstone_registry_login_push(
+        project_path=str(project_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+        capstone_registry_target_result=_registry_target_result(),
+        capstone_container_build_result=_container_build_result(),
+        approval_record={
+            **_approved_transfer_record(
+                "approval_gated_registry_login_push",
+                ["uses_remote_service_credentials", "pushes_registry"],
+            ),
+            "status": "denied",
+        },
+    )
+    approval_evidence = json.loads(result["verification_results"][1]["evidence"])
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert commands == []
+    assert approval_evidence["reason"] == "approval_denied"
+    assert result["verification_results"][1]["check_name"] == "registry_push_approved"
+    assert result["verification_results"][1]["passed"] is False
+
+
+def test_registry_push_blocks_missing_auth_capability_without_commands(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    commands = []
+    target_result = _registry_target_result()
+    target_result["registry"]["auth_capability"] = {
+        "available": False,
+        "source": None,
+        "checked": ["GITHUB_TOKEN"],
+    }
+
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda tool: "/usr/bin/docker")
+    monkeypatch.setattr(
+        mcp_mlops_tools.subprocess,
+        "run",
+        lambda *args, **kwargs: commands.append(args[0])
+        or SimpleNamespace(returncode=0, stdout="ok", stderr=""),
+    )
+
+    result = mcp_mlops_tools.approval_gated_capstone_registry_login_push(
+        project_path=str(project_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+        capstone_registry_target_result=target_result,
+        capstone_container_build_result=_container_build_result(),
+        approval_record=_approved_transfer_record(
+            "approval_gated_registry_login_push",
+            ["uses_remote_service_credentials", "pushes_registry"],
+        ),
+    )
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+
+    assert result["status"] == "blocked"
+    assert commands == []
+    assert verification_by_name["registry_auth_capability_verified"]["passed"] is False
+    assert "GHCR-capable" in " ".join(result["next_actions"])
+
+
+def test_registry_push_blocks_missing_local_image_before_login(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    commands = []
+
+    def fake_run(cmd, **kwargs):
+        commands.append(cmd)
+        if cmd[:3] == ["docker", "image", "inspect"]:
+            return SimpleNamespace(returncode=1, stdout="", stderr="No such image")
+        raise AssertionError(f"unexpected command after missing image: {cmd}")
+
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda tool: "/usr/bin/docker")
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_do_not_record")
+    monkeypatch.setattr(mcp_mlops_tools.subprocess, "run", fake_run)
+
+    result = mcp_mlops_tools.approval_gated_capstone_registry_login_push(
+        project_path=str(project_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+        capstone_registry_target_result=_registry_target_result(),
+        capstone_container_build_result=_container_build_result(),
+        approval_record=_approved_transfer_record(
+            "approval_gated_registry_login_push",
+            ["uses_remote_service_credentials", "pushes_registry"],
+        ),
+    )
+    push_evidence = json.loads(result["verification_results"][2]["evidence"])
+
+    assert result["status"] == "blocked"
+    assert commands == [["docker", "image", "inspect", "capstone-runtime:abc123"]]
+    assert push_evidence["blocked_reason"] == "local_image_missing"
+    assert result["verification_results"][2]["check_name"] == "registry_push_succeeded"
+    assert result["verification_results"][2]["passed"] is False
+
+
+def test_registry_push_failed_push_records_structured_failure(tmp_path, monkeypatch):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:3] == ["docker", "image", "inspect"]:
+            return SimpleNamespace(returncode=0, stdout="sha256:local-image\n", stderr="")
+        if cmd[:2] == ["docker", "login"]:
+            return SimpleNamespace(returncode=0, stdout="Login Succeeded", stderr="")
+        if cmd[:2] == ["docker", "tag"]:
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        if cmd[:2] == ["docker", "push"]:
+            return SimpleNamespace(returncode=1, stdout="", stderr="denied: token=bad")
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda tool: "/usr/bin/docker")
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_do_not_record")
+    monkeypatch.setattr(mcp_mlops_tools.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        mcp_mlops_tools,
+        "_inspect_pushed_container_digest",
+        lambda image_reference: None,
+    )
+
+    result = mcp_mlops_tools.approval_gated_capstone_registry_login_push(
+        project_path=str(project_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+        capstone_registry_target_result=_registry_target_result(),
+        capstone_container_build_result=_container_build_result(),
+        approval_record=_approved_transfer_record(
+            "approval_gated_registry_login_push",
+            ["uses_remote_service_credentials", "pushes_registry"],
+        ),
+    )
+    serialized = json.dumps(result, sort_keys=True)
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    push_evidence = json.loads(verification_by_name["registry_push_succeeded"]["evidence"])
+
+    assert result["status"] == "failed"
+    assert verification_by_name["registry_push_approved"]["passed"] is True
+    assert verification_by_name["registry_push_succeeded"]["passed"] is False
+    assert push_evidence["blocked_reason"] == "registry_push_failed"
+    assert push_evidence["stderr_summary"] == "denied: <redacted-secret>"
+    assert "token=bad" not in serialized
+    assert "Inspect registry push output" in " ".join(result["next_actions"])
+
+
+@pytest.mark.asyncio
+async def test_prepare_capstone_container_registry_push_requires_approval(tmp_path):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    agent = AgentLoop()
+    agent._initialize_session("prepare capstone container CI", str(project_path), 0.85)
+    agent.workflow_selection = agent.workflow_registry.select_workflow(
+        "prepare capstone container CI"
+    )
+    agent.ctx.globals["workflow_inputs"] = {
+        "project_path": str(project_path),
+        "completion_mode": "container_capstone_complete",
+    }
+
+    assert agent._should_skip_registry_step("approval_gated_registry_login_push") is False
+    validation = await agent._validate_registry_step_approval(
+        "approval_gated_registry_login_push"
+    )
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert [risk.value for risk in validation.risk_categories] == [
+        "uses_remote_service_credentials",
+        "pushes_registry",
+    ]
+    assert "approval" in validation.next_action
+
+
+@pytest.mark.asyncio
+async def test_prepare_capstone_container_ecr_push_requires_cloud_approval(tmp_path):
+    project_path = tmp_path / "project"
+    project_path.mkdir()
+    agent = AgentLoop()
+    agent._initialize_session("prepare capstone container CI", str(project_path), 0.85)
+    agent.workflow_selection = agent.workflow_registry.select_workflow(
+        "prepare capstone container CI"
+    )
+    agent.ctx.globals["workflow_inputs"] = {
+        "project_path": str(project_path),
+        "completion_mode": "container_capstone_complete",
+        "registry_target": (
+            "123456789012.dkr.ecr.us-east-1.amazonaws.com/capstone-runtime:abc123"
+        ),
+    }
+
+    validation = await agent._validate_registry_step_approval(
+        "approval_gated_registry_login_push"
+    )
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert [risk.value for risk in validation.risk_categories] == [
+        "uses_remote_service_credentials",
+        "pushes_registry",
+        "uses_cloud_credentials",
+    ]
+
+
 def test_push_capstone_data_blocks_without_approval(tmp_path, monkeypatch):
     project_path = tmp_path / "project"
     project_path.mkdir()
