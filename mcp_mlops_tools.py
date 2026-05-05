@@ -597,6 +597,16 @@ class PrepareCapstoneContainerCIContractInput(BaseModel):
     )
 
 
+class ResolveCapstoneContainerUpstreamEvidenceInput(BaseModel):
+    """Resolve Phase 5 Issue 2 upstream evidence without mutating project state."""
+
+    project_path: str = Field(..., description="Path to the project")
+    workflow_inputs: dict[str, Any] | None = Field(
+        default=None,
+        description="Resolved prepare_capstone_container_ci workflow inputs",
+    )
+
+
 # --- Data Quality Tools ---
 
 
@@ -8918,6 +8928,654 @@ def prepare_capstone_container_ci_contract(
     }
 
 
+CONTAINER_UPSTREAM_SOURCE_STEP = "resolve_upstream_container_evidence"
+TRAINING_EVIDENCE_CANDIDATE_PATHS = (
+    ".auto_mlops/capstone/training_evidence.json",
+    ".auto_mlops/capstone/training_mlflow_evidence.json",
+    ".auto_mlops/training_evidence.json",
+    "outputs/training_evidence.json",
+    "outputs/mlflow_tracking_result.json",
+    "outputs/model_selection_result.json",
+)
+
+
+def resolve_capstone_container_upstream_evidence(
+    project_path: str,
+    workflow_inputs: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve Phase 5 upstream evidence without running training, Docker, CI, or registry work."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    inputs = workflow_inputs or {}
+    completion_mode = inputs.get("completion_mode", "container_local_ready")
+    if completion_mode not in {"container_local_ready", "container_capstone_complete"}:
+        return {
+            "success": True,
+            "status": "blocked",
+            "completion_mode": completion_mode,
+            "blocked_capabilities": [
+                {
+                    "capability": "completion_mode",
+                    "reason": "completion_mode must be container_local_ready or container_capstone_complete.",
+                    "next_action": "Provide a valid Container CI Completion Mode.",
+                }
+            ],
+            "verification_results": [
+                _container_upstream_verification_result(
+                    "upstream_evidence_resolved",
+                    False,
+                    {"completion_mode": completion_mode, "reason": "invalid_completion_mode"},
+                )
+            ],
+            "artifact_manifest": {"entries": []},
+        }
+
+    data_stage = _resolve_container_data_stage_evidence(path, inputs)
+    training_evidence = _load_container_training_evidence(path)
+    local_model_artifact = _resolve_local_model_artifact(path, inputs)
+    mlflow_best_artifact = _resolve_mlflow_best_artifact(path, inputs, training_evidence)
+    training_lineage = _resolve_training_lineage(data_stage, training_evidence)
+
+    local_model_available = local_model_artifact["status"] == "resolved"
+    mlflow_best_available = mlflow_best_artifact["status"] == "resolved"
+    data_capstone_complete = data_stage["status"] == "resolved" and (
+        data_stage.get("completion_mode") == "capstone_complete"
+    )
+    training_lineage_available = training_lineage["status"] == "resolved"
+
+    upstream_evidence = {
+        "data_stage": data_stage["evidence"],
+        "training_lineage": training_lineage["evidence"],
+        "mlflow_best_artifact": mlflow_best_artifact["evidence"],
+        "local_model_artifact": local_model_artifact["evidence"],
+    }
+    artifact_entries = _container_upstream_artifact_entries(
+        data_stage=data_stage,
+        local_model_artifact=local_model_artifact,
+        mlflow_best_artifact=mlflow_best_artifact,
+    )
+
+    blocked_capabilities: list[dict[str, Any]] = []
+    deferred_capabilities: list[dict[str, Any]] = []
+
+    if completion_mode == "container_local_ready":
+        if data_stage["status"] != "resolved":
+            deferred_capabilities.append(
+                _container_upstream_capability(
+                    "data_stage_evidence_artifact_reported",
+                    "Run prepare_capstone_data to produce durable data-stage evidence.",
+                    "Phase 4 prepare_capstone_data",
+                )
+            )
+            upstream_evidence["data_stage"]["status"] = "deferred"
+        if not mlflow_best_available and local_model_available:
+            deferred_capabilities.append(
+                _container_upstream_capability(
+                    "mlflow_best_artifact_verified",
+                    "Run train_and_track and select a MLflow-linked best artifact.",
+                    "Phase 3 train_and_track",
+                )
+            )
+            upstream_evidence["mlflow_best_artifact"]["status"] = "deferred"
+        if not (local_model_available or mlflow_best_available):
+            blocked_capabilities.append(
+                _container_upstream_capability(
+                    "local_or_mlflow_model_artifact_resolved",
+                    "Provide local_model_artifact_path or structured MLflow best artifact evidence.",
+                    "Phase 5 Issue 2 upstream evidence",
+                )
+            )
+    else:
+        if not data_capstone_complete:
+            upstream_evidence["data_stage"]["status"] = "blocked"
+            blocked_capabilities.append(
+                _container_upstream_capability(
+                    "data_stage_evidence_artifact_reported",
+                    "Run prepare_capstone_data with completion_mode=capstone_complete.",
+                    "Phase 4 prepare_capstone_data capstone_complete",
+                )
+            )
+        if not mlflow_best_available:
+            upstream_evidence["mlflow_best_artifact"]["status"] = "blocked"
+            blocked_capabilities.append(
+                _container_upstream_capability(
+                    "mlflow_best_artifact_verified",
+                    "Provide structured MLflow-linked best artifact evidence.",
+                    "Phase 3 train_and_track/select_best_model_artifact",
+                )
+            )
+        if not training_lineage_available:
+            upstream_evidence["training_lineage"]["status"] = "blocked"
+            blocked_capabilities.append(
+                _container_upstream_capability(
+                    "training_lineage_verified",
+                    "Provide structured training evidence tied to data_stage_evidence.json.",
+                    "Phase 3 train_and_track with data-stage lineage",
+                )
+            )
+
+    resolved = not blocked_capabilities
+    verification_results = _container_upstream_verification_results(
+        completion_mode=completion_mode,
+        upstream_evidence=upstream_evidence,
+        local_model_available=local_model_available,
+        mlflow_best_available=mlflow_best_available,
+        data_capstone_complete=data_capstone_complete,
+        training_lineage_available=training_lineage_available,
+        resolved=resolved,
+    )
+    workflow_input_overrides = {
+        "local_model_artifact_available": local_model_available,
+        "mlflow_best_artifact_available": mlflow_best_available,
+    }
+    return {
+        "success": True,
+        "status": "resolved" if resolved else "blocked",
+        "workflow_id": "prepare_capstone_container_ci",
+        "completion_mode": completion_mode,
+        "upstream_evidence": _redacted_evidence(upstream_evidence),
+        "blocked_capabilities": _redacted_evidence(blocked_capabilities),
+        "deferred_capabilities": _redacted_evidence(deferred_capabilities),
+        "workflow_input_overrides": workflow_input_overrides,
+        "verification_results": verification_results,
+        "artifact_manifest": {"entries": _redacted_evidence(artifact_entries)},
+        "next_actions": _container_upstream_next_actions(
+            blocked_capabilities,
+            deferred_capabilities,
+        ),
+    }
+
+
+def _resolve_container_data_stage_evidence(
+    project_path: Path,
+    workflow_inputs: dict[str, Any],
+) -> dict[str, Any]:
+    evidence_path = _container_evidence_path(
+        project_path,
+        workflow_inputs.get("data_stage_evidence_path"),
+        DATA_STAGE_EVIDENCE_PATH,
+    )
+    relative_path = relative_to_project(str(project_path), evidence_path)
+    missing = {
+        "status": "blocked",
+        "capability": "data_stage_evidence_artifact_reported",
+        "path": relative_path,
+        "reason": "data_stage_evidence.json is missing.",
+    }
+    if not evidence_path.exists():
+        return {"status": "missing", "evidence": missing, "artifact_entry": None}
+    try:
+        evidence = json.loads(evidence_path.read_text())
+    except json.JSONDecodeError:
+        missing["reason"] = "data_stage_evidence.json is not valid JSON."
+        return {"status": "blocked", "evidence": missing, "artifact_entry": None}
+
+    required_ok = (
+        evidence.get("schema_version") == "phase4.data_stage_evidence.v1"
+        and evidence.get("workflow_id") == "prepare_capstone_data"
+        and evidence.get("status") == "succeeded"
+        and evidence.get("completion_mode") in {"local_ready", "capstone_complete"}
+        and isinstance(evidence.get("datasets"), list)
+        and len(evidence.get("datasets", [])) >= 2
+        and isinstance(evidence.get("dvc"), dict)
+        and isinstance(evidence.get("artifact_manifest"), dict)
+    )
+    status = "resolved" if required_ok else "blocked"
+    redacted = _redacted_evidence(evidence)
+    data_evidence = {
+        "status": status,
+        "path": relative_path,
+        "schema_version": evidence.get("schema_version"),
+        "workflow_id": evidence.get("workflow_id"),
+        "raw_status": evidence.get("status"),
+        "completion_mode": evidence.get("completion_mode"),
+        "dataset_count": len(evidence.get("datasets", []))
+        if isinstance(evidence.get("datasets"), list)
+        else 0,
+        "dvc": redacted.get("dvc") if isinstance(redacted, dict) else None,
+        "blocked_capabilities": redacted.get("blocked_capabilities", [])
+        if isinstance(redacted, dict)
+        else [],
+    }
+    artifact_entry = {
+        "artifact_type": "data_stage_evidence",
+        "producing_step": CONTAINER_UPSTREAM_SOURCE_STEP,
+        "state": "validated",
+        "path": relative_path,
+        "checksum": _sha256_file(evidence_path),
+        "metadata": {
+            "source_workflow_id": "prepare_capstone_data",
+            "data_stage_status": evidence.get("status"),
+            "completion_mode": evidence.get("completion_mode"),
+        },
+    }
+    return {
+        "status": status,
+        "completion_mode": evidence.get("completion_mode"),
+        "evidence": data_evidence,
+        "artifact_entry": artifact_entry if required_ok else None,
+    }
+
+
+def _container_evidence_path(
+    project_path: Path,
+    configured_path: Any,
+    default_relative_path: str,
+) -> Path:
+    if isinstance(configured_path, str) and configured_path:
+        path = Path(configured_path)
+        return path if path.is_absolute() else project_path / path
+    return project_path / default_relative_path
+
+
+def _load_container_training_evidence(project_path: Path) -> dict[str, Any] | None:
+    for relative_path in TRAINING_EVIDENCE_CANDIDATE_PATHS:
+        candidate = project_path / relative_path
+        if not candidate.exists():
+            continue
+        try:
+            payload = json.loads(candidate.read_text())
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and _has_structured_training_evidence(payload):
+            payload["_evidence_path"] = relative_path
+            return payload
+    return None
+
+
+def _has_structured_training_evidence(payload: dict[str, Any]) -> bool:
+    return isinstance(payload.get("artifact_manifest"), dict) or isinstance(
+        payload.get("verification_results"),
+        list,
+    )
+
+
+def _resolve_local_model_artifact(
+    project_path: Path,
+    workflow_inputs: dict[str, Any],
+) -> dict[str, Any]:
+    configured = workflow_inputs.get("local_model_artifact_path")
+    if not isinstance(configured, str) or not configured:
+        return {
+            "status": "missing",
+            "evidence": {
+                "status": "missing",
+                "capability": "local_model_artifact_resolved",
+                "reason": "local_model_artifact_path was not provided.",
+            },
+            "artifact_entry": None,
+        }
+    artifact_path = Path(configured)
+    full_path = artifact_path if artifact_path.is_absolute() else project_path / artifact_path
+    if not full_path.is_file():
+        return {
+            "status": "blocked",
+            "evidence": {
+                "status": "blocked",
+                "path": _redact_path_if_sensitive(configured),
+                "reason": "local_model_artifact_path does not reference an existing file.",
+            },
+            "artifact_entry": None,
+        }
+    relative_path = relative_to_project(str(project_path), full_path)
+    artifact_entry = {
+        "artifact_type": "model_artifact",
+        "producing_step": CONTAINER_UPSTREAM_SOURCE_STEP,
+        "state": "selected",
+        "path": _redact_path_if_sensitive(relative_path),
+        "checksum": _artifact_checksum(project_path, relative_path),
+        "metadata": {"source": "local_model_artifact_fallback"},
+    }
+    return {
+        "status": "resolved",
+        "evidence": {
+            "status": "resolved",
+            "path": _redact_path_if_sensitive(relative_path),
+            "model_type": _model_type_from_artifact(relative_path),
+            "source": "local_model_artifact_fallback",
+        },
+        "artifact_entry": artifact_entry,
+    }
+
+
+def _resolve_mlflow_best_artifact(
+    project_path: Path,
+    workflow_inputs: dict[str, Any],
+    training_evidence: dict[str, Any] | None,
+) -> dict[str, Any]:
+    manifest_artifact = _best_artifact_from_training_manifest(training_evidence)
+    if manifest_artifact is not None:
+        artifact_entry = _container_model_artifact_entry(project_path, manifest_artifact)
+        return {
+            "status": "resolved",
+            "evidence": {
+                "status": "resolved",
+                "source": "structured_artifact_manifest",
+                "training_evidence_path": training_evidence.get("_evidence_path")
+                if training_evidence
+                else None,
+                "path": artifact_entry.get("path"),
+                "uri": artifact_entry.get("uri"),
+                "source_run_id": (artifact_entry.get("metadata") or {}).get("source_run_id"),
+            },
+            "artifact_entry": artifact_entry,
+        }
+
+    configured_path = workflow_inputs.get("mlflow_best_artifact_path")
+    run_id = workflow_inputs.get("mlflow_run_id")
+    if isinstance(configured_path, str) and configured_path and run_id:
+        artifact_path = Path(configured_path)
+        full_path = artifact_path if artifact_path.is_absolute() else project_path / artifact_path
+        if full_path.exists():
+            relative_path = relative_to_project(str(project_path), full_path)
+            artifact_entry = {
+                "artifact_type": "model_artifact",
+                "producing_step": CONTAINER_UPSTREAM_SOURCE_STEP,
+                "state": "selected",
+                "path": _redact_path_if_sensitive(relative_path),
+                "checksum": _artifact_checksum(project_path, relative_path),
+                "metadata": {
+                    "source": "mlflow_best_artifact_input",
+                    "source_run_id": str(run_id),
+                },
+            }
+            return {
+                "status": "resolved",
+                "evidence": {
+                    "status": "resolved",
+                    "source": "workflow_input",
+                    "path": _redact_path_if_sensitive(relative_path),
+                    "source_run_id": str(run_id),
+                },
+                "artifact_entry": artifact_entry,
+            }
+    return {
+        "status": "missing",
+        "evidence": {
+            "status": "missing",
+            "capability": "mlflow_best_artifact_verified",
+            "reason": "No structured MLflow-linked best artifact evidence was found.",
+        },
+        "artifact_entry": None,
+    }
+
+
+def _best_artifact_from_training_manifest(
+    training_evidence: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(training_evidence, dict):
+        return None
+    if not _training_verification_passed(training_evidence, "model_artifact_selected"):
+        return None
+    if not _training_has_mlflow_link(training_evidence):
+        return None
+    entries = training_evidence.get("artifact_manifest", {}).get("entries", ())
+    if not isinstance(entries, list):
+        return None
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("artifact_type") in {
+            "model_artifact",
+            "checkpoint_or_model_artifact",
+            "mlflow_checkpoint_or_model_artifact",
+        } and (entry.get("path") or entry.get("uri")):
+            return entry
+    return None
+
+
+def _training_has_mlflow_link(training_evidence: dict[str, Any]) -> bool:
+    if _training_verification_passed(training_evidence, "mlflow_run_exists"):
+        return True
+    entries = training_evidence.get("artifact_manifest", {}).get("entries", ())
+    if not isinstance(entries, list):
+        return False
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        metadata = entry.get("metadata") if isinstance(entry.get("metadata"), dict) else {}
+        if entry.get("artifact_type") == "mlflow_run" or metadata.get("source_run_id"):
+            return True
+    return False
+
+
+def _container_model_artifact_entry(
+    project_path: Path,
+    source_entry: dict[str, Any],
+) -> dict[str, Any]:
+    path_value = source_entry.get("path")
+    uri_value = source_entry.get("uri")
+    redacted_path = _redact_path_if_sensitive(str(path_value)) if path_value else None
+    redacted_uri = _redact_uri_if_sensitive(str(uri_value)) if uri_value else None
+    metadata = source_entry.get("metadata") if isinstance(source_entry.get("metadata"), dict) else {}
+    source_run_id = metadata.get("source_run_id")
+    return {
+        "artifact_type": "model_artifact",
+        "producing_step": CONTAINER_UPSTREAM_SOURCE_STEP,
+        "state": "selected",
+        "path": redacted_path,
+        "uri": redacted_uri,
+        "checksum": _artifact_checksum(project_path, path_value) if path_value else None,
+        "metadata": _redacted_evidence(
+            {
+                "source": "structured_artifact_manifest",
+                "source_run_id": source_run_id,
+                "source_producing_step": source_entry.get("producing_step"),
+            }
+        ),
+    }
+
+
+def _resolve_training_lineage(
+    data_stage: dict[str, Any],
+    training_evidence: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(training_evidence, dict):
+        return {
+            "status": "missing",
+            "evidence": {
+                "status": "missing",
+                "capability": "training_lineage_verified",
+                "reason": "No structured training evidence artifact was found.",
+            },
+        }
+    lineage_reference = training_evidence.get("data_stage_evidence")
+    lineage_path = None
+    if isinstance(lineage_reference, dict):
+        lineage_path = lineage_reference.get("path")
+    entries = training_evidence.get("artifact_manifest", {}).get("entries", ())
+    if lineage_path is None and isinstance(entries, list):
+        for entry in entries:
+            if isinstance(entry, dict) and entry.get("artifact_type") == "data_stage_evidence":
+                lineage_path = entry.get("path")
+                break
+    lineage_ok = (
+        lineage_path == DATA_STAGE_EVIDENCE_PATH
+        and _training_verification_passed_any(
+            training_evidence,
+            ("training_command_completed", "bounded_training_completed", "mlflow_run_exists"),
+        )
+    )
+    return {
+        "status": "resolved" if lineage_ok else "blocked",
+        "evidence": {
+            "status": "resolved" if lineage_ok else "blocked",
+            "training_evidence_path": training_evidence.get("_evidence_path"),
+            "data_stage_evidence_path": lineage_path,
+            "data_stage_status": data_stage["evidence"].get("status"),
+            "reason": None
+            if lineage_ok
+            else "Training evidence is not tied to data_stage_evidence.json.",
+        },
+    }
+
+
+def _training_verification_passed(training_evidence: dict[str, Any], check_name: str) -> bool:
+    return _training_verification_passed_any(training_evidence, (check_name,))
+
+
+def _training_verification_passed_any(
+    training_evidence: dict[str, Any],
+    check_names: tuple[str, ...],
+) -> bool:
+    results = training_evidence.get("verification_results", ())
+    if not isinstance(results, list):
+        return False
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        if result.get("check_name") in check_names and result.get("passed") is True:
+            return True
+    return False
+
+
+def _container_upstream_artifact_entries(
+    *,
+    data_stage: dict[str, Any],
+    local_model_artifact: dict[str, Any],
+    mlflow_best_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for source in (data_stage, mlflow_best_artifact, local_model_artifact):
+        entry = source.get("artifact_entry")
+        if isinstance(entry, dict):
+            entries.append({key: value for key, value in entry.items() if value is not None})
+    return _dedupe_artifact_entries(entries)
+
+
+def _container_upstream_verification_results(
+    *,
+    completion_mode: str,
+    upstream_evidence: dict[str, Any],
+    local_model_available: bool,
+    mlflow_best_available: bool,
+    data_capstone_complete: bool,
+    training_lineage_available: bool,
+    resolved: bool,
+) -> list[dict[str, Any]]:
+    results = [
+        _container_upstream_verification_result(
+            "upstream_evidence_resolved",
+            resolved,
+            upstream_evidence,
+        )
+    ]
+    if completion_mode == "container_local_ready":
+        if local_model_available:
+            results.append(
+                _container_upstream_verification_result(
+                    "local_model_artifact_resolved",
+                    True,
+                    upstream_evidence["local_model_artifact"],
+                )
+            )
+        elif not mlflow_best_available:
+            results.append(
+                _container_upstream_verification_result(
+                    "local_model_artifact_resolved",
+                    False,
+                    upstream_evidence["local_model_artifact"],
+                )
+            )
+        if mlflow_best_available:
+            results.append(
+                _container_upstream_verification_result(
+                    "mlflow_best_artifact_resolved",
+                    True,
+                    upstream_evidence["mlflow_best_artifact"],
+                )
+            )
+        elif not local_model_available:
+            results.append(
+                _container_upstream_verification_result(
+                    "mlflow_best_artifact_resolved",
+                    False,
+                    upstream_evidence["mlflow_best_artifact"],
+                )
+            )
+        return results
+    results.extend(
+        [
+            _container_upstream_verification_result(
+                "data_stage_capstone_complete_verified",
+                data_capstone_complete,
+                upstream_evidence["data_stage"],
+            ),
+            _container_upstream_verification_result(
+                "mlflow_best_artifact_verified",
+                mlflow_best_available,
+                upstream_evidence["mlflow_best_artifact"],
+            ),
+            _container_upstream_verification_result(
+                "training_lineage_verified",
+                training_lineage_available,
+                upstream_evidence["training_lineage"],
+            ),
+        ]
+    )
+    return results
+
+
+def _container_upstream_verification_result(
+    check_name: str,
+    passed: bool,
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "check_name": check_name,
+        "evidence_type": "observed",
+        "source_step": CONTAINER_UPSTREAM_SOURCE_STEP,
+        "passed": passed,
+        "evidence": json.dumps(_redacted_evidence(evidence), sort_keys=True),
+    }
+
+
+def _container_upstream_capability(
+    capability: str,
+    reason: str,
+    later_phase_pointer: str,
+) -> dict[str, Any]:
+    return {
+        "stage": "container_ci",
+        "capability": capability,
+        "reason": reason,
+        "later_phase_pointer": later_phase_pointer,
+    }
+
+
+def _container_upstream_next_actions(
+    blocked_capabilities: list[dict[str, Any]],
+    deferred_capabilities: list[dict[str, Any]],
+) -> list[str]:
+    next_actions = [
+        item["reason"] for item in (*blocked_capabilities, *deferred_capabilities)
+    ]
+    next_actions.append(
+        "Do not generate Dockerfiles, run Docker, configure registries, mutate secrets, "
+        "or write CI workflows in Phase 5 Issue 2."
+    )
+    return next_actions
+
+
+def _redact_path_if_sensitive(path: str) -> str:
+    parts = Path(path).parts
+    if any(
+        any(marker in part.casefold() for marker in ("secret", "token", "password", "access_key"))
+        for part in parts
+    ):
+        return "<redacted-path>"
+    return path
+
+
+def _redact_uri_if_sensitive(uri: str) -> str:
+    parsed = urlparse(uri)
+    if parsed.scheme and parsed.scheme != "file":
+        return _redact_remote_url(uri) or f"{parsed.scheme}://<redacted>"
+    return _redact_path_if_sensitive(uri)
+
+
 def record_capstone_orchestrator_skeleton(
     project_path: str,
     declared_stages: list[str] | tuple[str, ...] | None = None,
@@ -11177,6 +11835,14 @@ async def list_tools() -> list[Tool]:
             inputSchema=PrepareCapstoneContainerCIContractInput.model_json_schema(),
         ),
         Tool(
+            name="resolve_capstone_container_upstream_evidence",
+            description=(
+                "Resolve Phase 5 upstream data-stage, training, MLflow, and model artifact "
+                "evidence without running Docker, registry, CI, or secret behavior"
+            ),
+            inputSchema=ResolveCapstoneContainerUpstreamEvidenceInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -11642,6 +12308,13 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         elif name == "prepare_capstone_container_ci_contract":
             input_data = PrepareCapstoneContainerCIContractInput(**arguments)
             result = prepare_capstone_container_ci_contract(
+                project_path=input_data.project_path,
+                workflow_inputs=input_data.workflow_inputs,
+            )
+
+        elif name == "resolve_capstone_container_upstream_evidence":
+            input_data = ResolveCapstoneContainerUpstreamEvidenceInput(**arguments)
+            result = resolve_capstone_container_upstream_evidence(
                 project_path=input_data.project_path,
                 workflow_inputs=input_data.workflow_inputs,
             )

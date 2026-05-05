@@ -243,7 +243,10 @@ def test_prepare_capstone_container_ci_declares_issue_1_contract_shape():
         "record_container_ci_evidence_handoff",
     ]
     assert template.steps[0].tool_functions == ("prepare_capstone_container_ci_contract",)
-    assert all(step.tool_functions == () for step in template.steps[1:])
+    assert template.steps[1].tool_functions == (
+        "resolve_capstone_container_upstream_evidence",
+    )
+    assert all(step.tool_functions == () for step in template.steps[2:])
     assert {
         gate.step_id: gate.risk_categories for gate in template.approval_gates
     } == {
@@ -291,8 +294,14 @@ def test_prepare_capstone_container_ci_declares_issue_1_contract_shape():
         if check.condition is not None
     }
     assert conditional_checks == {
-        "local_model_artifact_resolved": "completion_mode == container_local_ready",
-        "mlflow_best_artifact_resolved": "completion_mode == container_local_ready",
+        "local_model_artifact_resolved": (
+            "completion_mode == container_local_ready and "
+            "mlflow_best_artifact_available == false"
+        ),
+        "mlflow_best_artifact_resolved": (
+            "completion_mode == container_local_ready and "
+            "local_model_artifact_available == false"
+        ),
         "docker_availability_reported": "completion_mode == container_local_ready",
         "image_build_attempt_reported": (
             "completion_mode == container_local_ready and docker_available == true"
