@@ -607,6 +607,20 @@ class ResolveCapstoneContainerUpstreamEvidenceInput(BaseModel):
     )
 
 
+class GenerateValidateCapstoneRuntimeImageSpecInput(BaseModel):
+    """Generate or validate Phase 5 Issue 3 runtime image build-spec evidence."""
+
+    project_path: str = Field(..., description="Path to the project")
+    workflow_inputs: dict[str, Any] | None = Field(
+        default=None,
+        description="Resolved prepare_capstone_container_ci workflow inputs",
+    )
+    approval_record: dict[str, Any] | None = Field(
+        default=None,
+        description="Approval record required before writing Dockerfile or .dockerignore",
+    )
+
+
 # --- Data Quality Tools ---
 
 
@@ -8870,11 +8884,6 @@ def prepare_capstone_container_ci_contract(
             "reason": "Upstream data, training, MLflow, and model artifact evidence resolution is deferred.",
         },
         {
-            "capability": "generate_validate_runtime_image_spec",
-            "issue": "Phase 5 Issue 3",
-            "reason": "Dockerfile generation is deferred to Phase 5 Issue 3.",
-        },
-        {
             "capability": "build_smoke_check_container_image",
             "issue": "Phase 5 Issue 4",
             "reason": "Docker image build and smoke checks are deferred.",
@@ -9086,6 +9095,419 @@ def resolve_capstone_container_upstream_evidence(
             deferred_capabilities,
         ),
     }
+
+
+RUNTIME_IMAGE_SPEC_STEP = "generate_validate_runtime_image_spec"
+RUNTIME_IMAGE_INTENDED_ROLES = ("ci", "training_validation", "inference_validation")
+RUNTIME_IMAGE_BOUNDED_COMMANDS = (
+    "python -m pytest tests -q",
+    "python - <<'PY'\nfrom pathlib import Path\nassert Path('/app').exists()\nPY",
+)
+RUNTIME_IMAGE_SAFE_BASE = "python:3.11-slim"
+
+
+def generate_validate_capstone_runtime_image_spec(
+    project_path: str,
+    workflow_inputs: dict[str, Any] | None = None,
+    approval_record: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Generate or validate a conservative Capstone Runtime Image spec without Docker."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    inputs = workflow_inputs or {}
+    dockerfile_path = path / "Dockerfile"
+    dockerignore_path = path / ".dockerignore"
+    dependency_context = _capstone_runtime_dependency_context(path)
+    existing_dockerfile = dockerfile_path.exists()
+    approved = _runtime_image_write_approved(approval_record)
+
+    action = "validated_existing" if existing_dockerfile else "blocked_write_requires_approval"
+    dockerfile_content = dockerfile_path.read_text() if existing_dockerfile else ""
+    dockerignore_content = (
+        dockerignore_path.read_text() if dockerignore_path.exists() else _default_dockerignore()
+    )
+
+    if not existing_dockerfile and approved:
+        dockerfile_content = _generate_capstone_runtime_dockerfile(dependency_context)
+        dockerfile_path.write_text(dockerfile_content)
+        if not dockerignore_path.exists():
+            dockerignore_path.write_text(dockerignore_content)
+        action = "generated"
+
+    base_image_decision = _runtime_image_base_image_decision(
+        dockerfile_content=dockerfile_content,
+        workflow_inputs=inputs,
+    )
+    build_spec_evidence = {
+        "action": action,
+        "build_spec_path": "Dockerfile",
+        "base_image_decision": base_image_decision,
+        "intended_roles": list(RUNTIME_IMAGE_INTENDED_ROLES),
+        "bounded_commands": list(RUNTIME_IMAGE_BOUNDED_COMMANDS),
+        "dependency_context": dependency_context,
+        "docker_execution": {
+            "build_attempted": False,
+            "run_attempted": False,
+            "reason": "Phase 5 Issue 3 records build-spec evidence only.",
+        },
+    }
+    if action == "blocked_write_requires_approval":
+        build_spec_evidence["approval_required"] = {
+            "step_id": RUNTIME_IMAGE_SPEC_STEP,
+            "risk_categories": ["writes_project_files"],
+        }
+    if approved and action == "generated":
+        build_spec_evidence["approval_record"] = _runtime_image_approval_evidence(
+            approval_record
+        )
+
+    secret_safety = _runtime_image_secret_safety(
+        build_spec_path="Dockerfile",
+        base_image=base_image_decision["selected_base_image"],
+        dependency_files=dependency_context["dependency_files"],
+        bounded_commands=RUNTIME_IMAGE_BOUNDED_COMMANDS,
+        dockerfile_content=dockerfile_content,
+    )
+    blocked_capabilities: list[dict[str, Any]] = []
+    if action == "blocked_write_requires_approval":
+        blocked_capabilities.append(
+            {
+                "capability": "write_container_build_spec",
+                "reason": "Writing Dockerfile requires an Approval Gate.",
+                "required_risk_categories": ["writes_project_files"],
+                "next_action": (
+                    "Record approval for generate_validate_runtime_image_spec "
+                    "before writing Dockerfile."
+                ),
+            }
+        )
+    if not secret_safety["passed"]:
+        blocked_capabilities.append(
+            {
+                "capability": "secret_safe_container_build_spec",
+                "reason": "Container build spec contains secret-like or local-only evidence.",
+                "next_action": "Remove secret-like Dockerfile content before continuing.",
+            }
+        )
+
+    artifact_entries = _runtime_image_artifact_entries(
+        action=action,
+        dependency_source=dependency_context["selected_dependency_source"],
+        include_dockerignore=(action == "generated" and dockerignore_path.exists()),
+    )
+    verification_results = [
+        _runtime_image_verification_result(
+            "container_build_spec_reported",
+            action != "blocked_write_requires_approval" and secret_safety["passed"],
+            build_spec_evidence,
+            evidence_type="observed" if action == "validated_existing" else "declared",
+        ),
+        _runtime_image_verification_result(
+            "dependency_context_reported",
+            True,
+            dependency_context,
+            evidence_type="observed",
+        ),
+        _runtime_image_verification_result(
+            "secret_safety_validated",
+            secret_safety["passed"],
+            secret_safety,
+            evidence_type="observed",
+        ),
+        _runtime_image_verification_result(
+            "container_artifact_manifest_reported",
+            bool(artifact_entries),
+            {"entries": artifact_entries},
+            evidence_type="observed" if action == "validated_existing" else "declared",
+        ),
+    ]
+    status = "validated" if action == "validated_existing" else action
+    if blocked_capabilities:
+        status = "blocked"
+    return {
+        "success": True,
+        "status": status,
+        "workflow_id": "prepare_capstone_container_ci",
+        "completion_mode": inputs.get("completion_mode", "container_local_ready"),
+        "container": {
+            "runtime_image": _redacted_evidence(build_spec_evidence),
+            "dependency_context": dependency_context,
+            "secret_safety": secret_safety,
+        },
+        "blocked_capabilities": _redacted_evidence(blocked_capabilities),
+        "deferred_capabilities": [
+            {
+                "capability": "build_smoke_check_container_image",
+                "issue": "Phase 5 Issue 4",
+                "reason": "Docker image build and smoke checks are deferred.",
+            },
+            {
+                "capability": "configure_validate_registry_target",
+                "issue": "Phase 5 Issue 5",
+                "reason": "Registry target validation is deferred.",
+            },
+            {
+                "capability": "approval_gated_registry_login_push",
+                "issue": "Phase 5 Issue 6",
+                "reason": "Registry login and push are deferred.",
+            },
+            {
+                "capability": "record_container_ci_evidence_handoff",
+                "issue": "Phase 5 Issue 7",
+                "reason": "container_ci_evidence.json writing is deferred to Phase 5 Issue 7.",
+            },
+        ],
+        "verification_results": verification_results,
+        "artifact_manifest": {"entries": _redacted_evidence(artifact_entries)},
+        "next_actions": _runtime_image_next_actions(blocked_capabilities),
+    }
+
+
+def _capstone_runtime_dependency_context(project_path: Path) -> dict[str, Any]:
+    discovered = [
+        name
+        for name in ("uv.lock", "pyproject.toml", "requirements.txt", "setup.py")
+        if (project_path / name).exists()
+    ]
+    if "uv.lock" in discovered or "pyproject.toml" in discovered:
+        selected_source = "uv_or_pyproject"
+        install_strategy = "uv_sync_frozen" if "uv.lock" in discovered else "pip_install_editable"
+    elif "requirements.txt" in discovered:
+        selected_source = "requirements"
+        install_strategy = "pip_requirements"
+    elif "setup.py" in discovered:
+        selected_source = "setup_py"
+        install_strategy = "pip_install_editable"
+    else:
+        selected_source = "none"
+        install_strategy = "no_dependency_file_detected"
+    return {
+        "dependency_files": discovered,
+        "selected_dependency_source": selected_source,
+        "install_strategy": install_strategy,
+        "priority_order": ["uv.lock/pyproject.toml", "requirements.txt", "setup.py"],
+    }
+
+
+def _runtime_image_write_approved(approval_record: dict[str, Any] | None) -> bool:
+    if not isinstance(approval_record, dict):
+        return False
+    return (
+        approval_record.get("step_id") == RUNTIME_IMAGE_SPEC_STEP
+        and approval_record.get("status") == "approved"
+        and approval_record.get("risk_categories") == ["writes_project_files"]
+    )
+
+
+def _runtime_image_approval_evidence(
+    approval_record: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(approval_record, dict):
+        return {}
+    return {
+        "step_id": approval_record.get("step_id"),
+        "risk_categories": approval_record.get("risk_categories", []),
+        "status": approval_record.get("status"),
+        "approver": approval_record.get("approver"),
+        "timestamp": approval_record.get("timestamp"),
+    }
+
+
+def _generate_capstone_runtime_dockerfile(dependency_context: dict[str, Any]) -> str:
+    install_strategy = dependency_context["install_strategy"]
+    lines = [
+        f"FROM {RUNTIME_IMAGE_SAFE_BASE}",
+        "ENV PYTHONDONTWRITEBYTECODE=1",
+        "ENV PYTHONUNBUFFERED=1",
+        "WORKDIR /app",
+        "RUN python -m pip install --upgrade pip",
+        "COPY . .",
+    ]
+    if install_strategy == "uv_sync_frozen":
+        lines.append("RUN python -m pip install uv && uv sync --frozen --no-dev")
+    elif install_strategy == "pip_requirements":
+        lines.append("RUN python -m pip install -r requirements.txt")
+    elif install_strategy == "pip_install_editable":
+        lines.append("RUN python -m pip install -e .")
+    else:
+        lines.append(
+            "RUN python - <<'PY'\n"
+            "from pathlib import Path\n"
+            "assert Path('/app').exists()\n"
+            "PY"
+        )
+    lines.extend(
+        [
+            'LABEL org.opencontainers.image.title="Capstone Runtime Image"',
+            'LABEL auto_mlops.phase="5-runtime-image-spec"',
+            'CMD ["python", "-m", "pytest", "tests", "-q"]',
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _default_dockerignore() -> str:
+    return "\n".join(
+        [
+            ".env",
+            ".env.*",
+            ".venv/",
+            "__pycache__/",
+            ".pytest_cache/",
+            ".mypy_cache/",
+            ".ruff_cache/",
+            ".git/",
+            "data/",
+            ".auto_mlops/",
+            "",
+        ]
+    )
+
+
+def _runtime_image_base_image_decision(
+    dockerfile_content: str,
+    workflow_inputs: dict[str, Any],
+) -> dict[str, Any]:
+    selected_base_image = RUNTIME_IMAGE_SAFE_BASE
+    match = re.search(r"^\s*FROM\s+([^\s]+)", dockerfile_content, flags=re.IGNORECASE | re.MULTILINE)
+    if match:
+        selected_base_image = match.group(1)
+    cuda_requested = bool(workflow_inputs.get("cuda_required"))
+    cuda_observed = bool(re.search(r"\bcuda\b|nvidia/cuda", dockerfile_content, flags=re.IGNORECASE))
+    return {
+        "selected_base_image": selected_base_image,
+        "python_version_floor": "3.10",
+        "cuda_base_allowed": cuda_requested or cuda_observed,
+        "cuda_base_observed": cuda_observed,
+        "decision_reason": (
+            "Existing Dockerfile base image referenced."
+            if dockerfile_content
+            else "Default conservative Python 3.10+ base image selected."
+        ),
+    }
+
+
+def _runtime_image_secret_safety(
+    *,
+    build_spec_path: str,
+    base_image: str,
+    dependency_files: list[str],
+    bounded_commands: tuple[str, ...],
+    dockerfile_content: str,
+) -> dict[str, Any]:
+    fields = {
+        "build_spec_path": build_spec_path,
+        "base_image": base_image,
+        "dependency_files": " ".join(dependency_files),
+        "bounded_commands": "\n".join(bounded_commands),
+        "dockerfile_content": dockerfile_content,
+    }
+    violations: list[dict[str, str]] = []
+    secret_key_pattern = re.compile(
+        r"\b(?:AWS_SECRET_ACCESS_KEY|AWS_ACCESS_KEY_ID|[A-Z0-9_]*(?:SECRET|TOKEN|ACCESS_KEY)[A-Z0-9_]*)\b"
+    )
+    absolute_source_dataset_pattern = re.compile(r"/(?:home|Users|mnt|media|data)/[^\s\"']+")
+    for field, value in fields.items():
+        secret_match = secret_key_pattern.search(value)
+        if secret_match:
+            violations.append(
+                {
+                    "field": field,
+                    "rule": "secret_like_key",
+                    "match": secret_match.group(0),
+                }
+            )
+        if ".env" in value and field == "dockerfile_content":
+            violations.append(
+                {
+                    "field": field,
+                    "rule": "env_file_reference",
+                    "match": ".env",
+                }
+            )
+        path_match = absolute_source_dataset_pattern.search(value)
+        if path_match:
+            violations.append(
+                {
+                    "field": field,
+                    "rule": "absolute_source_dataset_path",
+                    "match": "<redacted-path>",
+                }
+            )
+    return {
+        "passed": not violations,
+        "checked_fields": [
+            "build_spec_path",
+            "base_image",
+            "dependency_files",
+            "bounded_commands",
+            "dockerfile_content",
+        ],
+        "violations": violations,
+    }
+
+
+def _runtime_image_artifact_entries(
+    *,
+    action: str,
+    dependency_source: str,
+    include_dockerignore: bool,
+) -> list[dict[str, Any]]:
+    if action == "blocked_write_requires_approval":
+        return []
+    state = "validated" if action == "validated_existing" else "generated"
+    entries: list[dict[str, Any]] = [
+        {
+            "artifact_type": "container_build_spec",
+            "producing_step": RUNTIME_IMAGE_SPEC_STEP,
+            "state": state,
+            "path": "Dockerfile",
+            "metadata": {
+                "action": action,
+                "dependency_source": dependency_source,
+                "intended_roles": list(RUNTIME_IMAGE_INTENDED_ROLES),
+            },
+        }
+    ]
+    if include_dockerignore:
+        entries.append(
+            {
+                "artifact_type": "container_build_context_ignore",
+                "producing_step": RUNTIME_IMAGE_SPEC_STEP,
+                "state": "generated",
+                "path": ".dockerignore",
+                "metadata": {"action": "generated_secret_safety_ignore_rules"},
+            }
+        )
+    return entries
+
+
+def _runtime_image_verification_result(
+    check_name: str,
+    passed: bool,
+    evidence: dict[str, Any],
+    *,
+    evidence_type: str,
+) -> dict[str, Any]:
+    return {
+        "check_name": check_name,
+        "evidence_type": evidence_type,
+        "source_step": RUNTIME_IMAGE_SPEC_STEP,
+        "passed": passed,
+        "evidence": json.dumps(_redacted_evidence(evidence), sort_keys=True),
+    }
+
+
+def _runtime_image_next_actions(blocked_capabilities: list[dict[str, Any]]) -> list[str]:
+    if blocked_capabilities:
+        return [item["next_action"] for item in blocked_capabilities if item.get("next_action")]
+    return [
+        "Proceed to Phase 5 Issue 4 for Docker availability, image build, and smoke-check evidence.",
+        "Do not run Docker, configure registries, write CI workflows, or write container_ci_evidence.json in Issue 3.",
+    ]
 
 
 def _resolve_container_data_stage_evidence(
@@ -11843,6 +12265,14 @@ async def list_tools() -> list[Tool]:
             inputSchema=ResolveCapstoneContainerUpstreamEvidenceInput.model_json_schema(),
         ),
         Tool(
+            name="generate_validate_capstone_runtime_image_spec",
+            description=(
+                "Generate or validate Phase 5 Capstone Runtime Image build-spec evidence "
+                "without running Docker, registry, CI, or secret behavior"
+            ),
+            inputSchema=GenerateValidateCapstoneRuntimeImageSpecInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -12317,6 +12747,14 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             result = resolve_capstone_container_upstream_evidence(
                 project_path=input_data.project_path,
                 workflow_inputs=input_data.workflow_inputs,
+            )
+
+        elif name == "generate_validate_capstone_runtime_image_spec":
+            input_data = GenerateValidateCapstoneRuntimeImageSpecInput(**arguments)
+            result = generate_validate_capstone_runtime_image_spec(
+                project_path=input_data.project_path,
+                workflow_inputs=input_data.workflow_inputs,
+                approval_record=input_data.approval_record,
             )
 
         # Docker Tools

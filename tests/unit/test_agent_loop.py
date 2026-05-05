@@ -1468,6 +1468,215 @@ def test_resolve_capstone_container_upstream_capstone_complete_accepts_structure
     }
 
 
+def _evidence_by_check(result: dict, check_name: str) -> dict:
+    raw_evidence = next(
+        item["evidence"]
+        for item in result["verification_results"]
+        if item["check_name"] == check_name
+    )
+    return json.loads(raw_evidence)
+
+
+def test_generate_validate_capstone_runtime_image_spec_detects_dependency_priority(
+    tmp_path,
+):
+    (tmp_path / "uv.lock").write_text("version = 1\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n")
+    (tmp_path / "requirements.txt").write_text("torch\n")
+    (tmp_path / "setup.py").write_text("from setuptools import setup\nsetup()\n")
+    (tmp_path / "Dockerfile").write_text("FROM python:3.11-slim\n")
+
+    result = mcp_mlops_tools.generate_validate_capstone_runtime_image_spec(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_local_ready"},
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "validated"
+    dependency_context = _evidence_by_check(result, "dependency_context_reported")
+    assert dependency_context["selected_dependency_source"] == "uv_or_pyproject"
+    assert dependency_context["dependency_files"] == [
+        "uv.lock",
+        "pyproject.toml",
+        "requirements.txt",
+        "setup.py",
+    ]
+    assert dependency_context["install_strategy"] == "uv_sync_frozen"
+
+
+def test_generate_validate_capstone_runtime_image_spec_references_existing_dockerfile(
+    tmp_path,
+):
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text(
+        "FROM python:3.11-slim\n"
+        "WORKDIR /app\n"
+        "COPY requirements.txt ./requirements.txt\n"
+        "RUN python -m pip install -r requirements.txt\n"
+    )
+    (tmp_path / "requirements.txt").write_text("pytest\n")
+
+    result = mcp_mlops_tools.generate_validate_capstone_runtime_image_spec(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_local_ready"},
+    )
+
+    assert result["status"] == "validated"
+    assert dockerfile.read_text().startswith("FROM python:3.11-slim")
+    build_spec = _evidence_by_check(result, "container_build_spec_reported")
+    assert build_spec["action"] == "validated_existing"
+    assert build_spec["build_spec_path"] == "Dockerfile"
+    assert build_spec["base_image_decision"]["selected_base_image"] == "python:3.11-slim"
+    assert build_spec["intended_roles"] == [
+        "ci",
+        "training_validation",
+        "inference_validation",
+    ]
+    assert result["artifact_manifest"]["entries"] == [
+        {
+            "artifact_type": "container_build_spec",
+            "producing_step": "generate_validate_runtime_image_spec",
+            "state": "validated",
+            "path": "Dockerfile",
+            "metadata": {
+                "action": "validated_existing",
+                "dependency_source": "requirements",
+                "intended_roles": [
+                    "ci",
+                    "training_validation",
+                    "inference_validation",
+                ],
+            },
+        }
+    ]
+
+
+def test_generate_validate_capstone_runtime_image_spec_blocks_write_without_approval(
+    tmp_path,
+):
+    (tmp_path / "setup.py").write_text("from setuptools import setup\nsetup()\n")
+
+    result = mcp_mlops_tools.generate_validate_capstone_runtime_image_spec(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_local_ready"},
+    )
+
+    assert result["status"] == "blocked"
+    assert not (tmp_path / "Dockerfile").exists()
+    assert result["blocked_capabilities"] == [
+        {
+            "capability": "write_container_build_spec",
+            "reason": "Writing Dockerfile requires an Approval Gate.",
+            "required_risk_categories": ["writes_project_files"],
+            "next_action": (
+                "Record approval for generate_validate_runtime_image_spec before writing Dockerfile."
+            ),
+        }
+    ]
+    build_spec = _evidence_by_check(result, "container_build_spec_reported")
+    assert build_spec["action"] == "blocked_write_requires_approval"
+    assert build_spec["approval_required"]["risk_categories"] == ["writes_project_files"]
+
+
+def test_generate_validate_capstone_runtime_image_spec_generates_conservative_dockerfile_with_approval(
+    tmp_path,
+):
+    (tmp_path / "uv.lock").write_text("version = 1\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n")
+
+    result = mcp_mlops_tools.generate_validate_capstone_runtime_image_spec(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_local_ready"},
+        approval_record={
+            "workflow_run_id": "run-123",
+            "step_id": "generate_validate_runtime_image_spec",
+            "risk_categories": ["writes_project_files"],
+            "status": "approved",
+            "approver": "tester",
+            "timestamp": "2026-05-05T00:00:00+00:00",
+        },
+    )
+
+    dockerfile_text = (tmp_path / "Dockerfile").read_text()
+    assert result["status"] == "generated"
+    assert dockerfile_text.startswith("FROM python:3.11-slim\n")
+    assert "nvidia/cuda" not in dockerfile_text
+    assert "COPY .env" not in dockerfile_text
+    assert "/home/" not in dockerfile_text
+    assert "uv sync --frozen" in dockerfile_text
+    build_spec = _evidence_by_check(result, "container_build_spec_reported")
+    assert build_spec["action"] == "generated"
+    assert build_spec["bounded_commands"] == [
+        "python -m pytest tests -q",
+        "python - <<'PY'\nfrom pathlib import Path\nassert Path('/app').exists()\nPY",
+    ]
+    assert build_spec["approval_record"]["status"] == "approved"
+    secret_safety = _evidence_by_check(result, "secret_safety_validated")
+    assert secret_safety == {
+        "passed": True,
+        "checked_fields": [
+            "build_spec_path",
+            "base_image",
+            "dependency_files",
+            "bounded_commands",
+            "dockerfile_content",
+        ],
+        "violations": [],
+    }
+
+
+def test_generate_validate_capstone_runtime_image_spec_reports_structured_secret_safety(
+    tmp_path,
+):
+    (tmp_path / "requirements.txt").write_text("pytest\n")
+    (tmp_path / ".env").write_text("AWS_SECRET_ACCESS_KEY=do-not-copy\n")
+    (tmp_path / "Dockerfile").write_text(
+        "FROM python:3.11-slim\n"
+        "ENV AWS_SECRET_ACCESS_KEY=do-not-copy\n"
+    )
+
+    result = mcp_mlops_tools.generate_validate_capstone_runtime_image_spec(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_local_ready"},
+    )
+
+    secret_safety = _evidence_by_check(result, "secret_safety_validated")
+    assert result["status"] == "blocked"
+    assert secret_safety["passed"] is False
+    assert secret_safety["violations"] == [
+        {
+            "field": "dockerfile_content",
+            "rule": "secret_like_key",
+            "match": "AWS_SECRET_ACCESS_KEY",
+        }
+    ]
+    assert "do-not-copy" not in json.dumps(result)
+
+
+def test_generate_validate_capstone_runtime_image_spec_rejects_absolute_dataset_paths(
+    tmp_path,
+):
+    (tmp_path / "requirements.txt").write_text("pytest\n")
+    (tmp_path / "Dockerfile").write_text(
+        "FROM python:3.11-slim\nCOPY /home/ubuntu/source-data /app/data\n"
+    )
+
+    result = mcp_mlops_tools.generate_validate_capstone_runtime_image_spec(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_local_ready"},
+    )
+
+    secret_safety = _evidence_by_check(result, "secret_safety_validated")
+    assert result["status"] == "blocked"
+    assert secret_safety["violations"] == [
+        {
+            "field": "dockerfile_content",
+            "rule": "absolute_source_dataset_path",
+            "match": "<redacted-path>",
+        }
+    ]
+
+
 def test_record_capstone_orchestrator_skeleton_references_data_stage_evidence(tmp_path):
     evidence_dir = tmp_path / ".auto_mlops" / "capstone"
     evidence_dir.mkdir(parents=True)
@@ -2946,17 +3155,33 @@ class TestAgentLoopRun:
         assert completed_tool_steps == [
             "prepare_capstone_container_ci_contract",
             "resolve_upstream_container_evidence",
+            "generate_validate_runtime_image_spec",
         ]
         assert mock_agent.status == "paused"
         assert "contract_status: blocked" in result
         assert "upstream_evidence_resolved:observed:passed" in result
         assert "local_model_artifact_resolved:observed:passed" in result
+        assert "container_build_spec_reported:declared:failed" in result
+        assert "dependency_context_reported:observed:passed" in result
+        assert "secret_safety_validated:observed:passed" in result
         assert "data_stage_evidence_artifact_reported" in result
         assert "mlflow_best_artifact_verified" in result
+        assert mock_agent.ctx.globals["capstone_runtime_image_spec"]["blocked_capabilities"] == [
+            {
+                "capability": "write_container_build_spec",
+                "reason": "Writing Dockerfile requires an Approval Gate.",
+                "required_risk_categories": ["writes_project_files"],
+                "next_action": (
+                    "Record approval for generate_validate_runtime_image_spec "
+                    "before writing Dockerfile."
+                ),
+            }
+        ]
         assert "container_ci_evidence.json writing is deferred to Phase 5 Issue 7" in result
         assert "create_ml_dockerfile" not in [
             step["tool"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
         ]
+        assert not (tmp_path / "Dockerfile").exists()
         assert not (tmp_path / ".auto_mlops" / "capstone" / "container_ci_evidence.json").exists()
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
