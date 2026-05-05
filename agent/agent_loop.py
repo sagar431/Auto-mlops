@@ -352,6 +352,7 @@ class AgentLoop:
             self.final_output = (
                 "Workflow selection blocked: "
                 f"{selection.selection_reason} missing_inputs: {missing_inputs}. "
+                f"next_action: {clarifying_question}. "
                 f"Clarifying question: {clarifying_question}"
             )
             return True
@@ -460,10 +461,28 @@ class AgentLoop:
             else {}
         )
         resolved_inputs.update(training_controls)
+        if selection.workflow_id == "prepare_capstone_data":
+            resolved_inputs.update(self._capstone_data_inputs_from_query())
         for workflow_input in template.required_inputs:
             if workflow_input.required and workflow_input.name == "project_path":
                 if not self.ctx.project_path and "project_path" not in missing_inputs:
                     missing_inputs.append("project_path")
+                continue
+            if (
+                workflow_input.allowed_values
+                and workflow_input.name in resolved_inputs
+                and resolved_inputs[workflow_input.name] not in workflow_input.allowed_values
+            ):
+                if workflow_input.name not in missing_inputs:
+                    missing_inputs.append(workflow_input.name)
+                continue
+            if selection.workflow_id == "prepare_capstone_data":
+                if (
+                    workflow_input.required
+                    and workflow_input.name not in resolved_inputs
+                    and workflow_input.name not in missing_inputs
+                ):
+                    missing_inputs.append(workflow_input.name)
                 continue
             if (
                 workflow_input.required
@@ -484,9 +503,40 @@ class AgentLoop:
             missing_inputs=tuple(missing_inputs),
             selection_reason=(
                 f"{selection.selection_reason} Missing required runtime inputs: "
-                f"{', '.join(missing_inputs)}."
+                f"{', '.join(missing_inputs)}. "
+                f"{self._workflow_input_next_action(template, tuple(missing_inputs))}"
             ),
         )
+
+    def _workflow_input_next_action(
+        self, template, missing_inputs: tuple[str, ...]
+    ) -> str:
+        """Return registry-owned next action text for missing or invalid workflow inputs."""
+        parts: list[str] = []
+        inputs_by_name = {workflow_input.name: workflow_input for workflow_input in template.required_inputs}
+        for missing_input in missing_inputs:
+            workflow_input = inputs_by_name.get(missing_input)
+            if workflow_input is not None and workflow_input.allowed_values:
+                parts.append(
+                    f"Provide {missing_input} as one of: "
+                    f"{', '.join(str(value) for value in workflow_input.allowed_values)}."
+                )
+            else:
+                parts.append(f"Provide {missing_input}.")
+        return "next_action: " + " ".join(parts)
+
+    def _capstone_data_inputs_from_query(self) -> dict[str, Any]:
+        """Extract declared Phase 4 Issue 1 capstone data inputs from the query."""
+        inputs: dict[str, Any] = {"completion_mode": "local_ready"}
+        for input_name in ("dataset_1_path", "dataset_2_path", "completion_mode"):
+            match = re.search(
+                rf"{input_name}\s*=\s*(\S+)",
+                self.query,
+                flags=re.IGNORECASE,
+            )
+            if match:
+                inputs[input_name] = match.group(1)
+        return inputs
 
     def _bounded_training_controls_from_query(self) -> dict[str, Any]:
         """Extract explicit bounded training controls from the user query."""

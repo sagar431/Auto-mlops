@@ -1527,6 +1527,105 @@ class TestAgentLoopRun:
         mock_execute_step.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_run_prepare_capstone_data_blocks_missing_project_path_and_datasets(
+        self, mock_agent
+    ):
+        """Test prepare_capstone_data blocks before tools when required inputs are absent."""
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("perception should not run while data prep is blocked"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+        ):
+            result = await mock_agent.run("Prepare capstone data")
+
+        assert mock_agent.workflow_selection.workflow_id == "prepare_capstone_data"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.BLOCKED
+        assert mock_agent.workflow_selection.missing_inputs == (
+            "project_path",
+            "dataset_1_path",
+            "dataset_2_path",
+        )
+        assert "missing_inputs" in result
+        assert "dataset_1_path" in result
+        assert "dataset_2_path" in result
+        assert "next_action" in result
+        assert mock_agent.ctx.get_pending_steps() == []
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+        mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_prepare_capstone_data_blocks_invalid_completion_mode(
+        self, mock_agent, tmp_path
+    ):
+        """Test prepare_capstone_data rejects unsupported completion modes before execution."""
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("perception should not run while data prep is blocked"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+        ):
+            result = await mock_agent.run(
+                "Prepare capstone data dataset_1_path=/data/one "
+                "dataset_2_path=/data/two completion_mode=production",
+                str(tmp_path),
+            )
+
+        assert mock_agent.workflow_selection.workflow_id == "prepare_capstone_data"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.BLOCKED
+        assert mock_agent.workflow_selection.missing_inputs == ("completion_mode",)
+        assert "completion_mode" in result
+        assert "local_ready" in result
+        assert "capstone_complete" in result
+        assert mock_agent.ctx.get_pending_steps() == []
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+        mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_prepare_capstone_data_defaults_to_local_ready_without_tools(
+        self, mock_agent, tmp_path
+    ):
+        """Test Issue 1 selects registry workflow and defaults completion_mode without tools."""
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("perception should not run for registry data prep"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+        ):
+            result = await mock_agent.run(
+                "Prepare capstone data dataset_1_path=/data/one dataset_2_path=/data/two",
+                str(tmp_path),
+            )
+
+        assert mock_agent.workflow_selection.workflow_id == "prepare_capstone_data"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.PENDING
+        assert mock_agent.ctx.globals["workflow_inputs"] == {
+            "project_path": str(tmp_path),
+            "completion_mode": "local_ready",
+            "dataset_1_path": "/data/one",
+            "dataset_2_path": "/data/two",
+        }
+        assert "Workflow execution is not enabled yet" in result
+        assert mock_agent.ctx.get_pending_steps() == []
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+        mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_run_build_capstone_pipeline_records_deferred_capabilities(
         self, mock_agent, tmp_path
     ):

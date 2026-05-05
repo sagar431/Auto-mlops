@@ -30,7 +30,7 @@ def test_registry_returns_setup_pipeline_by_id():
     assert template.name == "Setup Pipeline"
 
 
-def test_registry_contains_phase_3_training_detection_template():
+def test_registry_contains_phase_4_prepare_capstone_data_template():
     registry = get_workflow_registry()
 
     assert registry.workflow_ids == (
@@ -38,6 +38,7 @@ def test_registry_contains_phase_3_training_detection_template():
         "detect_training_project",
         "train_and_track",
         "build_capstone_pipeline",
+        "prepare_capstone_data",
         "deploy_litserve_preflight",
         "deploy_litserve_gpu",
         "deploy_gpu_inference",
@@ -112,6 +113,50 @@ def test_build_capstone_pipeline_declares_orchestrator_skeleton():
     ]
 
 
+def test_prepare_capstone_data_declares_issue_1_contract_shape():
+    template = get_workflow_registry().get("prepare_capstone_data")
+
+    assert template.workflow_id == "prepare_capstone_data"
+    assert template.name == "Prepare Capstone Data"
+    assert [workflow_input.name for workflow_input in template.required_inputs] == [
+        "project_path",
+        "dataset_1_path",
+        "dataset_2_path",
+        "completion_mode",
+    ]
+    completion_mode_input = template.required_inputs[3]
+    assert completion_mode_input.default == "local_ready"
+    assert completion_mode_input.allowed_values == ("local_ready", "capstone_complete")
+    assert [branch.name for branch in template.branches] == [
+        "local_ready",
+        "capstone_complete",
+    ]
+    assert [step.step_id for step in template.steps] == [
+        "prepare_capstone_data_contract"
+    ]
+    assert template.steps[0].tool_functions == ()
+    assert [check.name for check in template.success_contract.checks] == [
+        "two_dataset_paths_provided",
+        "two_dataset_layouts_supported",
+        "split_evidence_recorded",
+        "capstone_data_package_tracked",
+        "dvc_repo_validated",
+        "data_stage_evidence_artifact_reported",
+        "dataset_lineage_artifacts_reported",
+        "s3_remote_validated",
+        "s3_transfer_completed",
+    ]
+    s3_checks = {
+        check.name: check.condition
+        for check in template.success_contract.checks
+        if check.name.startswith("s3_")
+    }
+    assert s3_checks == {
+        "s3_remote_validated": "completion_mode == capstone_complete",
+        "s3_transfer_completed": "completion_mode == capstone_complete",
+    }
+
+
 def test_build_capstone_pipeline_blocks_until_future_capabilities_are_implemented():
     registry = get_workflow_registry()
     template = registry.get("build_capstone_pipeline")
@@ -158,6 +203,118 @@ def test_select_workflow_routes_capstone_pipeline_request_to_orchestrator():
     assert selection.workflow_id == "build_capstone_pipeline"
     assert selection.status is WorkflowStatus.PENDING
     assert selection.matched_aliases == ("Build the capstone pipeline",)
+
+
+def test_select_workflow_routes_capstone_data_request_to_prepare_data():
+    selection = get_workflow_registry().select_workflow(
+        "Please prepare capstone data for this project"
+    )
+
+    assert selection.workflow_id == "prepare_capstone_data"
+    assert selection.status is WorkflowStatus.PENDING
+    assert selection.matched_aliases == ("prepare capstone data",)
+    assert "setup_pipeline" not in selection.rejected_workflows
+
+
+def test_prepare_capstone_data_local_ready_contract_does_not_require_s3_evidence():
+    registry = get_workflow_registry()
+    verification_results = (
+        VerificationResult(
+            check_name="two_dataset_paths_provided",
+            evidence_type="observed",
+            source_step="prepare_capstone_data_contract",
+            passed=True,
+            evidence="dataset paths provided",
+        ),
+        VerificationResult(
+            check_name="two_dataset_layouts_supported",
+            evidence_type="observed",
+            source_step="prepare_capstone_data_contract",
+            passed=True,
+            evidence="layout support deferred to later issue",
+        ),
+        VerificationResult(
+            check_name="split_evidence_recorded",
+            evidence_type="observed",
+            source_step="prepare_capstone_data_contract",
+            passed=True,
+            evidence="split evidence deferred to later issue",
+        ),
+        VerificationResult(
+            check_name="capstone_data_package_tracked",
+            evidence_type="observed",
+            source_step="prepare_capstone_data_contract",
+            passed=True,
+            evidence="DVC tracking deferred to later issue",
+        ),
+        VerificationResult(
+            check_name="dvc_repo_validated",
+            evidence_type="observed",
+            source_step="prepare_capstone_data_contract",
+            passed=True,
+            evidence="DVC validation deferred to later issue",
+        ),
+        VerificationResult(
+            check_name="data_stage_evidence_artifact_reported",
+            evidence_type="observed",
+            source_step="prepare_capstone_data_contract",
+            passed=True,
+            evidence="artifact writing deferred to later issue",
+        ),
+        VerificationResult(
+            check_name="dataset_lineage_artifacts_reported",
+            evidence_type="declared",
+            source_step="prepare_capstone_data_contract",
+            passed=True,
+            evidence="lineage artifacts declared",
+        ),
+    )
+
+    validation = registry.validate_success_contract(
+        "prepare_capstone_data",
+        verification_results=verification_results,
+        workflow_inputs={"completion_mode": "local_ready"},
+    )
+
+    assert validation.status is WorkflowStatus.SUCCEEDED
+    assert "s3_remote_validated" not in [
+        failure.check_name for failure in validation.missing_evidence
+    ]
+    assert "s3_transfer_completed" not in [
+        failure.check_name for failure in validation.missing_evidence
+    ]
+
+
+def test_prepare_capstone_data_capstone_complete_contract_requires_s3_evidence():
+    registry = get_workflow_registry()
+    template = registry.get("prepare_capstone_data")
+    verification_results = tuple(
+        VerificationResult(
+            check_name=check.name,
+            evidence_type=(
+                "declared"
+                if check.evidence_type == "declared_or_observed"
+                else check.evidence_type
+            ),
+            source_step=check.source_step,
+            passed=True,
+            evidence=f"{check.name}=ok",
+        )
+        for check in template.success_contract.checks
+        if not check.name.startswith("s3_")
+    )
+
+    validation = registry.validate_success_contract(
+        "prepare_capstone_data",
+        verification_results=verification_results,
+        workflow_inputs={"completion_mode": "capstone_complete"},
+    )
+
+    assert validation.status is WorkflowStatus.BLOCKED
+    assert [failure.check_name for failure in validation.missing_evidence] == [
+        "s3_remote_validated",
+        "s3_transfer_completed",
+    ]
 
 
 def test_train_and_track_declares_bounded_training_template():
