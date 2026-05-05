@@ -1,7 +1,7 @@
 {
   "/home/ubuntu/Auto-mlops/mcp_mlops_tools.py": {
-    "mtime": 1777993732.3879344,
-    "hash": "9019812a2e7980324e236d415e2c4254"
+    "mtime": 1778004694.5094078,
+    "hash": "1565ea23855796f39e5ca00d32d7ffa5"
   },
   "/home/ubuntu/Auto-mlops/cli.py": {
     "mtime": 1777964408.4684741,
@@ -128,7 +128,7 @@
     "hash": "eea140b4f0d5cade8c8a698a32c02f3e"
   },
   "/home/ubuntu/Auto-mlops/tests/e2e/test_phase4_prepare_capstone_data.py": {
-    "mtime": 1777993741.4569888,
+    "mtime": 1777997625.2152846,
     "hash": "4f85689466bb15216b9b50ad3078c8e6"
   },
   "/home/ubuntu/Auto-mlops/tests/e2e/test_phase1_setup_pipeline.py": {
@@ -164,7 +164,7 @@
     "hash": "db55619a09461fcb50e12264ed4c42c6"
   },
   "/home/ubuntu/Auto-mlops/tests/unit/test_execute_step.py": {
-    "mtime": 1777993374.7837927,
+    "mtime": 1777997625.2162848,
     "hash": "db49352a74db72188baa002e74ee18b0"
   },
   "/home/ubuntu/Auto-mlops/tests/unit/test_security_middleware.py": {
@@ -188,12 +188,12 @@
     "hash": "50f12d48145288419ef714ed8649b726"
   },
   "/home/ubuntu/Auto-mlops/tests/unit/test_workflow_registry.py": {
-    "mtime": 1777993622.281275,
-    "hash": "71a5c5919b6c103e3d1ad4c95a05696f"
+    "mtime": 1778004586.8717628,
+    "hash": "f6b8adecfc6a5e83b59a1b7f8e8be4a8"
   },
   "/home/ubuntu/Auto-mlops/tests/unit/test_agent_loop.py": {
-    "mtime": 1777993306.5983844,
-    "hash": "82372e31641fb8b4038c30b7d9327c62"
+    "mtime": 1778004488.5511734,
+    "hash": "20a76eb52ad0af0319ed81071d218446"
   },
   "/home/ubuntu/Auto-mlops/tests/unit/test_decision.py": {
     "mtime": 1777964408.5234745,
@@ -488,8 +488,8 @@
     "hash": "fb6d0f0024d297dbee3f0903688b874a"
   },
   "/home/ubuntu/Auto-mlops/workflow/registry.py": {
-    "mtime": 1777993712.6538162,
-    "hash": "e3580ec30a90ed082f7956b8b75d1adc"
+    "mtime": 1778004781.0489264,
+    "hash": "61754ffd732f4b4b0221c6f13cf10c2b"
   },
   "/home/ubuntu/Auto-mlops/workflow/__init__.py": {
     "mtime": 1777964408.5294745,
@@ -516,8 +516,8 @@
     "hash": "7786f73c0c0bc2813a4fe686ac318970"
   },
   "/home/ubuntu/Auto-mlops/action/execute_step.py": {
-    "mtime": 1777993561.148909,
-    "hash": "5b049b05a965d40f414856586d65356d"
+    "mtime": 1778004647.654127,
+    "hash": "fa82f047cd4dabf2bc880609e25bc675"
   },
   "/home/ubuntu/Auto-mlops/metrics/__init__.py": {
     "mtime": 1777964408.5164745,
@@ -780,8 +780,8 @@
     "hash": "8839a0c44aa91790e9c42973c54e2e0c"
   },
   "/home/ubuntu/Auto-mlops/agent/agent_loop.py": {
-    "mtime": 1777993638.939375,
-    "hash": "c3a5cc6684a94ad944152d44adc0e5fe"
+    "mtime": 1778004746.5287197,
+    "hash": "841bdead76a380942ec5856422ccb300"
   },
   "/home/ubuntu/Auto-mlops/agent/contextManager.py": {
     "mtime": 1777964408.466474,
@@ -832,8 +832,8 @@
     "hash": "c1f521975489a842dea09a664cdc1441"
   },
   "/home/ubuntu/Auto-mlops/CONTEXT.md": {
-    "mtime": 1777981734.4767375,
-    "hash": "e7633e67ff20bd1a542e103ede61497c"
+    "mtime": 1778003107.6810558,
+    "hash": "810c1c4cfa49d9e4302b3848a07451b7"
   },
   "/home/ubuntu/Auto-mlops/automation/full_platform/README.md": {
     "mtime": 1777964408.466474,
@@ -1091,6 +1091,10 @@
     "mtime": 1777964408.4704742,
     "hash": "49ddce35956a6ee951a48b36082b8e50"
   },
+  "/home/ubuntu/Auto-mlops/docs/adr/0004-phase-5-follows-capstone-container-and-ci-evidence-before-kubernetes.md": {
+    "mtime": 1778003107.6810558,
+    "hash": "b9daf959c216ef10a9d643a3f11f9192"
+  },
   "/home/ubuntu/Auto-mlops/docs/adr/0002-workflow-runtime-executes-registry-templates-for-phase-1-setup-pipeline.md": {
     "mtime": 1777964408.4704742,
     "hash": "c1eafeb5fe584788cd7e5b01f6ffeecf"
@@ -1198,6 +1202,38 @@
   "/home/ubuntu/Auto-mlops/docs/issues/phase-4/0003-generate-split-manifests.md": {
     "mtime": 1777981734.4777377,
     "hash": "a19133958c285dbe09accf762952606d"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-5/0001-register-prepare-capstone-container-ci.md": {
+    "mtime": 1778004284.4659503,
+    "hash": "fa7b95764b466a0439635c0d7055c4e4"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-5/README.md": {
+    "mtime": 1778004284.4659503,
+    "hash": "581a3ea6f599ac3b7b3f80b332d682a1"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-5/0004-build-smoke-check-image.md": {
+    "mtime": 1778004284.4659503,
+    "hash": "0cbbcfd623af2118fa0c27a35fcfda79"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-5/0006-approval-gated-registry-login-push.md": {
+    "mtime": 1778004284.4659503,
+    "hash": "e25c530bc9814773c76598f1a346b184"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-5/0005-configure-validate-registry-target.md": {
+    "mtime": 1778004284.4659503,
+    "hash": "febd07c22177b443205c485ba9145760"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-5/0002-resolve-upstream-evidence.md": {
+    "mtime": 1778004284.4659503,
+    "hash": "85c50ab6bcb02aa23bb19aa6f75577b7"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-5/0007-container-ci-evidence-and-orchestrator-handoff.md": {
+    "mtime": 1778004284.4659503,
+    "hash": "b36a697caf5e900e16507953286f5993"
+  },
+  "/home/ubuntu/Auto-mlops/docs/issues/phase-5/0003-generate-validate-runtime-image-spec.md": {
+    "mtime": 1778004284.4659503,
+    "hash": "d061d994ef00502690949134d07d1d3a"
   },
   "/home/ubuntu/Auto-mlops/docs/issues/phase-2/README.md": {
     "mtime": 1777964408.4714742,

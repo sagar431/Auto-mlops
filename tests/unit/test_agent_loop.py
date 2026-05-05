@@ -2559,6 +2559,118 @@ class TestAgentLoopRun:
         mock_execute_step.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_run_prepare_capstone_container_ci_blocks_missing_project_path(
+        self, mock_agent
+    ):
+        """Test prepare_capstone_container_ci blocks before tools without project_path."""
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError(
+                    "perception should not run while container CI prep is blocked"
+                ),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+        ):
+            result = await mock_agent.run("prepare capstone container CI")
+
+        assert mock_agent.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.BLOCKED
+        assert mock_agent.workflow_selection.missing_inputs == ("project_path",)
+        assert "missing_inputs" in result
+        assert "project_path" in result
+        assert "next_action" in result
+        assert mock_agent.ctx.get_pending_steps() == []
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+        mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_prepare_capstone_container_ci_blocks_invalid_completion_mode(
+        self, mock_agent, tmp_path
+    ):
+        """Test prepare_capstone_container_ci rejects unsupported completion modes."""
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError(
+                    "perception should not run while container CI prep is blocked"
+                ),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+        ):
+            result = await mock_agent.run(
+                "prepare capstone container CI completion_mode=production",
+                str(tmp_path),
+            )
+
+        assert mock_agent.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.BLOCKED
+        assert mock_agent.workflow_selection.missing_inputs == ("completion_mode",)
+        assert "completion_mode" in result
+        assert "container_local_ready" in result
+        assert "container_capstone_complete" in result
+        assert mock_agent.ctx.get_pending_steps() == []
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+        mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_prepare_capstone_container_ci_uses_registry_step_and_blocks(
+        self, mock_agent, tmp_path
+    ):
+        """Test Issue 1 runtime uses registry steps and records blocked next actions."""
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("registry container CI prep must skip perception"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+        ):
+            result = await mock_agent.run(
+                "prepare capstone container CI completion_mode=container_local_ready",
+                str(tmp_path),
+            )
+
+        assert mock_agent.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.PENDING
+        assert mock_agent.ctx.globals["workflow_inputs"] == {
+            "project_path": str(tmp_path),
+            "completion_mode": "container_local_ready",
+            "data_stage_evidence_path": None,
+            "local_model_artifact_path": None,
+            "mlflow_run_id": None,
+            "mlflow_best_artifact_path": None,
+            "registry_target": None,
+            "image_name": None,
+            "image_tag": None,
+            "ci_workflow_path": None,
+        }
+        completed_tool_steps = [
+            step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
+        ]
+        assert completed_tool_steps == ["prepare_capstone_container_ci_contract"]
+        assert mock_agent.status == "paused"
+        assert "contract_status: blocked" in result
+        assert "missing_inputs" in result
+        assert "next_actions" in result
+        assert "Dockerfile generation is deferred to Phase 5 Issue 3" in result
+        assert "container_ci_evidence.json writing is deferred to Phase 5 Issue 7" in result
+        assert "docker" not in [
+            step["tool"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
+        ]
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_run_prepare_capstone_data_detects_two_valid_image_folder_datasets(
         self, mock_agent, tmp_path
     ):
