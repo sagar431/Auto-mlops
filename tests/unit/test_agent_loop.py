@@ -154,6 +154,123 @@ def test_find_available_port_skips_bound_requested_port(monkeypatch):
     selected_port = _find_available_port("127.0.0.1", 8000, attempts=2)
     assert selected_port == 8001
 
+
+def _write_session_06_training_project(project_path):
+    configs = project_path / "configs"
+    (configs / "model").mkdir(parents=True)
+    (configs / "data").mkdir()
+    (project_path / "src" / "models").mkdir(parents=True)
+    (project_path / "outputs").mkdir()
+    (project_path / "checkpoints").mkdir()
+    (project_path / "tests" / "test_train").mkdir(parents=True)
+    (project_path / ".dvc").mkdir()
+
+    (configs / "config.yaml").write_text("model:\n  lr: 1e-3\n")
+    (configs / "train.yaml").write_text(
+        "defaults:\n"
+        "  - model: timm_classify\n"
+        "  - data: cat_dog\n"
+        "trainer:\n"
+        "  max_epochs: 5\n"
+    )
+    (configs / "model" / "timm_classify.yaml").write_text(
+        "_target_: src.models.timmclassifier.TimmClassifier\n"
+        "model_name: resnet18\n"
+    )
+    (configs / "data" / "cat_dog.yaml").write_text(
+        "_target_: src.data.datamodule.CatDogDataModule\n"
+        "data_dir: data/catdog_test\n"
+    )
+    (project_path / "src" / "train.py").write_text(
+        "import hydra\n\n"
+        "@hydra.main(version_base='1.3', config_path='../configs', config_name='train.yaml')\n"
+        "def main(cfg):\n"
+        "    return None\n\n"
+        "if __name__ == '__main__':\n"
+        "    main()\n"
+    )
+    (project_path / "src" / "models" / "timmclassifier.py").write_text(
+        "import timm\n"
+        "import torch\n"
+        "import lightning as L\n"
+    )
+    (project_path / "pyproject.toml").write_text(
+        "[project]\n"
+        "dependencies = [\n"
+        "  'hydra-core==1.3.2',\n"
+        "  'lightning==2.5.0',\n"
+        "  'timm==1.0.14',\n"
+        "  'torch==2.6.0',\n"
+        "]\n"
+    )
+    (project_path / "pytest.ini").write_text("[pytest]\ntestpaths = tests\n")
+    (project_path / "data.dvc").write_text("outs:\n  - path: data/catdog_test\n")
+    (project_path / ".dvc" / "config").write_text("[core]\n")
+    (project_path / "tests" / "test_train" / "test_training.py").write_text(
+        "def test_training_entrypoint_imports():\n"
+        "    assert True\n"
+    )
+
+
+def test_detect_training_project_recognizes_session_06_shape(tmp_path):
+    _write_session_06_training_project(tmp_path)
+
+    result = mcp_mlops_tools.detect_training_project(str(tmp_path))
+
+    assert result["success"] is True
+    assert result["status"] == "supported"
+    assert result["framework_family"] == "pytorch_lightning"
+    assert result["model_library"] == "timm"
+    assert result["config_system"] == "hydra"
+    assert result["data_versioning"] == "dvc"
+    assert result["training_entrypoint"] == "src/train.py"
+    assert "configs/train.yaml" in result["likely_config_files"]
+    assert "tests/test_train/test_training.py" in result["test_files"]
+    assert result["missing_required_pieces"] == []
+    assert result["next_actions"] == []
+    assert result["test_command"] == "python -m pytest tests -q"
+    assert {
+        "training_entrypoint_detected",
+        "hydra_config_detected",
+        "dvc_or_data_evidence_detected",
+        "pytorch_timm_signals_detected",
+        "test_command_detected",
+        "output_artifact_candidates_detected",
+    }.issubset({item["check_name"] for item in result["verification_results"]})
+    manifest_entries = result["artifact_manifest"]["entries"]
+    assert {
+        (entry["artifact_type"], entry["state"], entry["path"])
+        for entry in manifest_entries
+    }.issuperset(
+        {
+            ("training_entrypoint", "external", "src/train.py"),
+            ("configuration", "external", "configs/train.yaml"),
+            ("test_suite", "external", "tests/test_train/test_training.py"),
+        }
+    )
+
+
+def test_detect_training_project_blocks_ambiguous_entrypoints(tmp_path):
+    _write_session_06_training_project(tmp_path)
+    (tmp_path / "train.py").write_text(
+        "import hydra\n"
+        "@hydra.main(version_base='1.3', config_path='configs', config_name='train')\n"
+        "def main(cfg):\n"
+        "    return None\n"
+    )
+
+    result = mcp_mlops_tools.detect_training_project(str(tmp_path))
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert set(result["training_entrypoint_candidates"]) == {"src/train.py", "train.py"}
+    assert "training_entrypoint" in result["missing_required_pieces"]
+    assert "multiple candidates" in " ".join(result["next_actions"])
+    assert "training_entrypoint_detected" not in {
+        item["check_name"] for item in result["verification_results"]
+    }
+
+
 # ============================================================================
 # Route Constants Tests
 # ============================================================================
@@ -819,6 +936,95 @@ class TestAgentLoopRun:
         assert approval_events[0]["data"]["step_id"] == "detect_gpu_cuda"
         assert approval_events[0]["data"]["risk_categories"] == ["uses_gpu"]
         assert "Approval required" in result
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+        mock_execute_step.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_detect_training_project_blocks_missing_entrypoint_or_config_before_training(
+        self, mock_agent, tmp_path
+    ):
+        """Test training requests use registry detection and block unsupported project shape."""
+        project_path = tmp_path / "incomplete-training-project"
+        project_path.mkdir()
+        (project_path / "pyproject.toml").write_text("[project]\ndependencies = ['torch']\n")
+
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("perception should not run before training detection"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+        ):
+            result = await mock_agent.run(
+                "Train this project",
+                str(project_path),
+            )
+
+        completed_tool_steps = [
+            step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
+        ]
+        assert mock_agent.workflow_selection.workflow_id == "detect_training_project"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.PENDING
+        assert completed_tool_steps == ["detect_training_project"]
+        assert mock_agent.status == "paused"
+        assert "contract_status: blocked" in result
+        assert "training_entrypoint" in result
+        assert "hydra_config" in result
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_detect_training_project_succeeds_from_supported_detection(
+        self, mock_agent, tmp_path
+    ):
+        """Test supported Phase 3 training projects complete the detection contract."""
+        _write_session_06_training_project(tmp_path)
+
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("registry training detection must skip perception"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+        ):
+            result = await mock_agent.run("Detect this training project", str(tmp_path))
+
+        completed_tool_steps = [
+            step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
+        ]
+        assert mock_agent.workflow_selection.workflow_id == "detect_training_project"
+        assert completed_tool_steps == ["detect_training_project"]
+        assert mock_agent.status == "success"
+        assert "contract_status: succeeded" in result
+        assert "framework_family=pytorch_lightning" in result
+        assert "entrypoint=src/train.py" in result
+        mock_perception.assert_not_awaited()
+        mock_decision.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_detect_training_project_blocks_missing_project_path(self, mock_agent):
+        """Test detection workflow blocks before tools when project_path is missing."""
+        with (
+            patch.object(
+                mock_agent.perception,
+                "run",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("perception should not run while detection is blocked"),
+            ) as mock_perception,
+            patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch("agent.agent_loop.execute_step", new_callable=AsyncMock) as mock_execute_step,
+        ):
+            result = await mock_agent.run("Detect this training project")
+
+        assert mock_agent.workflow_selection.workflow_id == "detect_training_project"
+        assert mock_agent.workflow_selection.status is WorkflowStatus.BLOCKED
+        assert mock_agent.workflow_selection.missing_inputs == ("project_path",)
+        assert "project_path" in result
         mock_perception.assert_not_awaited()
         mock_decision.assert_not_awaited()
         mock_execute_step.assert_not_awaited()

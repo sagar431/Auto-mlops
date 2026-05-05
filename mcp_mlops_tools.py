@@ -17,6 +17,7 @@ import base64
 import json
 import os
 import pickle
+import re
 import shutil
 import socket
 import subprocess
@@ -376,6 +377,12 @@ class CheckAccuracyThresholdInput(BaseModel):
     experiment_name: str = Field(..., description="MLflow experiment name")
     threshold: float = Field(..., description="Accuracy threshold")
     metric_name: str = Field(default="accuracy", description="Metric name to check")
+
+
+class DetectTrainingProjectInput(BaseModel):
+    """Detect a supported Hydra/PyTorch/TIMM training project without running training."""
+
+    project_path: str = Field(..., description="Path to the training project")
 
 
 # --- Data Quality Tools ---
@@ -2210,6 +2217,469 @@ def add_workflow_step(
 
 
 # --- Training Control Tools ---
+
+
+def detect_training_project(project_path: str) -> dict[str, Any]:
+    """Detect supported training project shape without running or installing anything."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+    if not path.is_dir():
+        return {"success": False, "error": f"Project path {project_path} is not a directory"}
+
+    project_files = _relative_files(path)
+    project_dirs = _relative_dirs(path)
+    dependency_text = _dependency_signal_text(path)
+    config_text = _joined_file_text(
+        path,
+        [file for file in project_files if _is_config_file(file)],
+    )
+    python_signal_files = [
+        file
+        for file in project_files
+        if file.endswith(".py")
+        and (Path(file).name == "train.py" or file.startswith("src/"))
+    ]
+    python_text = _joined_file_text(path, python_signal_files)
+
+    training_entrypoints = _detect_training_entrypoints(path, project_files)
+    training_entrypoint = training_entrypoints[0] if len(training_entrypoints) == 1 else None
+    hydra_config = _detect_hydra_config(path, project_files, training_entrypoint)
+    likely_config_files = tuple(
+        file
+        for file in project_files
+        if _is_config_file(file)
+    )
+    test_files = tuple(
+        file
+        for file in project_files
+        if (
+            file.startswith("tests/")
+            and file.endswith(".py")
+            and Path(file).name.startswith("test_")
+        )
+    )
+    test_command = "python -m pytest tests -q" if test_files else None
+    dvc_signals = tuple(
+        file
+        for file in project_files
+        if file == ".dvc/config" or file == "dvc.yaml" or file.endswith(".dvc")
+    )
+    data_signals = tuple(
+        directory
+        for directory in project_dirs
+        if directory == "data" or directory.startswith("data/")
+    )
+    output_dirs = tuple(
+        directory
+        for directory in project_dirs
+        if directory in {"outputs", "logs", "mlruns", "checkpoints", "models", "artifacts"}
+    )
+    checkpoint_artifact_candidates = tuple(
+        file
+        for file in project_files
+        if file.endswith((".ckpt", ".pt", ".pth", ".onnx"))
+        and (
+            file.startswith("outputs/")
+            or file.startswith("checkpoints/")
+            or file.startswith("models/")
+            or file.startswith("artifacts/")
+        )
+    )
+
+    has_hydra_signal = (
+        "hydra-core" in dependency_text
+        or "import hydra" in python_text
+        or "@hydra.main" in python_text
+    )
+    has_pytorch_signal = any(
+        token in dependency_text or token in python_text
+        for token in ("torch", "pytorch", "lightning", "pytorch-lightning")
+    )
+    has_lightning_signal = any(
+        token in dependency_text or token in python_text
+        for token in ("lightning", "pytorch-lightning")
+    )
+    has_timm_signal = (
+        "timm" in dependency_text or "timm" in config_text or "timm" in python_text
+    )
+    has_dvc_signal = (
+        ".dvc/config" in project_files
+        or ".dvc" in {Path(file).parts[0] for file in project_files if Path(file).parts}
+        or "dvc.yaml" in project_files
+        or any(file.endswith(".dvc") for file in project_files)
+    )
+
+    framework_family = "unknown"
+    if has_lightning_signal:
+        framework_family = "pytorch_lightning"
+    elif has_pytorch_signal:
+        framework_family = "pytorch"
+
+    config_system = "hydra" if has_hydra_signal and likely_config_files else "missing"
+    model_library = "timm" if has_timm_signal else "unknown"
+    data_versioning = "dvc" if has_dvc_signal else "missing"
+
+    missing_required_pieces: list[str] = []
+    next_actions: list[str] = []
+    if len(training_entrypoints) > 1:
+        missing_required_pieces.append("training_entrypoint")
+        next_actions.append(
+            "Provide the intended training entrypoint; multiple candidates were observed."
+        )
+    elif training_entrypoint is None:
+        missing_required_pieces.append("training_entrypoint")
+        next_actions.append("Add or provide a training entrypoint such as src/train.py.")
+    if hydra_config["ambiguous"]:
+        missing_required_pieces.append("hydra_config")
+        next_actions.append("Provide the intended Hydra config path and config name.")
+    elif config_system != "hydra" or hydra_config["config_file"] is None:
+        missing_required_pieces.append("hydra_config")
+        next_actions.append("Add or provide Hydra configs such as configs/train.yaml.")
+    if not has_pytorch_signal:
+        missing_required_pieces.append("pytorch_dependency")
+        next_actions.append("Add PyTorch or Lightning dependency evidence for Phase 3 support.")
+    if not has_timm_signal:
+        missing_required_pieces.append("timm_dependency")
+        next_actions.append("Add TIMM dependency or model configuration evidence.")
+    if not (has_dvc_signal or data_signals):
+        missing_required_pieces.append("dvc_or_data_evidence")
+        next_actions.append("Add DVC metadata or observed local data path evidence.")
+    if test_command is None:
+        missing_required_pieces.append("test_command")
+        next_actions.append("Add a pytest test that validates the training entrypoint import path.")
+    if not (output_dirs or checkpoint_artifact_candidates):
+        missing_required_pieces.append("output_artifact_candidates")
+        next_actions.append(
+            "Add observed output, checkpoint, model, log, or artifact directory evidence."
+        )
+
+    status = "supported" if not missing_required_pieces else "blocked"
+    confidence = 0.95 if status == "supported" else 0.45
+    if model_library != "timm":
+        confidence = min(confidence, 0.75)
+    if data_versioning != "dvc":
+        confidence = min(confidence, 0.8)
+
+    observed_evidence = {
+        "project_files": project_files,
+        "project_dirs": project_dirs,
+        "training_entrypoint_candidates": training_entrypoints,
+        "entrypoint_exists": training_entrypoint is not None,
+        "hydra_config_path": hydra_config["config_path"],
+        "hydra_config_name": hydra_config["config_name"],
+        "hydra_config_file": hydra_config["config_file"],
+        "hydra_config_files": likely_config_files,
+        "dvc_signals": dvc_signals,
+        "data_signals": data_signals,
+        "dependency_files": tuple(
+            file
+            for file in project_files
+            if file in {"pyproject.toml", "requirements.txt", "requirements-test.txt"}
+        ),
+        "output_dirs": output_dirs,
+        "checkpoint_artifact_candidates": checkpoint_artifact_candidates,
+    }
+    verification_results = [
+        {
+            "check_name": "training_project_detected",
+            "evidence_type": "observed",
+            "source_step": "detect_training_project",
+            "passed": True,
+            "evidence": (
+                f"status={status}; framework_family={framework_family}; "
+                f"model_library={model_library}; config_system={config_system}; "
+                f"data_versioning={data_versioning}; entrypoint={training_entrypoint}; "
+                f"hydra_config={hydra_config['config_file']}; "
+                f"missing_required_pieces={', '.join(missing_required_pieces) or 'none'}"
+            ),
+        }
+    ]
+    if training_entrypoint is not None:
+        verification_results.append(
+            {
+                "check_name": "training_entrypoint_detected",
+                "evidence_type": "observed",
+                "source_step": "detect_training_project",
+                "passed": True,
+                "evidence": f"entrypoint={training_entrypoint}",
+            }
+        )
+    if hydra_config["config_file"] is not None and not hydra_config["ambiguous"]:
+        verification_results.append(
+            {
+                "check_name": "hydra_config_detected",
+                "evidence_type": "observed",
+                "source_step": "detect_training_project",
+                "passed": True,
+                "evidence": (
+                    f"config_path={hydra_config['config_path']}; "
+                    f"config_name={hydra_config['config_name']}; "
+                    f"config_file={hydra_config['config_file']}"
+                ),
+            }
+        )
+    if has_dvc_signal or data_signals:
+        verification_results.append(
+            {
+                "check_name": "dvc_or_data_evidence_detected",
+                "evidence_type": "observed",
+                "source_step": "detect_training_project",
+                "passed": True,
+                "evidence": f"dvc_signals={dvc_signals}; data_signals={data_signals}",
+            }
+        )
+    if has_pytorch_signal and has_timm_signal:
+        verification_results.append(
+            {
+                "check_name": "pytorch_timm_signals_detected",
+                "evidence_type": "observed",
+                "source_step": "detect_training_project",
+                "passed": True,
+                "evidence": f"framework_family={framework_family}; model_library={model_library}",
+            }
+        )
+    if test_command is not None:
+        verification_results.append(
+            {
+                "check_name": "test_command_detected",
+                "evidence_type": "observed",
+                "source_step": "detect_training_project",
+                "passed": True,
+                "evidence": f"test_command={test_command}; test_files={test_files}",
+            }
+        )
+    if output_dirs or checkpoint_artifact_candidates:
+        verification_results.append(
+            {
+                "check_name": "output_artifact_candidates_detected",
+                "evidence_type": "observed",
+                "source_step": "detect_training_project",
+                "passed": True,
+                "evidence": (
+                    f"output_dirs={output_dirs}; "
+                    f"checkpoint_artifact_candidates={checkpoint_artifact_candidates}"
+                ),
+            }
+        )
+    artifact_entries = _training_detection_artifact_entries(
+        training_entrypoint=training_entrypoint,
+        hydra_config_file=hydra_config["config_file"],
+        dvc_signals=dvc_signals,
+        data_signals=data_signals,
+        dependency_files=observed_evidence["dependency_files"],
+        test_files=test_files,
+        output_dirs=output_dirs,
+        checkpoint_artifact_candidates=checkpoint_artifact_candidates,
+    )
+
+    return {
+        "success": True,
+        "status": status,
+        "confidence": confidence,
+        "framework_family": framework_family,
+        "model_library": model_library,
+        "config_system": config_system,
+        "data_versioning": data_versioning,
+        "training_entrypoint": training_entrypoint,
+        "training_entrypoint_candidates": list(training_entrypoints),
+        "hydra_config_path": hydra_config["config_path"],
+        "hydra_config_name": hydra_config["config_name"],
+        "hydra_config_file": hydra_config["config_file"],
+        "likely_config_files": list(likely_config_files),
+        "test_files": list(test_files),
+        "test_command": test_command,
+        "missing_required_pieces": missing_required_pieces,
+        "next_actions": next_actions,
+        "observed_evidence": observed_evidence,
+        "suggested_validation_command": (
+            f"python {training_entrypoint} trainer.fast_dev_run=true"
+            if training_entrypoint
+            else None
+        ),
+        "output_dirs": list(output_dirs),
+        "checkpoint_artifact_candidates": list(checkpoint_artifact_candidates),
+        "verification_results": verification_results,
+        "artifact_manifest": {"entries": artifact_entries},
+    }
+
+
+def _relative_files(path: Path) -> tuple[str, ...]:
+    return tuple(
+        sorted(str(file.relative_to(path)) for file in path.rglob("*") if file.is_file())
+    )
+
+
+def _relative_dirs(path: Path) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            str(directory.relative_to(path))
+            for directory in path.rglob("*")
+            if directory.is_dir()
+        )
+    )
+
+
+def _detect_training_entrypoints(path: Path, project_files: tuple[str, ...]) -> tuple[str, ...]:
+    candidates: list[str] = []
+    for file in project_files:
+        file_path = Path(file)
+        if file_path.suffix != ".py":
+            continue
+        text = _safe_read_text(path / file).lower()
+        if file in {"src/train.py", "train.py"}:
+            candidates.append(file)
+            continue
+        if file_path.name == "train.py" and ("@hydra.main" in text or "import hydra" in text):
+            candidates.append(file)
+    return tuple(dict.fromkeys(candidates))
+
+
+def _detect_hydra_config(
+    path: Path,
+    project_files: tuple[str, ...],
+    training_entrypoint: str | None,
+) -> dict[str, Any]:
+    config_files = tuple(file for file in project_files if _is_config_file(file))
+    if training_entrypoint is None:
+        return {
+            "config_path": None,
+            "config_name": None,
+            "config_file": None,
+            "ambiguous": False,
+        }
+
+    entrypoint_text = _safe_read_text(path / training_entrypoint)
+    config_path_match = re.search(r"config_path\s*=\s*['\"]([^'\"]+)['\"]", entrypoint_text)
+    config_name_match = re.search(r"config_name\s*=\s*['\"]([^'\"]+)['\"]", entrypoint_text)
+    if config_path_match and config_name_match:
+        config_root = _normalize_entrypoint_relative_path(
+            path,
+            training_entrypoint,
+            config_path_match.group(1),
+        )
+        config_name = config_name_match.group(1)
+        config_file = _resolve_hydra_config_file(config_root, config_name)
+        return {
+            "config_path": config_root,
+            "config_name": _strip_yaml_suffix(config_name),
+            "config_file": config_file if config_file in config_files else None,
+            "ambiguous": False,
+        }
+
+    top_level_configs = tuple(
+        file
+        for file in config_files
+        if file
+        in {
+            "configs/config.yaml",
+            "configs/train.yaml",
+            "conf/config.yaml",
+            "conf/train.yaml",
+        }
+    )
+    if len(top_level_configs) == 1:
+        config_file = top_level_configs[0]
+        return {
+            "config_path": str(Path(config_file).parent),
+            "config_name": _strip_yaml_suffix(Path(config_file).name),
+            "config_file": config_file,
+            "ambiguous": False,
+        }
+
+    return {
+        "config_path": None,
+        "config_name": None,
+        "config_file": None,
+        "ambiguous": len(top_level_configs) > 1,
+    }
+
+
+def _dependency_signal_text(path: Path) -> str:
+    dependency_files = ("pyproject.toml", "requirements.txt", "requirements-test.txt")
+    return "\n".join(_safe_read_text(path / file).lower() for file in dependency_files)
+
+
+def _joined_file_text(path: Path, relative_files: list[str] | tuple[str, ...]) -> str:
+    return "\n".join(_safe_read_text(path / file).lower() for file in relative_files)
+
+
+def _safe_read_text(path: Path) -> str:
+    try:
+        return path.read_text(errors="ignore")
+    except OSError:
+        return ""
+
+
+def _is_config_file(file: str) -> bool:
+    return (
+        file.endswith((".yaml", ".yml"))
+        and (file.startswith("configs/") or file.startswith("conf/"))
+    )
+
+
+def _normalize_entrypoint_relative_path(
+    project_path: Path,
+    training_entrypoint: str,
+    relative_config_path: str,
+) -> str:
+    resolved_path = (project_path / training_entrypoint).parent / relative_config_path
+    try:
+        return str(resolved_path.resolve().relative_to(project_path.resolve()))
+    except ValueError:
+        return relative_config_path
+
+
+def _resolve_hydra_config_file(config_path: str, config_name: str) -> str:
+    if config_name.endswith((".yaml", ".yml")):
+        return str(Path(config_path) / config_name)
+    return str(Path(config_path) / f"{config_name}.yaml")
+
+
+def _strip_yaml_suffix(value: str) -> str:
+    return re.sub(r"\.ya?ml$", "", value)
+
+
+def _training_detection_artifact_entries(
+    *,
+    training_entrypoint: str | None,
+    hydra_config_file: str | None,
+    dvc_signals: tuple[str, ...],
+    data_signals: tuple[str, ...],
+    dependency_files: tuple[str, ...],
+    test_files: tuple[str, ...],
+    output_dirs: tuple[str, ...],
+    checkpoint_artifact_candidates: tuple[str, ...],
+) -> list[dict[str, str]]:
+    entries: list[dict[str, str]] = []
+
+    def add(artifact_type: str, artifact_path: str) -> None:
+        entries.append(
+            {
+                "artifact_type": artifact_type,
+                "producing_step": "detect_training_project",
+                "state": "external",
+                "path": artifact_path,
+            }
+        )
+
+    if training_entrypoint:
+        add("training_entrypoint", training_entrypoint)
+    if hydra_config_file:
+        add("configuration", hydra_config_file)
+    for dvc_signal in dvc_signals:
+        add("dvc_metadata", dvc_signal)
+    for data_signal in data_signals:
+        add("data_evidence", data_signal)
+    for dependency_file in dependency_files:
+        add("dependency_file", dependency_file)
+    for test_file in test_files:
+        add("test_suite", test_file)
+    for output_dir in output_dirs:
+        add("output_directory", output_dir)
+    for artifact_candidate in checkpoint_artifact_candidates:
+        add("checkpoint_or_model_artifact", artifact_candidate)
+    return entries
 
 
 def analyze_training_results(
@@ -6951,6 +7421,11 @@ async def list_tools() -> list[Tool]:
         ),
         # Training Control Tools
         Tool(
+            name="detect_training_project",
+            description="Detect supported Hydra/PyTorch/TIMM training project shape without running training",
+            inputSchema=DetectTrainingProjectInput.model_json_schema(),
+        ),
+        Tool(
             name="analyze_training_results",
             description="Analyze training results and suggest improvements",
             inputSchema=AnalyzeTrainingResultsInput.model_json_schema(),
@@ -7407,6 +7882,10 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             )
 
         # Training Control Tools
+        elif name == "detect_training_project":
+            input_data = DetectTrainingProjectInput(**arguments)
+            result = detect_training_project(input_data.project_path)
+
         elif name == "analyze_training_results":
             input_data = AnalyzeTrainingResultsInput(**arguments)
             result = analyze_training_results(

@@ -705,17 +705,92 @@ def _artifact_matches_requirement(
 
 
 def get_workflow_registry() -> WorkflowRegistry:
-    """Return the Phase 0 workflow registry."""
+    """Return the workflow registry."""
 
     return WorkflowRegistry(
         (
             _setup_pipeline_template(),
+            _detect_training_project_template(),
             _deploy_litserve_preflight_template(),
             _deploy_litserve_gpu_template(),
             _deploy_gpu_inference_template(),
             _deploy_gradio_demo_template(),
             _deploy_kserve_production_template(),
         )
+    )
+
+
+def _detect_training_project_template() -> WorkflowTemplate:
+    return WorkflowTemplate(
+        workflow_id="detect_training_project",
+        name="Detect Training Project",
+        description=(
+            "Detect a supported Hydra/PyTorch/TIMM training project and entrypoint "
+            "without running training or tracking."
+        ),
+        required_inputs=(
+            WorkflowInput(
+                name="project_path",
+                description="Path to the training project to inspect.",
+            ),
+        ),
+        steps=(
+            WorkflowStep(
+                step_id="detect_training_project",
+                name="Detect Training Project",
+                description=(
+                    "Inspect project files for supported framework, Hydra configs, DVC signals, "
+                    "tests, and a training entrypoint without running training."
+                ),
+                order=1,
+                tool_functions=("detect_training_project",),
+            ),
+        ),
+        success_contract=SuccessContract(
+            checks=(
+                SuccessContractCheck(
+                    name="training_project_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="training_entrypoint_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="hydra_config_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="dvc_or_data_evidence_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="pytorch_timm_signals_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="test_command_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+                SuccessContractCheck(
+                    name="output_artifact_candidates_detected",
+                    evidence_type="observed",
+                    source_step="detect_training_project",
+                ),
+            ),
+        ),
+        routing_aliases=(
+            "detect this training project",
+            "detect training project",
+            "train this project",
+            "train this model",
+        ),
     )
 
 

@@ -370,7 +370,7 @@ class AgentLoop:
         return setup_requested and additional_phase_requested and not explicit_litserve_gpu
 
     def _is_executable_registry_workflow(self, workflow_id: str | None) -> bool:
-        return workflow_id in {"setup_pipeline", "deploy_litserve_gpu"}
+        return workflow_id in {"setup_pipeline", "detect_training_project", "deploy_litserve_gpu"}
 
     def _first_blocking_registry_approval(self):
         """Return the first selected registry approval gate that lacks approval."""
