@@ -1327,6 +1327,11 @@ class AgentLoop:
             and step_id == "generate_split_manifests"
         ):
             self.ctx.globals["capstone_split_manifest_result"] = payload
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "track_capstone_data_package"
+        ):
+            self.ctx.globals["capstone_data_package_result"] = payload
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1500,6 +1505,14 @@ class AgentLoop:
                 for key in ("test_size", "split_seed", "materialize_splits"):
                     if key in workflow_inputs:
                         runtime_args[key] = workflow_inputs[key]
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_data"
+            and step_id == "track_capstone_data_package"
+        ):
+            split_result = self.ctx.globals.get("capstone_split_manifest_result", {})
+            if isinstance(split_result, dict):
+                runtime_args["capstone_split_manifest_result"] = split_result
         return runtime_args
 
     def _capstone_split_manifest_writes_required(self) -> bool:
