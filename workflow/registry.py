@@ -182,9 +182,15 @@ class SuccessContractCheck:
     evidence_type: EvidenceType
     source_step: str
     condition: str | None = None
+    unsatisfied_status: WorkflowStatus = WorkflowStatus.FAILED
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "evidence_type", EvidenceType(self.evidence_type))
+        object.__setattr__(
+            self,
+            "unsatisfied_status",
+            WorkflowStatus(self.unsatisfied_status),
+        )
 
 
 @dataclass(frozen=True)
@@ -494,18 +500,25 @@ class WorkflowRegistry:
                 )
                 continue
             if satisfying_evidence:
-                failed_checks.append(
-                    ContractFailure(
-                        check_name=check.name,
-                        expected_evidence_type=check.evidence_type,
-                        source_step=check.source_step,
-                        actual_evidence=satisfying_evidence,
-                        next_action=(
-                            f"Resolve failed verification for check '{check.name}' "
-                            f"from step '{check.source_step}'."
-                        ),
-                    )
+                unsatisfied_label = (
+                    "blocked"
+                    if check.unsatisfied_status is WorkflowStatus.BLOCKED
+                    else "failed"
                 )
+                failure = ContractFailure(
+                    check_name=check.name,
+                    expected_evidence_type=check.evidence_type,
+                    source_step=check.source_step,
+                    actual_evidence=satisfying_evidence,
+                    next_action=(
+                        f"Resolve {unsatisfied_label} verification for check '{check.name}' "
+                        f"from step '{check.source_step}'."
+                    ),
+                )
+                if check.unsatisfied_status is WorkflowStatus.BLOCKED:
+                    missing_evidence.append(failure)
+                else:
+                    failed_checks.append(failure)
                 continue
             missing_evidence.append(
                 ContractFailure(
@@ -778,10 +791,11 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 step_id="prepare_capstone_data_contract",
                 name="Prepare Capstone Data Contract",
                 description=(
-                    "Record the registry-owned Phase 4 Issue 1 contract shape and "
-                    "block until later issues provide executable data evidence."
+                    "Inspect two user-provided capstone dataset paths for supported "
+                    "canonical image-folder layouts without mutating data or DVC state."
                 ),
                 order=1,
+                tool_functions=("detect_capstone_data_layouts",),
             ),
         ),
         success_contract=SuccessContract(
@@ -790,11 +804,13 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                     name="two_dataset_paths_provided",
                     evidence_type="observed",
                     source_step="prepare_capstone_data_contract",
+                    unsatisfied_status="blocked",
                 ),
                 SuccessContractCheck(
                     name="two_dataset_layouts_supported",
                     evidence_type="observed",
                     source_step="prepare_capstone_data_contract",
+                    unsatisfied_status="blocked",
                 ),
                 SuccessContractCheck(
                     name="split_evidence_recorded",
