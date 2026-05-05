@@ -888,6 +888,7 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
                 name="Configure And Validate Registry Target",
                 description="Configure or validate the selected container registry target.",
                 order=5,
+                tool_functions=("configure_validate_capstone_registry_target",),
             ),
             WorkflowStep(
                 step_id="approval_gated_registry_login_push",

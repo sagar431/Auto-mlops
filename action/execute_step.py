@@ -193,6 +193,7 @@ AVAILABLE_TOOLS = [
     "resolve_capstone_container_upstream_evidence",
     "generate_validate_capstone_runtime_image_spec",
     "build_smoke_check_capstone_container_image",
+    "configure_validate_capstone_registry_target",
     "run_bounded_training",
     "track_training_in_mlflow",
     "record_capstone_orchestrator_skeleton",

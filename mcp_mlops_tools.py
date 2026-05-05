@@ -651,6 +651,20 @@ class BuildSmokeCheckCapstoneContainerImageInput(BaseModel):
     )
 
 
+class ConfigureValidateCapstoneRegistryTargetInput(BaseModel):
+    """Configure and validate Phase 5 Issue 5 registry target evidence."""
+
+    project_path: str = Field(..., description="Path to the project")
+    workflow_inputs: dict[str, Any] | None = Field(
+        default=None,
+        description="Resolved prepare_capstone_container_ci workflow inputs",
+    )
+    capstone_container_build_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from build_smoke_check_capstone_container_image",
+    )
+
+
 # --- Data Quality Tools ---
 
 
@@ -10030,6 +10044,458 @@ def _container_build_result(
     }
 
 
+REGISTRY_TARGET_STEP = "configure_validate_registry_target"
+REGISTRY_IMAGE_NAME_PATTERN = re.compile(
+    r"^[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$"
+)
+REGISTRY_IMAGE_TAG_PATTERN = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$")
+
+
+def configure_validate_capstone_registry_target(
+    project_path: str,
+    workflow_inputs: dict[str, Any] | None = None,
+    capstone_container_build_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Validate Phase 5 registry target evidence without login or push."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    inputs = workflow_inputs or {}
+    completion_mode = inputs.get("completion_mode", "container_local_ready")
+    target_result = _resolve_container_registry_target(
+        path,
+        inputs,
+        capstone_container_build_result,
+    )
+    registry = target_result["registry"]
+    blocked_capabilities: list[dict[str, Any]] = []
+    deferred_capabilities: list[dict[str, Any]] = []
+    artifact_entries: list[dict[str, Any]] = []
+
+    if registry["status"] == "missing":
+        capability = {
+            "capability": "registry_target_validated",
+            "reason": "No registry target was declared and GitHub repository context was not detected.",
+            "next_action": (
+                "Provide registry_target or run from a GitHub repository so GHCR can be selected."
+            ),
+        }
+        if completion_mode == "container_capstone_complete":
+            blocked_capabilities.append(capability)
+            status = "blocked"
+        else:
+            deferred_capabilities.append(capability)
+            status = "deferred"
+    elif registry["status"] == "invalid":
+        blocked_capabilities.append(
+            {
+                "capability": "registry_target_validated",
+                "reason": registry["validation_error"],
+                "next_action": "Provide a valid GHCR, DockerHub, or ECR image reference.",
+            }
+        )
+        status = "failed"
+    else:
+        auth_capability = _detect_container_registry_auth_capability(registry["provider"])
+        registry["auth_capability"] = auth_capability
+        artifact_entries.append(_container_registry_artifact_entry(registry))
+        if not auth_capability["available"]:
+            capability = {
+                "capability": "registry_auth_capability_verified",
+                "reason": "Registry authentication capability was not detected locally.",
+                "next_action": _container_registry_auth_next_action(registry["provider"]),
+            }
+            if completion_mode == "container_capstone_complete":
+                blocked_capabilities.append(capability)
+                status = "blocked"
+            else:
+                deferred_capabilities.append(capability)
+                status = "deferred"
+        else:
+            status = "validated"
+
+    target_valid = registry["status"] == "validated"
+    auth_available = bool(registry.get("auth_capability", {}).get("available"))
+    secret_safety = _container_registry_secret_safety(registry)
+    if not secret_safety["passed"]:
+        blocked_capabilities.append(
+            {
+                "capability": "secret_safety_validated",
+                "reason": "Registry target evidence contains secret-like material.",
+                "next_action": "Remove raw credentials from registry inputs.",
+            }
+        )
+        status = "failed"
+
+    verification_results = [
+        _container_registry_verification_result(
+            "registry_target_validated",
+            target_valid,
+            registry,
+        ),
+        _container_registry_verification_result(
+            "registry_auth_capability_verified",
+            auth_available,
+            registry.get("auth_capability", {"available": False, "source": None}),
+        ),
+        _container_registry_verification_result(
+            "secret_safety_validated",
+            secret_safety["passed"],
+            secret_safety,
+        ),
+    ]
+    return _container_registry_result(
+        status=status,
+        completion_mode=completion_mode,
+        registry=registry,
+        blocked_capabilities=blocked_capabilities,
+        deferred_capabilities=deferred_capabilities,
+        verification_results=verification_results,
+        artifact_entries=artifact_entries,
+    )
+
+
+def _resolve_container_registry_target(
+    project_path: Path,
+    workflow_inputs: dict[str, Any],
+    capstone_container_build_result: dict[str, Any] | None,
+) -> dict[str, Any]:
+    explicit_target = workflow_inputs.get("registry_target")
+    image_name, image_tag = _container_registry_image_name_tag(
+        workflow_inputs,
+        capstone_container_build_result,
+    )
+    if explicit_target:
+        return _parse_explicit_container_registry_target(str(explicit_target), image_name, image_tag)
+
+    github_repo = _github_repo_from_local_context(project_path)
+    if not github_repo:
+        return {
+            "registry": {
+                "status": "missing",
+                "provider": None,
+                "provider_support": None,
+                "registry_url": None,
+                "redacted_image_reference": None,
+                "image_name": image_name,
+                "image_tag": image_tag,
+                "auth_capability": {"available": False, "source": None, "checked": []},
+            }
+        }
+
+    owner, _repo = github_repo
+    image_path = f"{owner.casefold()}/{image_name}"
+    image_reference = f"ghcr.io/{image_path}:{image_tag}"
+    registry = _validated_registry_payload(
+        provider="ghcr",
+        provider_support="first_class_default",
+        registry_url="ghcr.io",
+        image_reference=image_reference,
+        image_name=image_name,
+        image_tag=image_tag,
+        explicit=False,
+    )
+    return {"registry": registry}
+
+
+def _container_registry_image_name_tag(
+    workflow_inputs: dict[str, Any],
+    capstone_container_build_result: dict[str, Any] | None,
+) -> tuple[str, str]:
+    image_tag_from_build = None
+    if isinstance(capstone_container_build_result, dict):
+        image_tag_from_build = (
+            capstone_container_build_result.get("container", {})
+            .get("image_build", {})
+            .get("image_tag")
+        )
+    image_name = workflow_inputs.get("image_name")
+    image_tag = workflow_inputs.get("image_tag")
+    if (not image_name or not image_tag) and isinstance(image_tag_from_build, str):
+        parsed_name, parsed_tag = _split_container_image_tag(image_tag_from_build)
+        image_name = image_name or parsed_name
+        image_tag = image_tag or parsed_tag
+    return str(image_name or "capstone-runtime").casefold(), str(image_tag or "local")
+
+
+def _split_container_image_tag(image_reference: str) -> tuple[str, str]:
+    last_segment = image_reference.rsplit("/", 1)[-1]
+    if ":" in last_segment:
+        name, tag = last_segment.rsplit(":", 1)
+        return name, tag
+    return last_segment, "local"
+
+
+def _parse_explicit_container_registry_target(
+    registry_target: str,
+    default_image_name: str,
+    default_image_tag: str,
+) -> dict[str, Any]:
+    target = registry_target.strip()
+    parsed = urlparse(f"//{target}" if "://" not in target else target)
+    reference = parsed.netloc + parsed.path if parsed.netloc else parsed.path
+    reference = reference.lstrip("/")
+    provider = None
+    provider_support = "declared_target"
+    registry_url = None
+    image_reference = reference
+    if reference.startswith("ghcr.io/"):
+        provider = "ghcr"
+        provider_support = "first_class_declared"
+        registry_url = "ghcr.io"
+    elif re.match(r"^\d{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/", reference):
+        provider = "ecr"
+        registry_url = reference.split("/", 1)[0]
+    elif reference.startswith("docker.io/"):
+        provider = "dockerhub"
+        registry_url = "docker.io"
+    elif reference.count("/") == 1 and _looks_like_dockerhub_namespace(reference):
+        provider = "dockerhub"
+        registry_url = "docker.io"
+        image_reference = f"docker.io/{reference}"
+
+    if provider is None:
+        return {
+            "registry": {
+                "status": "invalid",
+                "provider": None,
+                "provider_support": None,
+                "registry_url": None,
+                "redacted_image_reference": _redact_container_image_reference(reference),
+                "image_name": default_image_name,
+                "image_tag": default_image_tag,
+                "validation_error": "registry_target must be a GHCR, DockerHub, or ECR image reference.",
+                "auth_capability": {"available": False, "source": None, "checked": []},
+            }
+        }
+
+    image_path = image_reference.split("/", 1)[1] if "/" in image_reference else default_image_name
+    if ":" in image_path.rsplit("/", 1)[-1]:
+        image_name, image_tag = image_path.rsplit(":", 1)
+    else:
+        image_name, image_tag = image_path, default_image_tag
+        image_reference = f"{image_reference}:{image_tag}"
+    return {
+        "registry": _validated_registry_payload(
+            provider=provider,
+            provider_support=provider_support,
+            registry_url=registry_url,
+            image_reference=image_reference,
+            image_name=image_name,
+            image_tag=image_tag,
+            explicit=True,
+        )
+    }
+
+
+def _validated_registry_payload(
+    *,
+    provider: str,
+    provider_support: str,
+    registry_url: str,
+    image_reference: str,
+    image_name: str,
+    image_tag: str,
+    explicit: bool,
+) -> dict[str, Any]:
+    validation_error = _container_registry_validation_error(image_name, image_tag)
+    return {
+        "status": "invalid" if validation_error else "validated",
+        "provider": provider,
+        "provider_support": provider_support,
+        "registry_url": registry_url,
+        "redacted_registry_url": _redact_container_image_reference(registry_url),
+        "redacted_image_reference": _redact_container_image_reference(image_reference),
+        "image_name": image_name,
+        "image_tag": image_tag,
+        "explicit_target": explicit,
+        "validation_error": validation_error,
+        "login_attempted": False,
+        "push_attempted": False,
+        "auth_capability": {"available": False, "source": None, "checked": []},
+    }
+
+
+def _container_registry_validation_error(image_name: str, image_tag: str) -> str | None:
+    if not REGISTRY_IMAGE_NAME_PATTERN.fullmatch(image_name):
+        return "image name must use lowercase Docker repository syntax."
+    if not REGISTRY_IMAGE_TAG_PATTERN.fullmatch(image_tag):
+        return "image tag must use Docker tag syntax."
+    return None
+
+
+def _looks_like_dockerhub_namespace(reference: str) -> bool:
+    namespace = reference.split("/", 1)[0]
+    return "." not in namespace and ":" not in namespace and namespace != "localhost"
+
+
+def _github_repo_from_local_context(project_path: Path) -> tuple[str, str] | None:
+    git_config = project_path / ".git" / "config"
+    if not git_config.exists():
+        return None
+    parser = configparser.ConfigParser()
+    try:
+        parser.read(git_config)
+    except configparser.Error:
+        return None
+    if not parser.has_section('remote "origin"') or not parser.has_option(
+        'remote "origin"', "url"
+    ):
+        return None
+    return _github_repo_from_url(parser.get('remote "origin"', "url"))
+
+
+def _github_repo_from_url(remote_url: str) -> tuple[str, str] | None:
+    match = re.search(r"github\.com[:/](?P<owner>[^/\s]+)/(?P<repo>[^/\s]+?)(?:\.git)?$", remote_url)
+    if not match:
+        return None
+    return match.group("owner"), match.group("repo")
+
+
+def _detect_container_registry_auth_capability(provider: str | None) -> dict[str, Any]:
+    env_by_provider = {
+        "ghcr": ("GITHUB_TOKEN", "GHCR_TOKEN"),
+        "dockerhub": ("DOCKER_USERNAME", "DOCKER_PASSWORD", "DOCKERHUB_TOKEN"),
+        "ecr": ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"),
+    }
+    checked = list(env_by_provider.get(provider or "", ()))
+    if provider == "ghcr":
+        available = bool(os.environ.get("GITHUB_TOKEN") or os.environ.get("GHCR_TOKEN"))
+    elif provider == "dockerhub":
+        available = bool(
+            os.environ.get("DOCKER_USERNAME")
+            and (os.environ.get("DOCKER_PASSWORD") or os.environ.get("DOCKERHUB_TOKEN"))
+        )
+    elif provider == "ecr":
+        available = bool(
+            os.environ.get("AWS_ACCESS_KEY_ID") and os.environ.get("AWS_SECRET_ACCESS_KEY")
+        )
+    else:
+        available = False
+    return {
+        "available": available,
+        "source": "environment" if available else None,
+        "checked": checked,
+        "login_attempted": False,
+        "remote_probe_attempted": False,
+    }
+
+
+def _container_registry_auth_next_action(provider: str | None) -> str:
+    if provider == "ghcr":
+        return "Provide GHCR-capable GitHub token evidence before approval-gated push."
+    if provider == "dockerhub":
+        return "Provide DockerHub username and token evidence before approval-gated push."
+    if provider == "ecr":
+        return "Provide AWS ECR credential capability evidence before approval-gated push."
+    return "Provide registry authentication capability evidence before approval-gated push."
+
+
+def _container_registry_secret_safety(registry: dict[str, Any]) -> dict[str, Any]:
+    serialized = json.dumps(registry, sort_keys=True)
+    secret_patterns = (
+        r"ghp_[A-Za-z0-9_]+",
+        r"github_pat_[A-Za-z0-9_]+",
+        r"AKIA[0-9A-Z]{16}",
+        r"(?i)(password|token|secret)=\S+",
+    )
+    violations = [
+        {"rule": "secret_like_value", "match": "<redacted-secret>"}
+        for pattern in secret_patterns
+        if re.search(pattern, serialized)
+    ]
+    return {
+        "passed": not violations,
+        "checked_fields": [
+            "registry_url",
+            "redacted_image_reference",
+            "image_name",
+            "image_tag",
+            "auth_capability",
+        ],
+        "violations": violations,
+    }
+
+
+def _redact_container_image_reference(image_reference: str | None) -> str | None:
+    if not image_reference:
+        return None
+    redacted = re.sub(r"(?i)(password|token|secret)=[^/@:]+", r"\1=<redacted>", image_reference)
+    redacted = re.sub(r"://[^:@/\s]+:[^@/\s]+@", "://<redacted>@", redacted)
+    redacted = re.sub(
+        r"\b\d{12}(?=\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com)",
+        "<redacted-account>",
+        redacted,
+    )
+    return redacted
+
+
+def _container_registry_artifact_entry(registry: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "artifact_type": "container_registry_target",
+        "producing_step": REGISTRY_TARGET_STEP,
+        "state": "selected",
+        "uri": f"registry://{registry['redacted_image_reference']}",
+        "metadata": {
+            "provider": registry["provider"],
+            "image_name": registry["image_name"],
+            "image_tag": registry["image_tag"],
+            "auth_capability_available": bool(
+                registry.get("auth_capability", {}).get("available")
+            ),
+        },
+    }
+
+
+def _container_registry_verification_result(
+    check_name: str,
+    passed: bool,
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "check_name": check_name,
+        "evidence_type": "observed",
+        "source_step": REGISTRY_TARGET_STEP,
+        "passed": passed,
+        "evidence": json.dumps(_redacted_evidence(evidence), sort_keys=True),
+    }
+
+
+def _container_registry_result(
+    *,
+    status: str,
+    completion_mode: str,
+    registry: dict[str, Any],
+    blocked_capabilities: list[dict[str, Any]],
+    deferred_capabilities: list[dict[str, Any]],
+    verification_results: list[dict[str, Any]],
+    artifact_entries: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "success": True,
+        "status": status,
+        "workflow_id": "prepare_capstone_container_ci",
+        "completion_mode": completion_mode,
+        "registry": _redacted_evidence(registry),
+        "blocked_capabilities": _redacted_evidence(blocked_capabilities),
+        "deferred_capabilities": _redacted_evidence(deferred_capabilities),
+        "verification_results": verification_results,
+        "artifact_manifest": {"entries": _redacted_evidence(artifact_entries)},
+        "workflow_input_overrides": {
+            "registry_target_validated": registry.get("status") == "validated",
+            "registry_auth_capability_available": bool(
+                registry.get("auth_capability", {}).get("available")
+            ),
+        },
+        "next_actions": [
+            item["next_action"]
+            for item in (*blocked_capabilities, *deferred_capabilities)
+            if item.get("next_action")
+        ],
+    }
+
+
 def _resolve_container_data_stage_evidence(
     project_path: Path,
     workflow_inputs: dict[str, Any],
@@ -12801,6 +13267,14 @@ async def list_tools() -> list[Tool]:
             inputSchema=BuildSmokeCheckCapstoneContainerImageInput.model_json_schema(),
         ),
         Tool(
+            name="configure_validate_capstone_registry_target",
+            description=(
+                "Configure and validate Phase 5 registry target evidence without login, "
+                "push, CI generation, deployment, or secret mutation"
+            ),
+            inputSchema=ConfigureValidateCapstoneRegistryTargetInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -13297,6 +13771,14 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 smoke_approval_record=input_data.smoke_approval_record,
                 build_timeout_seconds=input_data.build_timeout_seconds,
                 smoke_timeout_seconds=input_data.smoke_timeout_seconds,
+            )
+
+        elif name == "configure_validate_capstone_registry_target":
+            input_data = ConfigureValidateCapstoneRegistryTargetInput(**arguments)
+            result = configure_validate_capstone_registry_target(
+                project_path=input_data.project_path,
+                workflow_inputs=input_data.workflow_inputs,
+                capstone_container_build_result=input_data.capstone_container_build_result,
             )
 
         # Docker Tools

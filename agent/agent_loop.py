@@ -1280,6 +1280,7 @@ class AgentLoop:
                 "resolve_upstream_container_evidence",
                 "generate_validate_runtime_image_spec",
                 "build_smoke_check_container_image",
+                "configure_validate_registry_target",
             }
         ):
             return True
@@ -1598,6 +1599,16 @@ class AgentLoop:
             if isinstance(workflow_input_overrides, dict) and isinstance(workflow_inputs, dict):
                 workflow_inputs.update(workflow_input_overrides)
                 self.ctx.globals["workflow_inputs"] = workflow_inputs
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "configure_validate_registry_target"
+        ):
+            self.ctx.globals["capstone_container_registry_target"] = payload
+            workflow_input_overrides = payload.get("workflow_input_overrides")
+            workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+            if isinstance(workflow_input_overrides, dict) and isinstance(workflow_inputs, dict):
+                workflow_inputs.update(workflow_input_overrides)
+                self.ctx.globals["workflow_inputs"] = workflow_inputs
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1884,6 +1895,15 @@ class AgentLoop:
                 runtime_args["smoke_approval_record"] = self._approval_record_to_payload(
                     smoke_approval
                 )
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "configure_validate_registry_target"
+        ):
+            runtime_args["workflow_inputs"] = self.ctx.globals.get("workflow_inputs", {})
+            build_result = self.ctx.globals.get("capstone_container_build_smoke_check", {})
+            if isinstance(build_result, dict):
+                runtime_args["capstone_container_build_result"] = build_result
         return runtime_args
 
     def _verification_results_payload(self) -> list[dict[str, Any]]:
