@@ -487,6 +487,7 @@ class TestAvailableTools:
         assert "dvc_push" in AVAILABLE_TOOLS
         assert "dvc_pull" in AVAILABLE_TOOLS
         assert "dvc_reproduce" in AVAILABLE_TOOLS
+        assert "configure_validate_capstone_dvc_remote" in AVAILABLE_TOOLS
 
     def test_contains_docker_tools(self):
         """Test AVAILABLE_TOOLS contains Docker tools."""

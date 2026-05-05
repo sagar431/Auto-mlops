@@ -806,6 +806,21 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 required=False,
                 default=False,
             ),
+            WorkflowInput(
+                name="dvc_remote_name",
+                description="DVC remote name used for capstone data package validation.",
+                required=False,
+                default="capstone",
+            ),
+            WorkflowInput(
+                name="dvc_remote_url",
+                description=(
+                    "Optional local or s3:// DVC remote URL. Configuration writes require "
+                    "approval and S3 validation requires cloud credential approval."
+                ),
+                required=False,
+                default=None,
+            ),
         ),
         steps=(
             WorkflowStep(
@@ -837,6 +852,16 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 ),
                 order=3,
                 tool_functions=("track_capstone_data_package",),
+            ),
+            WorkflowStep(
+                step_id="configure_validate_dvc_remote",
+                name="Configure And Validate DVC Remote",
+                description=(
+                    "Configure or validate a local or S3 DVC remote for the capstone data "
+                    "package without pushing or pulling data."
+                ),
+                order=4,
+                tool_functions=("configure_validate_capstone_dvc_remote",),
             ),
         ),
         success_contract=SuccessContract(
@@ -883,7 +908,7 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
                 SuccessContractCheck(
                     name="s3_remote_validated",
                     evidence_type="observed",
-                    source_step="prepare_capstone_data_contract",
+                    source_step="configure_validate_dvc_remote",
                     condition="completion_mode == capstone_complete",
                 ),
                 SuccessContractCheck(
@@ -945,6 +970,10 @@ def _prepare_capstone_data_template() -> WorkflowTemplate:
             ApprovalGate(
                 step_id="track_capstone_data_package",
                 risk_categories=("writes_project_files",),
+            ),
+            ApprovalGate(
+                step_id="configure_validate_dvc_remote",
+                risk_categories=("writes_project_files", "uses_cloud_credentials"),
             ),
         ),
     )
