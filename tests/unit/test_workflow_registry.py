@@ -93,6 +93,7 @@ def test_build_capstone_pipeline_declares_orchestrator_skeleton():
         "setup",
         "data",
         "train",
+        "container_ci",
         "deploy",
         "monitor",
         "report",
@@ -102,6 +103,7 @@ def test_build_capstone_pipeline_declares_orchestrator_skeleton():
         "prepare_capstone_data",
         "detect_training_project",
         "train_and_track",
+        "prepare_capstone_container_ci",
         "deploy_litserve_preflight",
         "deploy_litserve_gpu",
     )
@@ -258,7 +260,9 @@ def test_prepare_capstone_container_ci_declares_issue_1_contract_shape():
     assert template.steps[5].tool_functions == (
         "approval_gated_capstone_registry_login_push",
     )
-    assert template.steps[6].tool_functions == ()
+    assert template.steps[6].tool_functions == (
+        "record_capstone_container_ci_evidence_handoff",
+    )
     assert {
         gate.step_id: gate.risk_categories for gate in template.approval_gates
     } == {

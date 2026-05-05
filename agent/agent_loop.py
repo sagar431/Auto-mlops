@@ -37,6 +37,7 @@ from workflow.registry import (
     VerificationResult,
     WorkflowSelection,
     WorkflowStatus,
+    _contract_check_condition_applies,
     get_workflow_registry,
 )
 
@@ -1240,6 +1241,12 @@ class AgentLoop:
         )
 
     def _validate_capstone_registry_push_approval(self, step_id: str):
+        workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+        if (
+            isinstance(workflow_inputs, dict)
+            and workflow_inputs.get("completion_mode") == "container_local_ready"
+        ):
+            return None
         risk_categories = self._capstone_registry_push_risk_categories()
         workflow_id = self.workflow_selection.workflow_id
         approval_records = tuple(self.ctx.globals.get("approval_records", ()))
@@ -1378,6 +1385,7 @@ class AgentLoop:
                 "build_smoke_check_container_image",
                 "configure_validate_registry_target",
                 "approval_gated_registry_login_push",
+                "record_container_ci_evidence_handoff",
             }
         ):
             return True
@@ -1716,6 +1724,11 @@ class AgentLoop:
             if isinstance(workflow_input_overrides, dict) and isinstance(workflow_inputs, dict):
                 workflow_inputs.update(workflow_input_overrides)
                 self.ctx.globals["workflow_inputs"] = workflow_inputs
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "record_container_ci_evidence_handoff"
+        ):
+            self.ctx.globals["capstone_container_ci_evidence"] = payload
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -2028,6 +2041,38 @@ class AgentLoop:
                 runtime_args["approval_record"] = self._approval_record_to_payload(
                     approval_record
                 )
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "record_container_ci_evidence_handoff"
+        ):
+            runtime_args["workflow_inputs"] = self.ctx.globals.get("workflow_inputs", {})
+            for context_key, runtime_key in (
+                (
+                    "capstone_container_upstream_evidence",
+                    "capstone_container_upstream_evidence",
+                ),
+                ("capstone_runtime_image_spec", "capstone_runtime_image_spec_result"),
+                (
+                    "capstone_container_build_smoke_check",
+                    "capstone_container_build_result",
+                ),
+                (
+                    "capstone_container_registry_target",
+                    "capstone_registry_target_result",
+                ),
+                ("capstone_container_registry_push", "capstone_registry_push_result"),
+            ):
+                value = self.ctx.globals.get(context_key, {})
+                if isinstance(value, dict):
+                    runtime_args[runtime_key] = value
+            runtime_args["verification_results"] = self._verification_results_payload()
+            runtime_args["artifact_manifest"] = self._artifact_manifest_payload()
+            approval_record = self._approval_record_for_step(step_id)
+            if approval_record is not None:
+                runtime_args["approval_record"] = self._approval_record_to_payload(
+                    approval_record
+                )
         return runtime_args
 
     def _verification_results_payload(self) -> list[dict[str, Any]]:
@@ -2131,8 +2176,14 @@ class AgentLoop:
             return False
 
         template = self.workflow_registry.get(self.workflow_selection.workflow_id)
+        workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+        if not isinstance(workflow_inputs, dict):
+            workflow_inputs = {}
         contract_check_names = {
-            check.name for check in template.success_contract.checks if check.source_step == step_id
+            check.name
+            for check in template.success_contract.checks
+            if check.source_step == step_id
+            and _contract_check_condition_applies(check, workflow_inputs)
         }
         return any(
             result.check_name in contract_check_names
