@@ -249,7 +249,10 @@ def test_prepare_capstone_container_ci_declares_issue_1_contract_shape():
     assert template.steps[2].tool_functions == (
         "generate_validate_capstone_runtime_image_spec",
     )
-    assert all(step.tool_functions == () for step in template.steps[3:])
+    assert template.steps[3].tool_functions == (
+        "build_smoke_check_capstone_container_image",
+    )
+    assert all(step.tool_functions == () for step in template.steps[4:])
     assert {
         gate.step_id: gate.risk_categories for gate in template.approval_gates
     } == {
@@ -318,7 +321,7 @@ def test_prepare_capstone_container_ci_declares_issue_1_contract_shape():
         "mlflow_best_artifact_verified": "completion_mode == container_capstone_complete",
         "training_lineage_verified": "completion_mode == container_capstone_complete",
         "docker_available": "completion_mode == container_capstone_complete",
-        "image_build_succeeded": "completion_mode == container_capstone_complete",
+        "image_build_succeeded": "docker_available == true",
         "container_smoke_check_passed": "completion_mode == container_capstone_complete",
         "registry_target_validated": "completion_mode == container_capstone_complete",
         "registry_auth_capability_verified": "completion_mode == container_capstone_complete",
@@ -359,6 +362,84 @@ def test_select_workflow_routes_capstone_container_ci_requests():
         assert selection.workflow_id == "prepare_capstone_container_ci"
         assert selection.status is WorkflowStatus.PENDING
         assert selection.matched_aliases == (expected_alias,)
+
+
+def test_container_local_ready_build_conditions_follow_docker_availability():
+    registry = get_workflow_registry()
+
+    contract_status = registry.validate_success_contract(
+        "prepare_capstone_container_ci",
+        verification_results=(
+            VerificationResult(
+                check_name="docker_availability_reported",
+                evidence_type="observed",
+                source_step="build_smoke_check_container_image",
+                passed=True,
+                evidence='{"available": false}',
+            ),
+            VerificationResult(
+                check_name="image_build_deferred_reported",
+                evidence_type="observed",
+                source_step="build_smoke_check_container_image",
+                passed=True,
+                evidence='{"reason": "docker_unavailable"}',
+            ),
+        ),
+        workflow_inputs={
+            "completion_mode": "container_local_ready",
+            "docker_available": False,
+            "local_model_artifact_available": True,
+            "mlflow_best_artifact_available": False,
+        },
+    )
+
+    missing_check_names = {
+        failure.check_name for failure in contract_status.missing_evidence
+    }
+    assert "image_build_deferred_reported" not in missing_check_names
+    assert "image_build_attempt_reported" not in missing_check_names
+
+
+def test_container_build_failure_is_failed_contract_evidence():
+    registry = get_workflow_registry()
+
+    contract_status = registry.validate_success_contract(
+        "prepare_capstone_container_ci",
+        verification_results=(
+            VerificationResult(
+                check_name="docker_availability_reported",
+                evidence_type="observed",
+                source_step="build_smoke_check_container_image",
+                passed=True,
+                evidence='{"available": true}',
+            ),
+            VerificationResult(
+                check_name="image_build_attempt_reported",
+                evidence_type="observed",
+                source_step="build_smoke_check_container_image",
+                passed=True,
+                evidence='{"return_code": 17}',
+            ),
+            VerificationResult(
+                check_name="image_build_succeeded",
+                evidence_type="observed",
+                source_step="build_smoke_check_container_image",
+                passed=False,
+                evidence='{"return_code": 17}',
+            ),
+        ),
+        workflow_inputs={
+            "completion_mode": "container_local_ready",
+            "docker_available": True,
+            "local_model_artifact_available": True,
+            "mlflow_best_artifact_available": False,
+        },
+    )
+
+    assert contract_status.status is WorkflowStatus.FAILED
+    assert {
+        failure.check_name for failure in contract_status.failed_checks
+    } == {"image_build_succeeded"}
 
 
 def test_select_workflow_rejects_container_ci_for_later_phase_requests():
