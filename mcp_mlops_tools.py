@@ -621,6 +621,36 @@ class GenerateValidateCapstoneRuntimeImageSpecInput(BaseModel):
     )
 
 
+class BuildSmokeCheckCapstoneContainerImageInput(BaseModel):
+    """Build and smoke-check Phase 5 runtime image when Docker is available and approved."""
+
+    project_path: str = Field(..., description="Path to the project")
+    workflow_inputs: dict[str, Any] | None = Field(
+        default=None,
+        description="Resolved prepare_capstone_container_ci workflow inputs",
+    )
+    capstone_runtime_image_spec_result: dict[str, Any] | None = Field(
+        default=None,
+        description="Output from generate_validate_capstone_runtime_image_spec",
+    )
+    approval_record: dict[str, Any] | None = Field(
+        default=None,
+        description="Approval record required before running docker build",
+    )
+    smoke_approval_record: dict[str, Any] | None = Field(
+        default=None,
+        description="Approval record required before running container smoke command",
+    )
+    build_timeout_seconds: int = Field(
+        default=300,
+        description="Bounded timeout for docker build",
+    )
+    smoke_timeout_seconds: int = Field(
+        default=60,
+        description="Bounded timeout for container smoke check",
+    )
+
+
 # --- Data Quality Tools ---
 
 
@@ -9098,6 +9128,7 @@ def resolve_capstone_container_upstream_evidence(
 
 
 RUNTIME_IMAGE_SPEC_STEP = "generate_validate_runtime_image_spec"
+CONTAINER_BUILD_STEP = "build_smoke_check_container_image"
 RUNTIME_IMAGE_INTENDED_ROLES = ("ci", "training_validation", "inference_validation")
 RUNTIME_IMAGE_BOUNDED_COMMANDS = (
     "python -m pytest tests -q",
@@ -9508,6 +9539,495 @@ def _runtime_image_next_actions(blocked_capabilities: list[dict[str, Any]]) -> l
         "Proceed to Phase 5 Issue 4 for Docker availability, image build, and smoke-check evidence.",
         "Do not run Docker, configure registries, write CI workflows, or write container_ci_evidence.json in Issue 3.",
     ]
+
+
+def build_smoke_check_capstone_container_image(
+    project_path: str,
+    workflow_inputs: dict[str, Any] | None = None,
+    capstone_runtime_image_spec_result: dict[str, Any] | None = None,
+    approval_record: dict[str, Any] | None = None,
+    smoke_approval_record: dict[str, Any] | None = None,
+    build_timeout_seconds: int = 300,
+    smoke_timeout_seconds: int = 60,
+) -> dict[str, Any]:
+    """Record Docker availability, approved image build, and bounded smoke evidence."""
+    path = Path(project_path)
+    if not path.exists():
+        return {"success": False, "error": f"Project path {project_path} does not exist"}
+
+    inputs = workflow_inputs or {}
+    completion_mode = inputs.get("completion_mode", "container_local_ready")
+    build_spec_ready = _container_build_spec_ready(path, capstone_runtime_image_spec_result)
+    docker_evidence = _detect_container_docker_availability()
+    docker_available = bool(docker_evidence["available"])
+    image_tag = _container_image_tag(inputs)
+    container: dict[str, Any] = {
+        "docker": docker_evidence,
+        "build_spec": {
+            "ready": build_spec_ready,
+            "path": "Dockerfile",
+            "source_status": (capstone_runtime_image_spec_result or {}).get("status"),
+        },
+        "image_build": {
+            "attempted": False,
+            "approved": False,
+            "image_tag": image_tag,
+            "command": None,
+        },
+        "smoke_check": {
+            "attempted": False,
+            "approved": False,
+            "passed": False,
+            "command": None,
+        },
+    }
+    blocked_capabilities: list[dict[str, Any]] = []
+    deferred_capabilities: list[dict[str, Any]] = []
+    artifact_entries: list[dict[str, Any]] = []
+
+    verification_results = [
+        _container_build_verification_result(
+            "docker_availability_reported",
+            True,
+            docker_evidence,
+        )
+    ]
+    if completion_mode == "container_capstone_complete":
+        verification_results.append(
+            _container_build_verification_result(
+                "docker_available",
+                docker_available,
+                docker_evidence,
+            )
+        )
+
+    if not build_spec_ready:
+        blocked_capabilities.append(
+            {
+                "capability": "container_build_spec_reported",
+                "reason": "Docker image build requires a validated or generated Dockerfile.",
+                "next_action": "Complete generate_validate_runtime_image_spec before running docker build.",
+            }
+        )
+
+    if not docker_available:
+        if completion_mode == "container_local_ready" and build_spec_ready:
+            deferred_capabilities.append(
+                {
+                    "capability": "image_build_deferred_reported",
+                    "reason": "Docker is unavailable; local readiness may continue from validated build spec evidence.",
+                    "later_phase_pointer": "Run this step again on a host with Docker available.",
+                }
+            )
+            verification_results.append(
+                _container_build_verification_result(
+                    "image_build_deferred_reported",
+                    True,
+                    {
+                        "docker_available": False,
+                        "build_spec_ready": True,
+                        "reason": "docker_unavailable",
+                    },
+                    evidence_type="observed",
+                )
+            )
+            status = "deferred"
+        elif completion_mode == "container_capstone_complete":
+            blocked_capabilities.append(
+                {
+                    "capability": "docker_available",
+                    "reason": "Docker is required for container_capstone_complete image build evidence.",
+                    "next_action": "Run prepare_capstone_container_ci on a host with Docker available.",
+                }
+            )
+            status = "blocked"
+        else:
+            status = "blocked"
+        return _container_build_result(
+            status=status if not blocked_capabilities else "blocked",
+            completion_mode=completion_mode,
+            container=container,
+            blocked_capabilities=blocked_capabilities,
+            deferred_capabilities=deferred_capabilities,
+            verification_results=verification_results,
+            artifact_entries=artifact_entries,
+        )
+
+    build_approved = _container_step_approval_approved(approval_record, "builds_image")
+    container["image_build"]["approved"] = build_approved
+    if not build_approved:
+        blocked_capabilities.append(
+            {
+                "capability": "image_build_approved",
+                "reason": "Docker image build requires an Approval Gate.",
+                "required_risk_categories": ["builds_image"],
+                "next_action": (
+                    "Record approval for build_smoke_check_container_image before running docker build."
+                ),
+            }
+        )
+        verification_results.append(
+            _container_build_verification_result(
+                "image_build_attempt_reported",
+                False,
+                {"attempted": False, "reason": "missing_builds_image_approval"},
+            )
+        )
+        return _container_build_result(
+            status="blocked",
+            completion_mode=completion_mode,
+            container=container,
+            blocked_capabilities=blocked_capabilities,
+            deferred_capabilities=deferred_capabilities,
+            verification_results=verification_results,
+            artifact_entries=artifact_entries,
+        )
+
+    if blocked_capabilities:
+        verification_results.append(
+            _container_build_verification_result(
+                "image_build_attempt_reported",
+                False,
+                {"attempted": False, "reason": "build_spec_not_ready"},
+            )
+        )
+        return _container_build_result(
+            status="blocked",
+            completion_mode=completion_mode,
+            container=container,
+            blocked_capabilities=blocked_capabilities,
+            deferred_capabilities=deferred_capabilities,
+            verification_results=verification_results,
+            artifact_entries=artifact_entries,
+        )
+
+    build_evidence = _run_container_docker_build(path, image_tag, build_timeout_seconds)
+    container["image_build"].update(build_evidence)
+    verification_results.append(
+        _container_build_verification_result(
+            "image_build_attempt_reported",
+            build_evidence["attempted"],
+            build_evidence,
+        )
+    )
+    verification_results.append(
+        _container_build_verification_result(
+            "image_build_succeeded",
+            build_evidence["return_code"] == 0,
+            build_evidence,
+        )
+    )
+    if build_evidence["return_code"] != 0:
+        return _container_build_result(
+            status="failed",
+            completion_mode=completion_mode,
+            container=container,
+            blocked_capabilities=blocked_capabilities,
+            deferred_capabilities=deferred_capabilities,
+            verification_results=verification_results,
+            artifact_entries=artifact_entries,
+        )
+
+    image_id = _inspect_container_image_id(image_tag)
+    container["image_build"]["image_id"] = image_id
+    artifact_entries.append(_container_image_artifact_entry(image_tag, image_id))
+
+    smoke_approved = _container_step_approval_approved(
+        smoke_approval_record,
+        "executes_project_code",
+    )
+    container["smoke_check"]["approved"] = smoke_approved
+    if not smoke_approved:
+        if completion_mode == "container_capstone_complete":
+            blocked_capabilities.append(
+                {
+                    "capability": "container_smoke_check_approved",
+                    "reason": "Container smoke check executes project code and requires approval.",
+                    "required_risk_categories": ["executes_project_code"],
+                    "next_action": (
+                        "Record approval for build_smoke_check_container_image before running container smoke check."
+                    ),
+                }
+            )
+            status = "blocked"
+        else:
+            deferred_capabilities.append(
+                {
+                    "capability": "container_smoke_check_passed",
+                    "reason": "Smoke check was not approved for local readiness.",
+                    "later_phase_pointer": "Approve bounded smoke check when runtime execution evidence is needed.",
+                }
+            )
+            status = "succeeded"
+        return _container_build_result(
+            status=status,
+            completion_mode=completion_mode,
+            container=container,
+            blocked_capabilities=blocked_capabilities,
+            deferred_capabilities=deferred_capabilities,
+            verification_results=verification_results,
+            artifact_entries=artifact_entries,
+        )
+
+    smoke_evidence = _run_container_smoke_check(image_tag, smoke_timeout_seconds)
+    container["smoke_check"].update(smoke_evidence)
+    verification_results.append(
+        _container_build_verification_result(
+            "container_smoke_check_passed",
+            smoke_evidence["passed"],
+            smoke_evidence,
+        )
+    )
+    return _container_build_result(
+        status="succeeded" if smoke_evidence["passed"] else "failed",
+        completion_mode=completion_mode,
+        container=container,
+        blocked_capabilities=blocked_capabilities,
+        deferred_capabilities=deferred_capabilities,
+        verification_results=verification_results,
+        artifact_entries=artifact_entries,
+    )
+
+
+def _container_build_spec_ready(
+    project_path: Path,
+    capstone_runtime_image_spec_result: dict[str, Any] | None,
+) -> bool:
+    if not (project_path / "Dockerfile").exists():
+        return False
+    if not isinstance(capstone_runtime_image_spec_result, dict):
+        return True
+    return capstone_runtime_image_spec_result.get("status") in {
+        "validated",
+        "generated",
+        "succeeded",
+    }
+
+
+def _detect_container_docker_availability() -> dict[str, Any]:
+    docker_path = shutil.which("docker")
+    if not docker_path:
+        return {
+            "available": False,
+            "docker_path": None,
+            "version": None,
+            "context": None,
+            "return_code": None,
+            "reason": "docker_cli_not_found",
+        }
+    command = ["docker", "version", "--format", "{{.Server.Version}}"]
+    started_at = time.monotonic()
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        duration_seconds = round(time.monotonic() - started_at, 3)
+        version = (result.stdout or "").strip() or None
+        return {
+            "available": result.returncode == 0,
+            "docker_path": docker_path,
+            "version": version,
+            "context": "local",
+            "command": command,
+            "duration_seconds": duration_seconds,
+            "return_code": result.returncode,
+            "stdout_summary": _container_command_summary(result.stdout),
+            "stderr_summary": _container_command_summary(result.stderr),
+            "reason": None if result.returncode == 0 else "docker_version_failed",
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "available": False,
+            "docker_path": docker_path,
+            "version": None,
+            "context": "local",
+            "command": command,
+            "return_code": None,
+            "reason": "docker_version_timeout",
+        }
+
+
+def _container_image_tag(workflow_inputs: dict[str, Any]) -> str:
+    image_name = workflow_inputs.get("image_name") or "capstone-runtime"
+    image_tag = workflow_inputs.get("image_tag") or "local"
+    return f"{image_name}:{image_tag}"
+
+
+def _container_step_approval_approved(
+    approval_record: dict[str, Any] | None,
+    risk_category: str,
+) -> bool:
+    if not isinstance(approval_record, dict):
+        return False
+    return (
+        approval_record.get("step_id") == CONTAINER_BUILD_STEP
+        and approval_record.get("status") == "approved"
+        and risk_category in approval_record.get("risk_categories", [])
+    )
+
+
+def _run_container_docker_build(
+    project_path: Path,
+    image_tag: str,
+    timeout_seconds: int,
+) -> dict[str, Any]:
+    command = ["docker", "build", "--pull=false", "-f", "Dockerfile", "-t", image_tag, "."]
+    started_at = time.monotonic()
+    try:
+        result = subprocess.run(
+            command,
+            cwd=str(project_path),
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+        duration_seconds = round(time.monotonic() - started_at, 3)
+        return {
+            "attempted": True,
+            "command": command,
+            "duration_seconds": duration_seconds,
+            "return_code": result.returncode,
+            "stdout_summary": _container_command_summary(result.stdout),
+            "stderr_summary": _container_command_summary(result.stderr),
+            "image_tag": image_tag,
+        }
+    except subprocess.TimeoutExpired:
+        duration_seconds = round(time.monotonic() - started_at, 3)
+        return {
+            "attempted": True,
+            "command": command,
+            "duration_seconds": duration_seconds,
+            "return_code": 124,
+            "stdout_summary": "",
+            "stderr_summary": f"docker build timed out after {timeout_seconds}s",
+            "image_tag": image_tag,
+        }
+
+
+def _inspect_container_image_id(image_tag: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["docker", "image", "inspect", image_tag, "--format", "{{.Id}}"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+    if result.returncode != 0:
+        return None
+    return (result.stdout or "").strip() or None
+
+
+def _run_container_smoke_check(image_tag: str, timeout_seconds: int) -> dict[str, Any]:
+    command = [
+        "docker",
+        "run",
+        "--rm",
+        image_tag,
+        "python",
+        "-c",
+        "from pathlib import Path; assert Path('/app').exists(); print('smoke ok')",
+    ]
+    started_at = time.monotonic()
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+        duration_seconds = round(time.monotonic() - started_at, 3)
+        return {
+            "attempted": True,
+            "command": command,
+            "duration_seconds": duration_seconds,
+            "return_code": result.returncode,
+            "stdout_summary": _container_command_summary(result.stdout),
+            "stderr_summary": _container_command_summary(result.stderr),
+            "passed": result.returncode == 0,
+        }
+    except subprocess.TimeoutExpired:
+        duration_seconds = round(time.monotonic() - started_at, 3)
+        return {
+            "attempted": True,
+            "command": command,
+            "duration_seconds": duration_seconds,
+            "return_code": 124,
+            "stdout_summary": "",
+            "stderr_summary": f"container smoke check timed out after {timeout_seconds}s",
+            "passed": False,
+        }
+
+
+def _container_command_summary(value: str | None, limit: int = 2000) -> str:
+    text = (value or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "...<truncated>"
+
+
+def _container_image_artifact_entry(image_tag: str, image_id: str | None) -> dict[str, Any]:
+    return {
+        "artifact_type": "container_image",
+        "producing_step": CONTAINER_BUILD_STEP,
+        "state": "external",
+        "uri": f"docker://{image_tag}",
+        "metadata": {
+            "image_id": image_id,
+            "image_tag": image_tag,
+        },
+    }
+
+
+def _container_build_verification_result(
+    check_name: str,
+    passed: bool,
+    evidence: dict[str, Any],
+    *,
+    evidence_type: str = "observed",
+) -> dict[str, Any]:
+    return {
+        "check_name": check_name,
+        "evidence_type": evidence_type,
+        "source_step": CONTAINER_BUILD_STEP,
+        "passed": passed,
+        "evidence": json.dumps(_redacted_evidence(evidence), sort_keys=True),
+    }
+
+
+def _container_build_result(
+    *,
+    status: str,
+    completion_mode: str,
+    container: dict[str, Any],
+    blocked_capabilities: list[dict[str, Any]],
+    deferred_capabilities: list[dict[str, Any]],
+    verification_results: list[dict[str, Any]],
+    artifact_entries: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "success": True,
+        "status": status,
+        "workflow_id": "prepare_capstone_container_ci",
+        "completion_mode": completion_mode,
+        "container": _redacted_evidence(container),
+        "blocked_capabilities": _redacted_evidence(blocked_capabilities),
+        "deferred_capabilities": _redacted_evidence(deferred_capabilities),
+        "verification_results": verification_results,
+        "artifact_manifest": {"entries": _redacted_evidence(artifact_entries)},
+        "workflow_input_overrides": {
+            "docker_available": bool(container.get("docker", {}).get("available")),
+        },
+        "next_actions": [
+            item["next_action"]
+            for item in blocked_capabilities
+            if item.get("next_action")
+        ],
+    }
 
 
 def _resolve_container_data_stage_evidence(
@@ -12273,6 +12793,14 @@ async def list_tools() -> list[Tool]:
             inputSchema=GenerateValidateCapstoneRuntimeImageSpecInput.model_json_schema(),
         ),
         Tool(
+            name="build_smoke_check_capstone_container_image",
+            description=(
+                "Detect Docker availability and run approval-gated Phase 5 image build "
+                "and bounded smoke evidence without registry, CI, deployment, or secret behavior"
+            ),
+            inputSchema=BuildSmokeCheckCapstoneContainerImageInput.model_json_schema(),
+        ),
+        Tool(
             name="run_bounded_training",
             description="Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
             inputSchema=RunBoundedTrainingInput.model_json_schema(),
@@ -12755,6 +13283,20 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 project_path=input_data.project_path,
                 workflow_inputs=input_data.workflow_inputs,
                 approval_record=input_data.approval_record,
+            )
+
+        elif name == "build_smoke_check_capstone_container_image":
+            input_data = BuildSmokeCheckCapstoneContainerImageInput(**arguments)
+            result = build_smoke_check_capstone_container_image(
+                project_path=input_data.project_path,
+                workflow_inputs=input_data.workflow_inputs,
+                capstone_runtime_image_spec_result=(
+                    input_data.capstone_runtime_image_spec_result
+                ),
+                approval_record=input_data.approval_record,
+                smoke_approval_record=input_data.smoke_approval_record,
+                build_timeout_seconds=input_data.build_timeout_seconds,
+                smoke_timeout_seconds=input_data.smoke_timeout_seconds,
             )
 
         # Docker Tools

@@ -1123,6 +1123,11 @@ class AgentLoop:
                 and step_id == "generate_validate_runtime_image_spec"
             ):
                 return None
+            if (
+                self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+                and step_id == "build_smoke_check_container_image"
+            ):
+                return None
             validation = self.workflow_registry.validate_step_approval(
                 workflow_id=self.workflow_selection.workflow_id,
                 workflow_run_id=self.session_id,
@@ -1274,6 +1279,7 @@ class AgentLoop:
                 "prepare_capstone_container_ci_contract",
                 "resolve_upstream_container_evidence",
                 "generate_validate_runtime_image_spec",
+                "build_smoke_check_container_image",
             }
         ):
             return True
@@ -1582,6 +1588,16 @@ class AgentLoop:
             and step_id == "generate_validate_runtime_image_spec"
         ):
             self.ctx.globals["capstone_runtime_image_spec"] = payload
+        elif (
+            self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "build_smoke_check_container_image"
+        ):
+            self.ctx.globals["capstone_container_build_smoke_check"] = payload
+            workflow_input_overrides = payload.get("workflow_input_overrides")
+            workflow_inputs = self.ctx.globals.get("workflow_inputs", {})
+            if isinstance(workflow_input_overrides, dict) and isinstance(workflow_inputs, dict):
+                workflow_inputs.update(workflow_input_overrides)
+                self.ctx.globals["workflow_inputs"] = workflow_inputs
         elif step_id == "start_litserve_server":
             if payload.get("endpoint_url"):
                 self.ctx.globals["litserve_endpoint_url"] = payload["endpoint_url"]
@@ -1843,6 +1859,31 @@ class AgentLoop:
                 runtime_args["approval_record"] = self._approval_record_to_payload(
                     approval_record
                 )
+        elif (
+            self.workflow_selection is not None
+            and self.workflow_selection.workflow_id == "prepare_capstone_container_ci"
+            and step_id == "build_smoke_check_container_image"
+        ):
+            runtime_args["workflow_inputs"] = self.ctx.globals.get("workflow_inputs", {})
+            image_spec_result = self.ctx.globals.get("capstone_runtime_image_spec", {})
+            if isinstance(image_spec_result, dict):
+                runtime_args["capstone_runtime_image_spec_result"] = image_spec_result
+            build_approval = self._approval_record_for_step_and_risk(
+                step_id,
+                RiskCategory.BUILDS_IMAGE,
+            )
+            if build_approval is not None:
+                runtime_args["approval_record"] = self._approval_record_to_payload(
+                    build_approval
+                )
+            smoke_approval = self._approval_record_for_step_and_risk(
+                step_id,
+                RiskCategory.EXECUTES_PROJECT_CODE,
+            )
+            if smoke_approval is not None:
+                runtime_args["smoke_approval_record"] = self._approval_record_to_payload(
+                    smoke_approval
+                )
         return runtime_args
 
     def _verification_results_payload(self) -> list[dict[str, Any]]:
@@ -1876,6 +1917,21 @@ class AgentLoop:
         approval_records = tuple(self.ctx.globals.get("approval_records", ()))
         for record in approval_records:
             if isinstance(record, ApprovalRecord) and record.step_id == step_id:
+                return record
+        return None
+
+    def _approval_record_for_step_and_risk(
+        self,
+        step_id: str,
+        risk_category: RiskCategory,
+    ) -> ApprovalRecord | None:
+        approval_records = tuple(self.ctx.globals.get("approval_records", ()))
+        for record in approval_records:
+            if (
+                isinstance(record, ApprovalRecord)
+                and record.step_id == step_id
+                and risk_category in record.risk_categories
+            ):
                 return record
         return None
 

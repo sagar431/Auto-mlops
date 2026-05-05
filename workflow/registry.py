@@ -881,6 +881,7 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
                 name="Build And Smoke Check Container Image",
                 description="Build the runtime image and run bounded smoke checks when approved.",
                 order=4,
+                tool_functions=("build_smoke_check_capstone_container_image",),
             ),
             WorkflowStep(
                 step_id="configure_validate_registry_target",
@@ -1024,15 +1025,15 @@ def _prepare_capstone_container_ci_template() -> WorkflowTemplate:
                     name="image_build_succeeded",
                     evidence_type="observed",
                     source_step="build_smoke_check_container_image",
-                    condition="completion_mode == container_capstone_complete",
-                    unsatisfied_status="blocked",
+                    condition="docker_available == true",
+                    unsatisfied_status="failed",
                 ),
                 SuccessContractCheck(
                     name="container_smoke_check_passed",
                     evidence_type="observed",
                     source_step="build_smoke_check_container_image",
                     condition="completion_mode == container_capstone_complete",
-                    unsatisfied_status="blocked",
+                    unsatisfied_status="failed",
                 ),
                 SuccessContractCheck(
                     name="registry_target_validated",

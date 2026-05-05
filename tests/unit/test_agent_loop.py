@@ -1677,6 +1677,249 @@ def test_generate_validate_capstone_runtime_image_spec_rejects_absolute_dataset_
     ]
 
 
+def test_build_smoke_check_capstone_container_image_defers_local_ready_without_docker(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "Dockerfile").write_text("FROM python:3.11-slim\n")
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda name: None)
+
+    result = mcp_mlops_tools.build_smoke_check_capstone_container_image(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_local_ready"},
+        capstone_runtime_image_spec_result={"status": "validated"},
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "deferred"
+    assert result["container"]["docker"]["available"] is False
+    assert result["blocked_capabilities"] == []
+    assert {
+        item["capability"] for item in result["deferred_capabilities"]
+    } == {"image_build_deferred_reported"}
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["docker_availability_reported"]["passed"] is True
+    assert verification_by_name["image_build_deferred_reported"]["passed"] is True
+    assert result["artifact_manifest"]["entries"] == []
+
+
+def test_build_smoke_check_capstone_container_image_blocks_capstone_complete_without_docker(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "Dockerfile").write_text("FROM python:3.11-slim\n")
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda name: None)
+
+    result = mcp_mlops_tools.build_smoke_check_capstone_container_image(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+        capstone_runtime_image_spec_result={"status": "validated"},
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert result["container"]["docker"]["available"] is False
+    assert {
+        item["capability"] for item in result["blocked_capabilities"]
+    } == {"docker_available"}
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["docker_available"]["passed"] is False
+
+
+def test_build_smoke_check_capstone_container_image_requires_build_approval(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "Dockerfile").write_text("FROM python:3.11-slim\n")
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(
+        mcp_mlops_tools.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0, stdout="Docker version 25.0.0", stderr=""
+        ),
+    )
+
+    result = mcp_mlops_tools.build_smoke_check_capstone_container_image(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_local_ready"},
+        capstone_runtime_image_spec_result={"status": "validated"},
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert result["container"]["docker"]["available"] is True
+    assert result["container"]["image_build"]["attempted"] is False
+    assert result["blocked_capabilities"] == [
+        {
+            "capability": "image_build_approved",
+            "reason": "Docker image build requires an Approval Gate.",
+            "required_risk_categories": ["builds_image"],
+            "next_action": "Record approval for build_smoke_check_container_image before running docker build.",
+        }
+    ]
+
+
+def test_build_smoke_check_capstone_container_image_records_successful_build_and_smoke(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "Dockerfile").write_text("FROM python:3.11-slim\n")
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda name: "/usr/bin/docker")
+    commands: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        commands.append(cmd)
+        if cmd[:2] == ["docker", "version"]:
+            return SimpleNamespace(returncode=0, stdout="Docker version 25.0.0", stderr="")
+        if cmd[:2] == ["docker", "build"]:
+            return SimpleNamespace(returncode=0, stdout="Successfully built abc123", stderr="")
+        if cmd[:3] == ["docker", "image", "inspect"]:
+            return SimpleNamespace(returncode=0, stdout="sha256:abc123\n", stderr="")
+        if cmd[:2] == ["docker", "run"]:
+            return SimpleNamespace(returncode=0, stdout="smoke ok", stderr="")
+        raise AssertionError(f"Unexpected command: {cmd}")
+
+    monkeypatch.setattr(mcp_mlops_tools.subprocess, "run", fake_run)
+
+    result = mcp_mlops_tools.build_smoke_check_capstone_container_image(
+        project_path=str(tmp_path),
+        workflow_inputs={
+            "completion_mode": "container_capstone_complete",
+            "image_name": "capstone-runtime",
+            "image_tag": "test",
+        },
+        capstone_runtime_image_spec_result={"status": "validated"},
+        approval_record={
+            "step_id": "build_smoke_check_container_image",
+            "risk_categories": ["builds_image"],
+            "status": "approved",
+        },
+        smoke_approval_record={
+            "step_id": "build_smoke_check_container_image",
+            "risk_categories": ["executes_project_code"],
+            "status": "approved",
+        },
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "succeeded"
+    assert ["docker", "build", "--pull=false", "-f", "Dockerfile", "-t", "capstone-runtime:test", "."] in commands
+    assert result["container"]["image_build"]["image_tag"] == "capstone-runtime:test"
+    assert result["container"]["image_build"]["image_id"] == "sha256:abc123"
+    assert result["container"]["image_build"]["return_code"] == 0
+    assert "duration_seconds" in result["container"]["image_build"]
+    assert result["container"]["image_build"]["stdout_summary"] == "Successfully built abc123"
+    assert result["container"]["smoke_check"]["passed"] is True
+    assert result["container"]["smoke_check"]["return_code"] == 0
+    assert "duration_seconds" in result["container"]["smoke_check"]
+    assert result["container"]["smoke_check"]["stdout_summary"] == "smoke ok"
+    assert not any("/health" in " ".join(command) for command in commands)
+    assert not any("/predict" in " ".join(command) for command in commands)
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["docker_available"]["passed"] is True
+    assert verification_by_name["image_build_succeeded"]["passed"] is True
+    assert verification_by_name["container_smoke_check_passed"]["passed"] is True
+    assert result["artifact_manifest"]["entries"] == [
+        {
+            "artifact_type": "container_image",
+            "producing_step": "build_smoke_check_container_image",
+            "state": "external",
+            "uri": "docker://capstone-runtime:test",
+            "metadata": {
+                "image_id": "sha256:abc123",
+                "image_tag": "capstone-runtime:test",
+            },
+        }
+    ]
+
+
+def test_build_smoke_check_capstone_container_image_requires_smoke_approval(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "Dockerfile").write_text("FROM python:3.11-slim\n")
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda name: "/usr/bin/docker")
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["docker", "version"]:
+            return SimpleNamespace(returncode=0, stdout="Docker version 25.0.0", stderr="")
+        if cmd[:2] == ["docker", "build"]:
+            return SimpleNamespace(returncode=0, stdout="Successfully built abc123", stderr="")
+        if cmd[:3] == ["docker", "image", "inspect"]:
+            return SimpleNamespace(returncode=0, stdout="sha256:abc123\n", stderr="")
+        if cmd[:2] == ["docker", "run"]:
+            raise AssertionError("smoke check must not run without executes_project_code approval")
+        raise AssertionError(f"Unexpected command: {cmd}")
+
+    monkeypatch.setattr(mcp_mlops_tools.subprocess, "run", fake_run)
+
+    result = mcp_mlops_tools.build_smoke_check_capstone_container_image(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+        capstone_runtime_image_spec_result={"status": "validated"},
+        approval_record={
+            "step_id": "build_smoke_check_container_image",
+            "risk_categories": ["builds_image"],
+            "status": "approved",
+        },
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "blocked"
+    assert result["container"]["smoke_check"]["attempted"] is False
+    assert result["blocked_capabilities"] == [
+        {
+            "capability": "container_smoke_check_approved",
+            "reason": "Container smoke check executes project code and requires approval.",
+            "required_risk_categories": ["executes_project_code"],
+            "next_action": (
+                "Record approval for build_smoke_check_container_image before running container smoke check."
+            ),
+        }
+    ]
+    assert "container_smoke_check_passed" not in {
+        item["check_name"] for item in result["verification_results"]
+    }
+
+
+def test_build_smoke_check_capstone_container_image_fails_from_structured_build_evidence(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "Dockerfile").write_text("FROM python:3.11-slim\n")
+    monkeypatch.setattr(mcp_mlops_tools.shutil, "which", lambda name: "/usr/bin/docker")
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["docker", "version"]:
+            return SimpleNamespace(returncode=0, stdout="Docker version 25.0.0", stderr="")
+        if cmd[:2] == ["docker", "build"]:
+            return SimpleNamespace(returncode=17, stdout="build output", stderr="build failed")
+        raise AssertionError(f"Unexpected command: {cmd}")
+
+    monkeypatch.setattr(mcp_mlops_tools.subprocess, "run", fake_run)
+
+    result = mcp_mlops_tools.build_smoke_check_capstone_container_image(
+        project_path=str(tmp_path),
+        workflow_inputs={"completion_mode": "container_capstone_complete"},
+        capstone_runtime_image_spec_result={"status": "validated"},
+        approval_record={
+            "step_id": "build_smoke_check_container_image",
+            "risk_categories": ["builds_image"],
+            "status": "approved",
+        },
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "failed"
+    assert result["container"]["image_build"]["return_code"] == 17
+    assert result["container"]["image_build"]["stderr_summary"] == "build failed"
+    verification_by_name = {
+        item["check_name"]: item for item in result["verification_results"]
+    }
+    assert verification_by_name["image_build_succeeded"]["passed"] is False
+
+
 def test_record_capstone_orchestrator_skeleton_references_data_stage_evidence(tmp_path):
     evidence_dir = tmp_path / ".auto_mlops" / "capstone"
     evidence_dir.mkdir(parents=True)
@@ -3135,7 +3378,7 @@ class TestAgentLoopRun:
 
         assert mock_agent.workflow_selection.workflow_id == "prepare_capstone_container_ci"
         assert mock_agent.workflow_selection.status is WorkflowStatus.PENDING
-        assert mock_agent.ctx.globals["workflow_inputs"] == {
+        assert mock_agent.ctx.globals["workflow_inputs"].items() >= {
             "project_path": str(tmp_path),
             "completion_mode": "container_local_ready",
             "data_stage_evidence_path": None,
@@ -3148,7 +3391,8 @@ class TestAgentLoopRun:
             "ci_workflow_path": None,
             "local_model_artifact_available": True,
             "mlflow_best_artifact_available": False,
-        }
+        }.items()
+        assert isinstance(mock_agent.ctx.globals["workflow_inputs"]["docker_available"], bool)
         completed_tool_steps = [
             step["index"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
         ]
@@ -3156,6 +3400,7 @@ class TestAgentLoopRun:
             "prepare_capstone_container_ci_contract",
             "resolve_upstream_container_evidence",
             "generate_validate_runtime_image_spec",
+            "build_smoke_check_container_image",
         ]
         assert mock_agent.status == "paused"
         assert "contract_status: blocked" in result
@@ -3164,6 +3409,7 @@ class TestAgentLoopRun:
         assert "container_build_spec_reported:declared:failed" in result
         assert "dependency_context_reported:observed:passed" in result
         assert "secret_safety_validated:observed:passed" in result
+        assert "docker_availability_reported:observed:passed" in result
         assert "data_stage_evidence_artifact_reported" in result
         assert "mlflow_best_artifact_verified" in result
         assert mock_agent.ctx.globals["capstone_runtime_image_spec"]["blocked_capabilities"] == [
@@ -3177,8 +3423,14 @@ class TestAgentLoopRun:
                 ),
             }
         ]
+        assert (
+            mock_agent.ctx.globals["capstone_container_build_smoke_check"][
+                "blocked_capabilities"
+            ][0]["capability"]
+            == "container_build_spec_reported"
+        )
         assert "container_ci_evidence.json writing is deferred to Phase 5 Issue 7" in result
-        assert "create_ml_dockerfile" not in [
+        assert "build_ml_docker_image" not in [
             step["tool"] for step in mock_agent.ctx.get_completed_steps() if step["tool"]
         ]
         assert not (tmp_path / "Dockerfile").exists()
