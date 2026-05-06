@@ -351,11 +351,11 @@ class MetricsCollector:
 
         # Apply filters
         if level:
-            logs = [l for l in logs if l.level == level]
+            logs = [log for log in logs if log.level == level]
         if source:
-            logs = [l for l in logs if l.source == source]
+            logs = [log for log in logs if log.source == source]
         if session_id:
-            logs = [l for l in logs if l.session_id == session_id]
+            logs = [log for log in logs if log.session_id == session_id]
 
         # Reverse to show newest first
         logs = logs[::-1]

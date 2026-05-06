@@ -24,20 +24,21 @@ from typing import Any
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
+
 # Try loading from current directory and package directory
 load_dotenv()  # Current directory
 load_dotenv(Path(__file__).parent / ".env")  # Package directory
 
-import httpx
+import httpx  # noqa: E402
 
 # Rich console for beautiful output
-from rich.console import Console
-from rich.markdown import Markdown
-from rich.panel import Panel
-from rich.table import Table
+from rich.console import Console  # noqa: E402
+from rich.markdown import Markdown  # noqa: E402
+from rich.panel import Panel  # noqa: E402
+from rich.table import Table  # noqa: E402
 
 # Agent imports
-from agent.agent_loop import AgentLoop
+from agent.agent_loop import AgentLoop  # noqa: E402
 
 console = Console()
 
