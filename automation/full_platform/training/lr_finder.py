@@ -1,11 +1,11 @@
 import argparse
 
+import timm
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
-import timm
 from torch_lr_finder import LRFinder
+from torchvision import datasets, transforms
 
 
 def main():

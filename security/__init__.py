@@ -812,7 +812,7 @@ __all__ = [
 
 
 # Import middleware components for convenience
-from security.middleware import (
+from security.middleware import (  # noqa: E402
     AuthenticationError,
     AuthorizationError,
     CurrentUser,

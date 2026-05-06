@@ -14,6 +14,7 @@ Usage:
 """
 
 import argparse
+import importlib.util
 import os
 import shutil
 import sys
@@ -186,12 +187,8 @@ print("Training...")
         """Test MLflow experiment tracking tools."""
         print_header("Testing MLflow Experiment Tracking Tools")
 
-        try:
-            import mlflow
-
-            mlflow_available = True
-        except ImportError:
-            mlflow_available = False
+        mlflow_available = importlib.util.find_spec("mlflow") is not None
+        if not mlflow_available:
             print(f"{Colors.YELLOW}MLflow not installed. Skipping.{Colors.END}")
 
         if not mlflow_available:

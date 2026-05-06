@@ -1,6 +1,5 @@
 import base64
 import os
-from typing import Optional
 
 import requests
 from fastapi import FastAPI, File, Request, UploadFile
@@ -18,7 +17,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
-def check_api_health() -> Optional[str]:
+def check_api_health() -> str | None:
     try:
         resp = requests.get(MODEL_API_HEALTH_URL, timeout=REQUEST_TIMEOUT)
         if resp.ok:

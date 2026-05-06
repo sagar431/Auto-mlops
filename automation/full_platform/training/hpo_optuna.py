@@ -2,11 +2,11 @@ import argparse
 from pathlib import Path
 
 import optuna
+import timm
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-import timm
 
 
 def objective(trial, args, train_ds, val_ds):
