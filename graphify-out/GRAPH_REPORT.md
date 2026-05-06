@@ -1,16 +1,16 @@
-# Graph Report - Auto-mlops  (2026-05-05)
+# Graph Report - Auto-mlops  (2026-05-06)
 
 ## Corpus Check
-- 200 files · ~346,440 words
+- 200 files · ~346,579 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 14205 nodes · 27459 edges · 1883 communities (366 shown, 1517 thin omitted)
+- 14296 nodes · 27554 edges · 1938 communities (382 shown, 1556 thin omitted)
 - Extraction: 51% EXTRACTED · 49% INFERRED · 0% AMBIGUOUS · INFERRED: 13380 edges (avg confidence: 0.57)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `9580d92a`
+- Built from commit: `ad928522`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -203,6 +203,7 @@
 - [[_COMMUNITY_Community 185|Community 185]]
 - [[_COMMUNITY_Community 186|Community 186]]
 - [[_COMMUNITY_Community 187|Community 187]]
+- [[_COMMUNITY_Community 188|Community 188]]
 - [[_COMMUNITY_Community 189|Community 189]]
 - [[_COMMUNITY_Community 190|Community 190]]
 - [[_COMMUNITY_Community 191|Community 191]]
@@ -228,7 +229,6 @@
 - [[_COMMUNITY_Community 211|Community 211]]
 - [[_COMMUNITY_Community 212|Community 212]]
 - [[_COMMUNITY_Community 213|Community 213]]
-- [[_COMMUNITY_Community 214|Community 214]]
 - [[_COMMUNITY_Community 215|Community 215]]
 - [[_COMMUNITY_Community 216|Community 216]]
 - [[_COMMUNITY_Community 217|Community 217]]
@@ -361,9 +361,11 @@
 - [[_COMMUNITY_Community 344|Community 344]]
 - [[_COMMUNITY_Community 345|Community 345]]
 - [[_COMMUNITY_Community 346|Community 346]]
+- [[_COMMUNITY_Community 347|Community 347]]
 - [[_COMMUNITY_Community 348|Community 348]]
 - [[_COMMUNITY_Community 349|Community 349]]
 - [[_COMMUNITY_Community 350|Community 350]]
+- [[_COMMUNITY_Community 351|Community 351]]
 - [[_COMMUNITY_Community 352|Community 352]]
 - [[_COMMUNITY_Community 353|Community 353]]
 - [[_COMMUNITY_Community 354|Community 354]]
@@ -374,11 +376,9 @@
 - [[_COMMUNITY_Community 359|Community 359]]
 - [[_COMMUNITY_Community 360|Community 360]]
 - [[_COMMUNITY_Community 361|Community 361]]
-- [[_COMMUNITY_Community 362|Community 362]]
 - [[_COMMUNITY_Community 363|Community 363]]
 - [[_COMMUNITY_Community 364|Community 364]]
 - [[_COMMUNITY_Community 365|Community 365]]
-- [[_COMMUNITY_Community 366|Community 366]]
 - [[_COMMUNITY_Community 367|Community 367]]
 - [[_COMMUNITY_Community 368|Community 368]]
 - [[_COMMUNITY_Community 369|Community 369]]
@@ -405,6 +405,10 @@
 - [[_COMMUNITY_Community 390|Community 390]]
 - [[_COMMUNITY_Community 391|Community 391]]
 - [[_COMMUNITY_Community 392|Community 392]]
+- [[_COMMUNITY_Community 393|Community 393]]
+- [[_COMMUNITY_Community 394|Community 394]]
+- [[_COMMUNITY_Community 395|Community 395]]
+- [[_COMMUNITY_Community 396|Community 396]]
 - [[_COMMUNITY_Community 397|Community 397]]
 - [[_COMMUNITY_Community 398|Community 398]]
 - [[_COMMUNITY_Community 399|Community 399]]
@@ -417,6 +421,8 @@
 - [[_COMMUNITY_Community 406|Community 406]]
 - [[_COMMUNITY_Community 407|Community 407]]
 - [[_COMMUNITY_Community 408|Community 408]]
+- [[_COMMUNITY_Community 409|Community 409]]
+- [[_COMMUNITY_Community 410|Community 410]]
 - [[_COMMUNITY_Community 411|Community 411]]
 - [[_COMMUNITY_Community 412|Community 412]]
 - [[_COMMUNITY_Community 413|Community 413]]
@@ -447,10 +453,6 @@
 - [[_COMMUNITY_Community 438|Community 438]]
 - [[_COMMUNITY_Community 439|Community 439]]
 - [[_COMMUNITY_Community 440|Community 440]]
-- [[_COMMUNITY_Community 441|Community 441]]
-- [[_COMMUNITY_Community 442|Community 442]]
-- [[_COMMUNITY_Community 443|Community 443]]
-- [[_COMMUNITY_Community 444|Community 444]]
 - [[_COMMUNITY_Community 445|Community 445]]
 - [[_COMMUNITY_Community 446|Community 446]]
 - [[_COMMUNITY_Community 447|Community 447]]
@@ -462,9 +464,7 @@
 - [[_COMMUNITY_Community 453|Community 453]]
 - [[_COMMUNITY_Community 454|Community 454]]
 - [[_COMMUNITY_Community 455|Community 455]]
-- [[_COMMUNITY_Community 456|Community 456]]
 - [[_COMMUNITY_Community 457|Community 457]]
-- [[_COMMUNITY_Community 458|Community 458]]
 - [[_COMMUNITY_Community 459|Community 459]]
 - [[_COMMUNITY_Community 460|Community 460]]
 - [[_COMMUNITY_Community 461|Community 461]]
@@ -495,6 +495,7 @@
 - [[_COMMUNITY_Community 486|Community 486]]
 - [[_COMMUNITY_Community 487|Community 487]]
 - [[_COMMUNITY_Community 488|Community 488]]
+- [[_COMMUNITY_Community 489|Community 489]]
 - [[_COMMUNITY_Community 490|Community 490]]
 - [[_COMMUNITY_Community 491|Community 491]]
 - [[_COMMUNITY_Community 492|Community 492]]
@@ -542,7 +543,6 @@
 - [[_COMMUNITY_Community 534|Community 534]]
 - [[_COMMUNITY_Community 535|Community 535]]
 - [[_COMMUNITY_Community 536|Community 536]]
-- [[_COMMUNITY_Community 537|Community 537]]
 - [[_COMMUNITY_Community 538|Community 538]]
 - [[_COMMUNITY_Community 539|Community 539]]
 - [[_COMMUNITY_Community 540|Community 540]]
@@ -617,9 +617,18 @@
 - [[_COMMUNITY_Community 609|Community 609]]
 - [[_COMMUNITY_Community 610|Community 610]]
 - [[_COMMUNITY_Community 611|Community 611]]
+- [[_COMMUNITY_Community 612|Community 612]]
+- [[_COMMUNITY_Community 613|Community 613]]
+- [[_COMMUNITY_Community 614|Community 614]]
+- [[_COMMUNITY_Community 615|Community 615]]
+- [[_COMMUNITY_Community 616|Community 616]]
+- [[_COMMUNITY_Community 617|Community 617]]
 - [[_COMMUNITY_Community 618|Community 618]]
 - [[_COMMUNITY_Community 619|Community 619]]
 - [[_COMMUNITY_Community 620|Community 620]]
+- [[_COMMUNITY_Community 621|Community 621]]
+- [[_COMMUNITY_Community 622|Community 622]]
+- [[_COMMUNITY_Community 623|Community 623]]
 - [[_COMMUNITY_Community 624|Community 624]]
 - [[_COMMUNITY_Community 625|Community 625]]
 - [[_COMMUNITY_Community 626|Community 626]]
@@ -656,18 +665,9 @@
 - [[_COMMUNITY_Community 657|Community 657]]
 - [[_COMMUNITY_Community 658|Community 658]]
 - [[_COMMUNITY_Community 659|Community 659]]
-- [[_COMMUNITY_Community 660|Community 660]]
-- [[_COMMUNITY_Community 661|Community 661]]
-- [[_COMMUNITY_Community 662|Community 662]]
-- [[_COMMUNITY_Community 663|Community 663]]
-- [[_COMMUNITY_Community 664|Community 664]]
-- [[_COMMUNITY_Community 665|Community 665]]
 - [[_COMMUNITY_Community 666|Community 666]]
 - [[_COMMUNITY_Community 667|Community 667]]
 - [[_COMMUNITY_Community 668|Community 668]]
-- [[_COMMUNITY_Community 669|Community 669]]
-- [[_COMMUNITY_Community 670|Community 670]]
-- [[_COMMUNITY_Community 671|Community 671]]
 - [[_COMMUNITY_Community 672|Community 672]]
 - [[_COMMUNITY_Community 673|Community 673]]
 - [[_COMMUNITY_Community 674|Community 674]]
@@ -1879,6 +1879,61 @@
 - [[_COMMUNITY_Community 1880|Community 1880]]
 - [[_COMMUNITY_Community 1881|Community 1881]]
 - [[_COMMUNITY_Community 1882|Community 1882]]
+- [[_COMMUNITY_Community 1883|Community 1883]]
+- [[_COMMUNITY_Community 1884|Community 1884]]
+- [[_COMMUNITY_Community 1885|Community 1885]]
+- [[_COMMUNITY_Community 1886|Community 1886]]
+- [[_COMMUNITY_Community 1887|Community 1887]]
+- [[_COMMUNITY_Community 1888|Community 1888]]
+- [[_COMMUNITY_Community 1889|Community 1889]]
+- [[_COMMUNITY_Community 1890|Community 1890]]
+- [[_COMMUNITY_Community 1891|Community 1891]]
+- [[_COMMUNITY_Community 1892|Community 1892]]
+- [[_COMMUNITY_Community 1893|Community 1893]]
+- [[_COMMUNITY_Community 1894|Community 1894]]
+- [[_COMMUNITY_Community 1895|Community 1895]]
+- [[_COMMUNITY_Community 1896|Community 1896]]
+- [[_COMMUNITY_Community 1897|Community 1897]]
+- [[_COMMUNITY_Community 1898|Community 1898]]
+- [[_COMMUNITY_Community 1899|Community 1899]]
+- [[_COMMUNITY_Community 1900|Community 1900]]
+- [[_COMMUNITY_Community 1901|Community 1901]]
+- [[_COMMUNITY_Community 1902|Community 1902]]
+- [[_COMMUNITY_Community 1903|Community 1903]]
+- [[_COMMUNITY_Community 1904|Community 1904]]
+- [[_COMMUNITY_Community 1905|Community 1905]]
+- [[_COMMUNITY_Community 1906|Community 1906]]
+- [[_COMMUNITY_Community 1907|Community 1907]]
+- [[_COMMUNITY_Community 1908|Community 1908]]
+- [[_COMMUNITY_Community 1909|Community 1909]]
+- [[_COMMUNITY_Community 1910|Community 1910]]
+- [[_COMMUNITY_Community 1911|Community 1911]]
+- [[_COMMUNITY_Community 1912|Community 1912]]
+- [[_COMMUNITY_Community 1913|Community 1913]]
+- [[_COMMUNITY_Community 1914|Community 1914]]
+- [[_COMMUNITY_Community 1915|Community 1915]]
+- [[_COMMUNITY_Community 1916|Community 1916]]
+- [[_COMMUNITY_Community 1917|Community 1917]]
+- [[_COMMUNITY_Community 1918|Community 1918]]
+- [[_COMMUNITY_Community 1919|Community 1919]]
+- [[_COMMUNITY_Community 1920|Community 1920]]
+- [[_COMMUNITY_Community 1921|Community 1921]]
+- [[_COMMUNITY_Community 1922|Community 1922]]
+- [[_COMMUNITY_Community 1923|Community 1923]]
+- [[_COMMUNITY_Community 1924|Community 1924]]
+- [[_COMMUNITY_Community 1925|Community 1925]]
+- [[_COMMUNITY_Community 1926|Community 1926]]
+- [[_COMMUNITY_Community 1927|Community 1927]]
+- [[_COMMUNITY_Community 1928|Community 1928]]
+- [[_COMMUNITY_Community 1929|Community 1929]]
+- [[_COMMUNITY_Community 1930|Community 1930]]
+- [[_COMMUNITY_Community 1931|Community 1931]]
+- [[_COMMUNITY_Community 1932|Community 1932]]
+- [[_COMMUNITY_Community 1933|Community 1933]]
+- [[_COMMUNITY_Community 1934|Community 1934]]
+- [[_COMMUNITY_Community 1935|Community 1935]]
+- [[_COMMUNITY_Community 1936|Community 1936]]
+- [[_COMMUNITY_Community 1937|Community 1937]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `CurrentUser` - 899 edges
@@ -1904,927 +1959,927 @@
 - `SessionManager` --uses--> `Test adding a websocket to a session.`  [INFERRED]
   api_server.py → tests/root_migrated/test_session_manager.py
 
-## Communities (1883 total, 1517 thin omitted)
+## Communities (1938 total, 1556 thin omitted)
 
 ### Community 0 - "Community 0"
-Cohesion: 0.02
-Nodes (396): AddDataToDVCInput, AnalyzeTrainingResultsInput, ApprovalGatedCapstoneRegistryLoginPushInput, BuildMLDockerImageInput, BuildSmokeCheckCapstoneContainerImageInput, CheckAccuracyThresholdInput, CheckWorkflowRunInput, ConfigureDVCRemoteInput (+388 more)
+Cohesion: 0.01
+Nodes (448): Test DELETE /admin/keys/{id} fails for non-admin users., Tests for POST /admin/users endpoint., Create a client with admin JWT token., Test creating a user with admin privileges., Test creating an admin user., Test creating a user with duplicate username fails., Test creating a user with duplicate email fails., Tests for POST /admin/keys endpoint. (+440 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.01
-Nodes (312): require_admin(), Dependency that requires admin privileges.      Checks if the current user has a, require_admin(), Test DELETE /admin/keys/{id} fails for non-admin users., Tests for POST /admin/users endpoint., Create a client with admin JWT token., Test creating a user with admin privileges., Test creating an admin user. (+304 more)
+Cohesion: 0.02
+Nodes (392): AddDataToDVCInput, AnalyzeTrainingResultsInput, ApprovalGatedCapstoneRegistryLoginPushInput, BuildMLDockerImageInput, BuildSmokeCheckCapstoneContainerImageInput, CheckAccuracyThresholdInput, CheckWorkflowRunInput, ConfigureDVCRemoteInput (+384 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.01
-Nodes (352): approval_gated_capstone_registry_login_push(), _approval_record_evidence(), _approved_transfer_record_matches(), _artifact_checksum(), _artifact_entries_from_manifest_payload(), _artifact_reference_from_run(), _baseline_metric_value(), _best_artifact_from_training_manifest() (+344 more)
+Nodes (336): approval_gated_capstone_registry_login_push(), _approval_record_evidence(), _approved_transfer_record_matches(), _artifact_checksum(), _artifact_entries_from_manifest_payload(), _artifact_reference_from_run(), _baseline_metric_value(), _best_artifact_from_training_manifest() (+328 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.02
-Nodes (236): Test updating session status with completion timestamp., Test updating step status with error message., Test recording multiple improvement attempts., Test adding a single artifact and verifying it persists., Test getting session by non-existent PK returns None., Test getting non-existent session with relations returns None., Test listing sessions when none exist., Test getting steps for session with no steps. (+228 more)
+Cohesion: 0.01
+Nodes (195): Test that expired keys fail verification., Test that verification updates last_used_at., Test verification with required scope present., Test verification fails when required scope is missing., Tests for API key revocation., Test revoking a key by ID., Tests for API key generation., Test revoking a nonexistent key. (+187 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.01
-Nodes (247): Tests for authentication method priority ordering., Test that API key auth is attempted before JWT when both are provided., Test that JWT is used when API key is invalid., Test APIKeyManager takes priority over APIKeyAuth hashed keys., Tests for Bearer token format handling., Test that 'Bearer' prefix is case-sensitive., Test Bearer token with extra spaces., Test Bearer token with only prefix, no token. (+239 more)
+Cohesion: 0.02
+Nodes (229): Test updating session status with completion timestamp., Test updating step status with error message., Test recording multiple improvement attempts., Test adding a single artifact and verifying it persists., Test getting session by non-existent PK returns None., Test getting non-existent session with relations returns None., Test listing sessions when none exist., Test getting steps for session with no steps. (+221 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.01
-Nodes (193): Test that expired keys fail verification., Test that verification updates last_used_at., Test verification with required scope present., Test verification fails when required scope is missing., Tests for API key revocation., Test revoking a key by ID., Tests for API key generation., Test revoking a nonexistent key. (+185 more)
+Cohesion: 0.02
+Nodes (190): Get session by ID, loading from database if not cached., Tests for MemorySearch class with database backend., Test initialization without database session., Test initialization with database session., Test loading sessions from empty database., Test loading sessions with data in database., Test that loaded session entries have correct structure., Tests for MemorySearch search methods. (+182 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.01
-Nodes (188): Agent Loop for MLOps Agent. Graph-based execution loop with self-improvement cap, Access the circuit breaker for monitoring or testing., Get circuit breaker statistics., Check if the circuit breaker is in open state., Main agent loop for MLOps operations.     Implements the Perception -> Decision, Load prompt from file., Emit an event to callback if registered., Load prompt from file. (+180 more)
+Cohesion: 0.04
+Nodes (176): APIKeyResponse, ApprovalRequest, create_api_key(), create_log(), create_user(), CreateAPIKeyRequest, CreateAPIKeyResponse, CreateUserRequest (+168 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.02
-Nodes (213): AgentLoop, Main agent loop for MLOps operations.     Implements the Perception -> Decision, Main agent loop for MLOps operations.     Implements the Perception -> Decision, Main agent loop for MLOps operations.     Implements the Perception -> Decision, Raised when a step execution fails., Raised when a step execution fails., Raised when a step execution fails., Raised when a step execution fails. (+205 more)
+Nodes (131): Test updating agent session timestamp., Test session_id uniqueness constraint., Test querying agent session by session_id., Tests for Step model., Test creating a step., Test marking step as completed., Clean up database state before and after each test., Test marking step as failed. (+123 more)
 
 ### Community 8 - "Community 8"
 Cohesion: 0.02
-Nodes (191): Get session by ID, loading from database if not cached., Tests for MemorySearch class with database backend., Test initialization without database session., Test initialization with database session., Test loading sessions from empty database., Test loading sessions with data in database., Test that loaded session entries have correct structure., Tests for MemorySearch search methods. (+183 more)
+Nodes (154): Auth(), admin_client(), jwt_headers(), api_key_only_env(), auth_disabled_env(), both_auth_enabled_env(), jwt_only_env(), mock_request() (+146 more)
 
 ### Community 9 - "Community 9"
 Cohesion: 0.02
-Nodes (147): Context Manager for MLOps Agent - Graph-based execution tracking with experiment, get_model_manager(), ModelManager, Model Manager for MLOps Agent - LLM provider management. Supports multiple provi, Generate a response from the LLM with fallback chain support.          Args:, Manages LLM providers and model configurations.     Handles API calls with retry, Build the ordered list of models to try, starting from the specified model., Generate using Google Gemini. (+139 more)
+Nodes (134): AgentLoop, Agent Loop for MLOps Agent. Graph-based execution loop with self-improvement cap, Main agent loop for MLOps operations.     Implements the Perception -> Decision, Main agent loop for MLOps operations.     Implements the Perception -> Decision, Main agent loop for MLOps operations.     Implements the Perception -> Decision, Main agent loop for MLOps operations.     Implements the Perception -> Decision, Raised when a step execution fails., Tracks step execution attempts and limits with circuit breaker protection. (+126 more)
 
 ### Community 10 - "Community 10"
-Cohesion: 0.04
-Nodes (175): APIKeyResponse, ApprovalRequest, create_api_key(), create_log(), create_user(), CreateAPIKeyRequest, CreateAPIKeyResponse, CreateUserRequest (+167 more)
+Cohesion: 0.05
+Nodes (97): Data Quality Module for MLOps Agent  Provides data profiling, validation, and qu, AnomalyDetectionResult, AnomalyRecord, AnomalyType, ColumnStatistics, DataQualityReport, DataSchema, DatasetStatistics (+89 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.01
-Nodes (200): AddWorkflowStepInput, AnalyzeProjectConfigInput, call_tool(), CheckDataQualityInput, CreateFastAPIAppInput, CreateGitHubWorkflowInput, CreateInferenceServiceYAMLInput, CreateK8sDeploymentInput (+192 more)
+Nodes (148): analyze_project_config(), CreateECRRepoInput, CreateGradioInterfaceInput, CreateK8sSecretInput, CreateLitserveAPIInput, CreateMARArchiveInput, DetectDataDriftInput, EstimateDeploymentCostInput (+140 more)
 
 ### Community 12 - "Community 12"
 Cohesion: 0.02
-Nodes (132): Test updating agent session timestamp., Test session_id uniqueness constraint., Test querying agent session by session_id., Tests for Step model., Test creating a step., Test marking step as completed., Clean up database state before and after each test., Test marking step as failed. (+124 more)
+Nodes (82): Perception module for MLOps Agent. ML pipeline awareness and intent understandin, build_perception_input(), Perception, Perception Module for MLOps Agent. Analyzes ML pipeline context and routes to ap, Get fallback output when LLM fails., Build input for perception module.      Args:         query: User query, Perception module for understanding ML pipeline context.     Extracts entities,, Initialize Perception with prompt template.          Args:             prompt_pa (+74 more)
 
 ### Community 13 - "Community 13"
 Cohesion: 0.02
-Nodes (154): Auth(), admin_client(), jwt_headers(), api_key_only_env(), auth_disabled_env(), both_auth_enabled_env(), jwt_only_env(), mock_request() (+146 more)
+Nodes (127): CompareDistributionsInput, ConfigureLitserverInput, CreateExpectationSuiteInput, CreateTorchserveHandlerInput, DetectGpuCudaInput, DetectRuntimeEnvironmentInput, GenerateLitserveDockerfileInput, ProfileDatasetInput (+119 more)
 
 ### Community 14 - "Community 14"
 Cohesion: 0.02
-Nodes (125): Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa (+117 more)
+Nodes (82): ModelManager, Generate a response from the LLM with fallback chain support.          Args:, Manages LLM providers and model configurations.     Handles API calls with retry, Build the ordered list of models to try, starting from the specified model., Generate using Google Gemini., Generate using OpenAI., Generate using Anthropic Claude., Generate plain text response with fallback chain support. (+74 more)
 
 ### Community 15 - "Community 15"
-Cohesion: 0.06
-Nodes (97): Data Quality Module for MLOps Agent  Provides data profiling, validation, and qu, AnomalyDetectionResult, AnomalyRecord, AnomalyType, ColumnStatistics, DataQualityReport, DataSchema, DatasetStatistics (+89 more)
+Cohesion: 0.03
+Nodes (65): Initialize the regressor.          Args:             model_path: Path to model c, Tabular Regression Example for Auto-MLOps., create_model(), GLUBlock, load_model(), MLP, Model architectures for tabular regression., Multi-Layer Perceptron for tabular regression.      A feedforward neural network (+57 more)
 
 ### Community 16 - "Community 16"
 Cohesion: 0.02
-Nodes (146): analyze_project_config(), CaptureLitserveLogsAndEndpointInput, CreateECRRepoInput, CreateGradioInterfaceInput, CreateK8sSecretInput, CreateLitserveAPIInput, CreateMARArchiveInput, DetectDataDriftInput (+138 more)
+Nodes (103): Decorator for adding timeout to async functions.      Usage:         @timeout(30, Raised when an operation exceeds its timeout., Execute an async operation with a timeout.      Usage:         result = await wi, timeout(), TimeoutError, with_timeout(), bulkhead_config(), circuit_config() (+95 more)
 
 ### Community 17 - "Community 17"
-Cohesion: 0.02
-Nodes (123): Tests for StepExecutionError exception., Test creating StepExecutionError., Test StepExecutionError is an Exception., Test creating tracker with default values., Tests for StepExecutionError exception., Test creating StepExecutionError., Test StepExecutionError is an Exception., Test creating tracker with default values. (+115 more)
-
-### Community 18 - "Community 18"
 Cohesion: 0.03
 Nodes (79): AgentSession, load(), load_sync(), Agent Session for MLOps Agent - Session management with experiment snapshots.  T, Mark session as completed., Serialize session to dictionary., Serialize session to JSON-compatible dict (alias for to_dict)., Save session to database asynchronously. (+71 more)
 
+### Community 18 - "Community 18"
+Cohesion: 0.02
+Nodes (100): Run the self-improvement loop for training., Run the deployment workflow., Run the self-improvement loop for training., Run the self-improvement loop for training., Run the deployment workflow., Run the deployment workflow., Attempt to generate rollback instructions for a failed deployment., Attempt to generate rollback instructions for a failed deployment. (+92 more)
+
 ### Community 19 - "Community 19"
 Cohesion: 0.02
-Nodes (103): CreateHelmChartInput, CreateK8sConfigMapInput, DetectGpuCudaInput, end_mlflow_run(), GetECRLoginInput, init_mlflow_experiment(), Detect GPU availability from observed runtime checks., Record live deployment evidence intentionally missing from local preflight. (+95 more)
+Nodes (109): CaptureLitserveLogsAndEndpointInput, CheckDataQualityInput, create_hydra_config(), CreateFastAPIAppInput, CreateLambdaDockerfileInput, DetectAnomaliesInput, GenerateTorchserveConfigInput, Record LitServe logs and deployed endpoint URL. (+101 more)
 
 ### Community 20 - "Community 20"
-Cohesion: 0.03
-Nodes (99): Decorator for adding timeout to async functions.      Usage:         @timeout(30, Raised when an operation exceeds its timeout., Execute an async operation with a timeout.      Usage:         result = await wi, timeout(), TimeoutError, with_timeout(), bulkhead_config(), circuit_config() (+91 more)
+Cohesion: 0.02
+Nodes (112): CreateHelmChartInput, CreateInferenceServiceYAMLInput, CreateK8sConfigMapInput, CreateK8sDeploymentInput, CreateK8sHPAInput, CreateK8sIngressInput, CreateK8sServiceInput, DeployToHuggingfaceInput (+104 more)
 
 ### Community 21 - "Community 21"
-Cohesion: 0.02
-Nodes (107): CompareDistributionsInput, ConfigureLitserverInput, CreateExpectationSuiteInput, CreateTorchserveHandlerInput, DetectRuntimeEnvironmentInput, GenerateLitserveDockerfileInput, ProfileDatasetInput, Record local runtime environment for LitServe GPU deployment. (+99 more)
+Cohesion: 0.03
+Nodes (79): Mark a step as failed and record error., Attach summarizer output to session memory., main(), Run the Auto-MLOps agent on the image classification example., run_example(), anomaly_csv(), current_csv(), drifted_csv() (+71 more)
 
 ### Community 22 - "Community 22"
-Cohesion: 0.04
-Nodes (70): Test password verification with empty password., Test that timestamps are set on creation., Tests for the APIKey SQLModel., Test basic API key creation., Test that default values are set correctly., Test API key generation., Test API key hashing., Test that different keys produce different hashes. (+62 more)
+Cohesion: 0.03
+Nodes (73): Dataset, load_imdb_data(), Generate and save synthetic data for testing.      Args:         data_dir: Direc, Load IMDB movie review dataset from local directory.      Expects directory stru, save_synthetic_data(), create_cifar10_loaders(), create_huggingface_tokenizer(), get_cifar10_transforms() (+65 more)
 
 ### Community 23 - "Community 23"
 Cohesion: 0.03
 Nodes (67): Setup alerting configuration for model monitoring.      Creates alerting rules a, Setup alerting configuration for model monitoring.      Creates alerting rules a, Setup alerting configuration for model monitoring.      Creates alerting rules a, Setup alerting configuration for model monitoring.      Creates alerting rules a, Setup alerting configuration for model monitoring.      Creates alerting rules a, Setup alerting configuration for model monitoring.      Creates alerting rules a, Setup alerting configuration for model monitoring.      Creates alerting rules a, Setup alerting configuration for model monitoring.      Creates alerting rules a (+59 more)
 
 ### Community 24 - "Community 24"
-Cohesion: 0.03
-Nodes (64): collate_fn(), create_cifar10_loaders(), create_data_loaders(), create_synthetic_data(), get_cifar10_transforms(), get_transforms(), ImageClassificationDataset, Dataset utilities for tabular regression. (+56 more)
+Cohesion: 0.04
+Nodes (72): Test password verification with empty password., Test that timestamps are set on creation., Tests for the APIKey SQLModel., Test basic API key creation., Test that default values are set correctly., Test API key generation., Test API key hashing., Test that different keys produce different hashes. (+64 more)
 
 ### Community 25 - "Community 25"
-Cohesion: 0.03
-Nodes (71): detect_data_drift(), Detect data drift between reference and current datasets using Evidently AI., Detect data drift between reference and current datasets using Evidently AI., Detect data drift between reference and current datasets using Evidently AI., Detect data drift between reference and current datasets using Evidently AI., Detect data drift between reference and current datasets using Evidently AI., Detect data drift between reference and current datasets using Evidently AI., Detect data drift between reference and current datasets using Evidently AI. (+63 more)
+Cohesion: 0.08
+Nodes (58): Enum, Model Monitoring Module for MLOps Agent.  Provides data drift detection, model p, AlertManager, HealthStatus, ModelMonitor, Model Performance Monitor.  Provides continuous monitoring of model performance, Check if any alerts should be triggered.          Args:             metric_name:, Check if value crosses threshold. (+50 more)
 
 ### Community 26 - "Community 26"
-Cohesion: 0.02
-Nodes (84): Run the self-improvement loop for training., Run the deployment workflow., Run the self-improvement loop for training., Run the self-improvement loop for training., Run the deployment workflow., Run the deployment workflow., Attempt to generate rollback instructions for a failed deployment., Attempt to generate rollback instructions for a failed deployment. (+76 more)
+Cohesion: 0.03
+Nodes (56): Summarization Module for MLOps Agent. Generates final summaries from ML pipeline, Summarizer Module for MLOps Agent. Generates final summaries from ML pipeline ex, Format artifacts list for summary., Generate final summary for MLOps operation.          Args:             query: Or, Summarizer module for generating MLOps execution summaries.     Creates human-re, Save session logs to disk., Initialize Summarizer with prompt template.          Args:             prompt_pa, Load prompt template from file. (+48 more)
 
 ### Community 27 - "Community 27"
 Cohesion: 0.03
-Nodes (65): close_db(), DatabaseConfig, get_config(), get_db(), get_engine(), get_session(), get_session_factory(), init_db() (+57 more)
+Nodes (62): close_db(), DatabaseConfig, get_config(), get_db(), get_engine(), get_session(), get_session_factory(), init_db() (+54 more)
 
 ### Community 28 - "Community 28"
-Cohesion: 0.03
-Nodes (70): Mark a step as failed and record error., Attach summarizer output to session memory., main(), Run the Auto-MLOps agent on the image classification example., run_example(), anomaly_csv(), current_csv(), drifted_csv() (+62 more)
+Cohesion: 0.04
+Nodes (57): collate_fn(), create_cifar10_loaders(), create_data_loaders(), create_synthetic_data(), get_cifar10_transforms(), get_transforms(), ImageClassificationDataset, Create train and validation data loaders.      Returns:         Tuple of (train_ (+49 more)
 
 ### Community 29 - "Community 29"
 Cohesion: 0.03
-Nodes (67): monitor_model_performance(), Monitor model performance metrics and detect degradation.      Uses the ModelMon, Monitor model performance metrics and detect degradation.      Uses the ModelMon, Monitor model performance metrics and detect degradation.      Uses the ModelMon, Detect data drift between reference and current datasets using Evidently AI., Monitor model performance metrics and detect degradation.      Uses the ModelMon, Monitor model performance metrics and detect degradation.      Uses the ModelMon, Monitor model performance metrics and detect degradation.      Uses the ModelMon (+59 more)
+Nodes (64): Return whether the selected workflow is an executable setup_pipeline run., Return whether the selected workflow should be finalized by registry contract., Return whether this completed step should trigger perception feedback., Return whether the selected workflow is an executable setup_pipeline run., Return whether the selected workflow is an executable setup_pipeline run., Derive selected registry workflow status from captured evidence., Return whether the selected workflow should be finalized by registry contract., Return whether the selected workflow is an executable setup_pipeline run. (+56 more)
 
 ### Community 30 - "Community 30"
-Cohesion: 0.04
-Nodes (53): get_test_transforms(), Get transforms for test data., prepare_cifar10(), Download and prepare CIFAR-10 dataset.      Args:         data_dir: Directory to, CIFAR10CNN, CNN architecture optimized for CIFAR-10 (32x32 images).      Architecture:     -, Test model loading with custom parameters., Create a mock test data loader. (+45 more)
+Cohesion: 0.05
+Nodes (49): Dataset for text classification.      Args:         texts: List of text strings., Vocabulary for text tokenization.      Maintains mappings between words and indi, Convert text to list of indices.          Args:             text: Input text str, Convert list of indices back to text.          Args:             indices: List o, TextClassificationDataset, Vocabulary, main(), Inference utilities for tabular regression models. (+41 more)
 
 ### Community 31 - "Community 31"
-Cohesion: 0.04
-Nodes (61): calculate_delay(), Retry Pattern with Exponential Backoff.  Provides configurable retry logic with, Determine if an error should trigger a retry.      Args:         error: The exce, Context manager for retry operations.      Usage:         async with RetryContex, Check if more attempts should be made., Record a successful attempt., Record a failed attempt and wait before next retry if applicable.          Args:, Configuration for retry behavior. (+53 more)
+Cohesion: 0.03
+Nodes (53): require_admin(), Dependency that requires admin privileges.      Checks if the current user has a, require_admin(), client(), Test DELETE /admin/keys/{id} fails for non-admin users., Tests for POST /admin/users endpoint., Test creating a user with admin privileges., Test creating an admin user. (+45 more)
 
 ### Community 32 - "Community 32"
-Cohesion: 0.08
-Nodes (51): AlertManager, HealthStatus, ModelMonitor, Model Performance Monitor.  Provides continuous monitoring of model performance, Check if any alerts should be triggered.          Args:             metric_name:, Check if value crosses threshold., Create an alert instance., Manually trigger an alert.          Args:             title: Alert title (+43 more)
+Cohesion: 0.06
+Nodes (51): DistilBERTClassifier, LSTMClassifier, Forward pass.          Args:             input_ids: Input token IDs, shape (batc, CNN for text classification.      Architecture:     - Embedding layer     - Mult, Unfreeze encoder layers for fine-tuning.          Args:             num_layers:, Bidirectional LSTM for text classification.      Architecture:     - Embedding l, DistilBERT-based classifier for text classification.      Architecture:     - Pr, TextCNN (+43 more)
 
 ### Community 33 - "Community 33"
 Cohesion: 0.04
-Nodes (61): Dataset, create_cifar10_loaders(), create_huggingface_tokenizer(), get_cifar10_transforms(), HuggingFaceTextDataset, load_imdb_huggingface(), main(), Training script for tabular regression with Hydra configuration. (+53 more)
+Nodes (50): evaluate_model(), get_test_transforms(), Get transforms for test data., Evaluate model on test set.      Args:         model: Trained model         data, Evaluate model on test set.      Args:         model: Trained model.         voc, CIFAR10CNN, CNN architecture optimized for CIFAR-10 (32x32 images).      Architecture:     -, Test model loading with custom parameters. (+42 more)
 
 ### Community 34 - "Community 34"
-Cohesion: 0.02
-Nodes (80): Tests for StepType constants., Test IMPROVE step type constant., Tests for StepType constants., Test IMPROVE step type constant., Tests for AgentLoop initialization., Test creating AgentLoop with event callback., Tests for AgentLoop initialization., Tests for StepType constants. (+72 more)
+Cohesion: 0.03
+Nodes (75): Route, StepType, Capture events emitted during agent execution., Capture events emitted during agent execution., Test the complete pipeline with all phases:         1. Setup: analyze project, c, Capture events emitted during agent execution., Capture events emitted during agent execution., Test that the agent handles step failures gracefully. (+67 more)
 
 ### Community 35 - "Community 35"
-Cohesion: 0.06
-Nodes (79): test_setup_pipeline_captures_artifact_manifest_entry(), test_setup_pipeline_passing_contract_succeeds_from_structured_evidence(), test_artifact_manifest_entry_requires_path_or_uri_and_known_state(), test_artifact_manifest_rejects_unknown_producing_step_for_workflow(), test_build_capstone_pipeline_blocks_until_future_capabilities_are_implemented(), test_build_capstone_pipeline_declares_orchestrator_skeleton(), test_container_build_failure_is_failed_contract_evidence(), test_container_local_ready_build_conditions_follow_docker_availability() (+71 more)
+Cohesion: 0.03
+Nodes (75): Test enabling SQL echo., Test custom pool settings., Test SQLite detection., Test PostgreSQL detection., Tests for async database engine creation., Clean up database state before and after each test., Test that get_async_engine returns an AsyncEngine instance., Test that get_async_engine returns the same instance. (+67 more)
 
 ### Community 36 - "Community 36"
 Cohesion: 0.03
-Nodes (78): Test enabling SQL echo., Test custom pool settings., Test SQLite detection., Test PostgreSQL detection., Tests for async database engine creation., Clean up database state before and after each test., Test that get_async_engine returns an AsyncEngine instance., Test that get_async_engine returns the same instance. (+70 more)
+Nodes (71): Tests for StepType constants., Test ROOT step type constant., Test IMPROVE step type constant., Tests for StepType constants., Test ROOT step type constant., Test IMPROVE step type constant., Tests for StepType constants., Test ROOT step type constant. (+63 more)
 
 ### Community 37 - "Community 37"
-Cohesion: 0.07
-Nodes (50): DistilBERTClassifier, LSTMClassifier, Forward pass.          Args:             input_ids: Input token IDs, shape (batc, CNN for text classification.      Architecture:     - Embedding layer     - Mult, Unfreeze encoder layers for fine-tuning.          Args:             num_layers:, Bidirectional LSTM for text classification.      Architecture:     - Embedding l, DistilBERT-based classifier for text classification.      Architecture:     - Pr, TextCNN (+42 more)
+Cohesion: 0.05
+Nodes (57): CircuitBreaker, CircuitBreakerConfig, Check if enough time has passed to try half-open., Transition to a new state., Record a successful call., Record a failed call., Record a rejected call (circuit open)., Check if a call can be executed. (+49 more)
 
 ### Community 38 - "Community 38"
-Cohesion: 0.03
-Nodes (37): Tests for ModelMonitor class., Test ModelMonitor initialization., Test classification metrics calculation., Test classification metrics with probabilities., Test regression metrics calculation., Test error for invalid task type., Test recording a performance snapshot., Test recording snapshot with metadata. (+29 more)
+Cohesion: 0.05
+Nodes (48): create_dataloaders(), load_data(), Dataset utilities for tabular regression., PyTorch Dataset for tabular regression data., Initialize dataset.          Args:             features: Feature matrix of shape, Load data from CSV files.      Args:         data_dir: Directory containing trai, TabularDataset, compute_metrics() (+40 more)
 
 ### Community 39 - "Community 39"
-Cohesion: 0.06
-Nodes (40): Dataset for text classification.      Args:         texts: List of text strings., Vocabulary for text tokenization.      Maintains mappings between words and indi, Convert text to list of indices.          Args:             text: Input text str, Convert list of indices back to text.          Args:             indices: List o, TextClassificationDataset, Vocabulary, Inference wrapper for the text classification model., Predict class for a single text.          Args:             text: Input text str (+32 more)
+Cohesion: 0.03
+Nodes (67): Test should_continue when at limit., Test should_continue when at limit., Test should_continue when at limit., Tests for AgentLoop routing logic., Test _should_summarize returns False when not achieved., Test _needs_improvement returns True when below threshold., Test should_continue when at limit., Tests for AgentLoop routing logic. (+59 more)
 
 ### Community 40 - "Community 40"
-Cohesion: 0.05
-Nodes (41): Initialize the regressor.          Args:             model_path: Path to model c, create_model(), load_model(), Model architectures for tabular regression., Factory function to create a model by type.      Args:         model_type: One o, Load a trained model from checkpoint.      Args:         model_path: Path to mod, Create a text classification model.      Args:         model_type: Type of model, Load a trained model from a checkpoint file.      Args:         path: Path to th (+33 more)
+Cohesion: 0.03
+Nodes (70): AddWorkflowStepInput, AnalyzeProjectConfigInput, call_tool(), CreateGitHubWorkflowInput, CreateMLDockerfileInput, detect_capstone_data_layouts(), InitDVCRepoInput, LogMLflowArtifactInput (+62 more)
 
 ### Community 41 - "Community 41"
-Cohesion: 0.05
-Nodes (58): CircuitBreaker, CircuitBreakerConfig, CircuitBreakerRegistry, Decorator for protecting async functions., Registry for managing multiple circuit breakers.      Usage:         registry =, Get existing or create new circuit breaker., Get circuit breaker by name., Get statistics for all circuit breakers. (+50 more)
-
-### Community 42 - "Community 42"
 Cohesion: 0.03
 Nodes (14): agent(), agent_with_event_handler(), _approved_container_ci_handoff_record(), mock_agent(), mock_prompts_dir(), test_emit_handles_callback_error(), test_emit_without_callback(), test_prepare_capstone_container_ecr_push_requires_cloud_approval() (+6 more)
 
+### Community 42 - "Community 42"
+Cohesion: 0.03
+Nodes (53): Select a registry workflow before prompt-authored planning., Select a registry workflow before prompt-authored planning., Select a registry workflow before prompt-authored planning., Check if we should skip to summary., Select a registry workflow before prompt-authored planning., Select a registry workflow before prompt-authored planning., Return the first setup_pipeline approval gate that lacks approval., Keep broad multi-phase requests on the prompt-authored planning path. (+45 more)
+
 ### Community 43 - "Community 43"
-Cohesion: 0.06
-Nodes (37): Wrapper class for tabular regression inference., TabularRegressor, GLUBlock, MLP, Multi-Layer Perceptron for tabular regression.      A feedforward neural network, Get activation function by name., Gated Linear Unit block used in TabNet., TabNet architecture for tabular data.      A simplified implementation of TabNet (+29 more)
+Cohesion: 0.03
+Nodes (40): client(), Verify /sessions/{session_id} endpoint has current_user dependency., Verify /tools endpoint has current_user dependency., Verify /metrics endpoint has current_user dependency., Verify /metrics/system endpoint has current_user dependency., Verify /metrics/agent endpoint has current_user dependency., Verify /metrics/pipeline endpoint has current_user dependency., Verify /metrics/demo endpoint has current_user dependency. (+32 more)
 
 ### Community 44 - "Community 44"
-Cohesion: 0.03
-Nodes (42): Validate selected registry approval gates before tool execution., Validate selected registry approval gates before tool execution., Validate selected registry approval gates before tool execution., Check if the circuit breaker is in open state., Check if the circuit breaker is in open state., Check if the circuit breaker is in open state., Check if the circuit breaker is in open state., Get circuit breaker statistics. (+34 more)
+Cohesion: 0.04
+Nodes (38): HTTPException, Tests for input validation., Test successful path validation., Test path traversal detection., Test path validation with base path restriction., Test empty path validation., Test string sanitization., Test string length truncation. (+30 more)
 
 ### Community 45 - "Community 45"
-Cohesion: 0.08
-Nodes (41): Enum, ConceptDriftDetector, DriftDetector, Drift Detector with Evidently Integration.  Provides data drift and model drift, Detect drift using Evidently., Data and model drift detector using Evidently AI.      Features:     - Detect da, Fallback drift detection using basic statistics.          Uses Kolmogorov-Smirno, Calculate drift severity based on drift share. (+33 more)
+Cohesion: 0.04
+Nodes (58): init_dvc_repo(), log_mlflow_artifact(), Create Kubernetes ConfigMap YAML., Log artifact to MLflow., Log artifact to MLflow., Log artifact to MLflow., Log artifact to MLflow., Log artifact to MLflow. (+50 more)
 
 ### Community 46 - "Community 46"
-Cohesion: 0.04
-Nodes (59): init_dvc_repo(), log_mlflow_artifact(), Create Kubernetes ConfigMap YAML., Log artifact to MLflow., Create Hydra configuration structure., Log artifact to MLflow., Log artifact to MLflow., Log artifact to MLflow. (+51 more)
+Cohesion: 0.03
+Nodes (44): alert_config(), monitor(), Unit tests for the monitoring module.  Tests drift detection, model monitoring,, Test FeatureDriftResult with distribution data., Tests for HealthStatus enum., Test HealthStatus enum values., Tests for HealthStatus enum., Test HealthStatus enum values. (+36 more)
 
 ### Community 47 - "Community 47"
 Cohesion: 0.03
-Nodes (50): Select a registry workflow before prompt-authored planning., Select a registry workflow before prompt-authored planning., Select a registry workflow before prompt-authored planning., Select a registry workflow before prompt-authored planning., Select a registry workflow before prompt-authored planning., Return the first setup_pipeline approval gate that lacks approval., Keep broad multi-phase requests on the prompt-authored planning path., Keep broad multi-phase requests on the prompt-authored planning path. (+42 more)
+Nodes (59): Tests for StepExecutionTracker class., Tests for StepExecutionTracker class., Test retry step ID with no failures., Test retry step ID with no failures., Tests for StepExecutionTracker class., Test retry step ID with no failures., Tests for StepExecutionTracker class., Test retry step ID with no failures. (+51 more)
 
 ### Community 48 - "Community 48"
-Cohesion: 0.03
-Nodes (40): alert_config(), manager(), monitor(), Unit tests for the monitoring module.  Tests drift detection, model monitoring,, Test FeatureDriftResult with distribution data., Tests for HealthStatus enum., Test HealthStatus enum values., Tests for ModelMetrics model. (+32 more)
+Cohesion: 0.07
+Nodes (44): Raised when a step execution fails., Raised when a step execution fails., Raised when a step execution fails., Raised when a step execution fails., Raised when a step execution fails., Tracks step execution attempts and limits with circuit breaker protection., Tracks step execution attempts and limits with circuit breaker protection., Tracks step execution attempts and limits with circuit breaker protection. (+36 more)
 
 ### Community 49 - "Community 49"
-Cohesion: 0.06
-Nodes (39): Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check (+31 more)
+Cohesion: 0.03
+Nodes (57): Tests for StepExecutionError exception., Test creating StepExecutionError., Test StepExecutionError is an Exception., Tests for StepExecutionError exception., Test creating StepExecutionError., Test StepExecutionError is an Exception., Test creating StepExecutionError., Test StepExecutionError is an Exception. (+49 more)
 
 ### Community 50 - "Community 50"
 Cohesion: 0.04
-Nodes (33): Perception module for MLOps Agent. ML pipeline awareness and intent understandin, build_perception_input(), Perception Module for MLOps Agent. Analyzes ML pipeline context and routes to ap, Build input for perception module.      Args:         query: User query, Tests for Perception fallback behavior., Test fallback output has correct structure., Test fallback preserves input stage., Test fallback defaults to setup stage when not provided. (+25 more)
+Nodes (56): Test that _initialize_session sets the query., Tests for AgentLoop _pick_next_step method., Test _pick_next_step returns None when all completed., Test that _initialize_session sets the query., Test _pick_next_step returns None when no steps., Tests for AgentLoop routing logic., Tests for StepExecutionError exception., Tests for AgentLoop _pick_next_step method. (+48 more)
 
 ### Community 51 - "Community 51"
-Cohesion: 0.03
-Nodes (58): Tests for run_mlops_agent convenience function., Tests for AgentLoop _handle_failure method., Tests for run_mlops_agent convenience function., Tests for AgentLoop _handle_failure method., Tests for run_mlops_agent convenience function., Tests for AgentLoop event emission., Tests for AgentLoop event emission., Tests for AgentLoop event emission. (+50 more)
+Cohesion: 0.06
+Nodes (39): Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check, Validate ML dataset for quality issues.      Performs various data quality check (+31 more)
 
 ### Community 52 - "Community 52"
-Cohesion: 0.05
-Nodes (42): _approval_gate_for_step(), _approval_record_matches_gate(), _artifact_matches_requirement(), _artifact_requirement_satisfied(), _artifact_requirements_for_check(), _contract_check_condition_applies(), DeploymentCheckResult, DeploymentReport (+34 more)
+Cohesion: 0.07
+Nodes (57): test_approval_gate_uses_controlled_risk_categories(), test_build_capstone_pipeline_declares_orchestrator_skeleton(), test_container_build_failure_is_failed_contract_evidence(), test_container_local_ready_build_conditions_follow_docker_availability(), test_declared_endpoint_evidence_does_not_satisfy_litserve_gpu_contract(), test_declared_evidence_does_not_satisfy_observed_contract_check(), test_deploy_gpu_inference_declares_backend_branches(), test_deploy_litserve_gpu_requires_observed_runtime_evidence() (+49 more)
 
 ### Community 53 - "Community 53"
-Cohesion: 0.05
-Nodes (38): Tests for security headers., Test default security headers., Test overriding default headers., test_security_headers_middleware(), TestSecurityHeaders, RateLimitExceeded, Exception raised when rate limit is exceeded., Security headers configuration.      Provides recommended security headers for H (+30 more)
+Cohesion: 0.09
+Nodes (40): ConceptDriftDetector, DriftDetector, Drift Detector with Evidently Integration.  Provides data drift and model drift, Detect data drift between reference and current datasets.          Args:, Detect drift using Evidently., Detect drift using Evidently., Data and model drift detector using Evidently AI.      Features:     - Detect da, Fallback drift detection using basic statistics.          Uses Kolmogorov-Smirno (+32 more)
 
 ### Community 54 - "Community 54"
-Cohesion: 0.04
-Nodes (3): mock_admin_auth(), test_get_session_details_nonexistent(), test_status_for_nonexistent_session()
+Cohesion: 0.05
+Nodes (42): Retry Pattern with Exponential Backoff.  Provides configurable retry logic with, Context manager for retry operations.      Usage:         async with RetryContex, Check if more attempts should be made., Record a successful attempt., Record a failed attempt and wait before next retry if applicable.          Args:, Configuration for retry behavior., Enter the retry context., Exit the retry context. (+34 more)
 
 ### Community 55 - "Community 55"
-Cohesion: 0.05
-Nodes (31): Tests for rate limiting., Test that requests within limit are allowed., Test that rate limit is enforced., Test getting remaining requests., Test that rate limiting can be disabled., Test client ID extraction from X-Forwarded-For header., test_require_rate_limit_decorator(), TestRateLimiter (+23 more)
+Cohesion: 0.04
+Nodes (56): Tests for Data Quality Module  Tests for DataValidator, DataProfiler, and relate, Test null value checking., Test range validation., Test range validation failure., Test pattern validation., Test allowed values validation., Test allowed values validation failure., Test duplicate row detection. (+48 more)
 
 ### Community 56 - "Community 56"
-Cohesion: 0.06
-Nodes (34): check_data_quality(), Check data quality using Great Expectations-based validation.      Validates a d, Check data quality using Great Expectations-based validation.      Validates a d, Check data quality using Great Expectations-based validation.      Validates a d, Check data quality using Great Expectations-based validation.      Validates a d, Check data quality using Great Expectations-based validation.      Validates a d, Check data quality using Great Expectations-based validation.      Validates a d, Check data quality using Great Expectations-based validation.      Validates a d (+26 more)
+Cohesion: 0.04
+Nodes (53): Test that _initialize_session sets accuracy threshold., Tests for AgentLoop session initialization., Test that _initialize_session initializes placeholders., Test that _initialize_session sets accuracy threshold., Test should_continue when within limits., Tests for AgentLoop session initialization., Test that _initialize_session sets accuracy threshold., Test ROOT step type constant. (+45 more)
 
 ### Community 57 - "Community 57"
 Cohesion: 0.04
-Nodes (51): create_k8s_hpa_yaml(), create_k8s_ingress_yaml(), create_torchserve_handler(), ensure_directory(), Create Kubernetes Ingress YAML (ALB annotations for EKS)., Create Kubernetes Ingress YAML (ALB annotations for EKS)., Create Kubernetes HPA YAML., Create Kubernetes HPA YAML. (+43 more)
+Nodes (53): add_workflow_step(), capture_litserve_logs_and_endpoint(), create_dvc_pipeline(), create_fastapi_app(), create_github_workflow(), create_gradio_interface(), create_helm_chart(), create_inference_service_yaml() (+45 more)
 
 ### Community 58 - "Community 58"
-Cohesion: 0.06
-Nodes (34): create_expectation_suite(), Create a Great Expectations expectation suite for data validation.      Creates, Create a Great Expectations expectation suite for data validation.      Creates, Create a Great Expectations expectation suite for data validation.      Creates, Create a Great Expectations expectation suite for data validation.      Creates, Create a Great Expectations expectation suite for data validation.      Creates, Create a Great Expectations expectation suite for data validation.      Creates, Create a Great Expectations expectation suite for data validation.      Creates (+26 more)
+Cohesion: 0.04
+Nodes (3): mock_admin_auth(), test_get_session_details_nonexistent(), test_status_for_nonexistent_session()
 
 ### Community 59 - "Community 59"
 Cohesion: 0.06
-Nodes (31): Bulkhead, BulkheadConfig, BulkheadFullError, BulkheadRegistry, BulkheadStats, Bulkhead Pattern Implementation.  Provides resource isolation to prevent cascadi, Try to acquire a permit without blocking., Acquire a permit from the bulkhead.          Raises:             BulkheadFullErr (+23 more)
+Nodes (34): check_data_quality(), Check data quality using Great Expectations-based validation.      Validates a d, Check data quality using Great Expectations-based validation.      Validates a d, Check data quality using Great Expectations-based validation.      Validates a d, Check data quality using Great Expectations-based validation.      Validates a d, Check data quality using Great Expectations-based validation.      Validates a d, Check data quality using Great Expectations-based validation.      Validates a d, Check data quality using Great Expectations-based validation.      Validates a d (+26 more)
 
 ### Community 60 - "Community 60"
 Cohesion: 0.06
-Nodes (32): create_dataloaders(), load_data(), PyTorch Dataset for tabular regression data., Initialize dataset.          Args:             features: Feature matrix of shape, Load data from CSV files.      Args:         data_dir: Directory containing trai, Create train and test dataloaders.      Args:         data_dir: Directory contai, TabularDataset, Tests for TabularDataset class. (+24 more)
+Nodes (34): create_expectation_suite(), Create a Great Expectations expectation suite for data validation.      Creates, Create a Great Expectations expectation suite for data validation.      Creates, Create a Great Expectations expectation suite for data validation.      Creates, Create a Great Expectations expectation suite for data validation.      Creates, Create a Great Expectations expectation suite for data validation.      Creates, Create a Great Expectations expectation suite for data validation.      Creates, Create a Great Expectations expectation suite for data validation.      Creates (+26 more)
 
 ### Community 61 - "Community 61"
-Cohesion: 0.05
-Nodes (44): create_hydra_config(), Generate TorchServe configuration., Create KServe InferenceService YAML., Create Dockerfile for AWS Lambda deployment., Create FastAPI application for model serving., Update existing Hydra configuration., Validate Hydra configuration., Create Hydra configuration structure. (+36 more)
+Cohesion: 0.06
+Nodes (32): approve_action(), get_session_details(), get_session_status(), _has_session_access(), require_session_access(), run_agent_session(), approve_action(), get_session_details() (+24 more)
 
 ### Community 62 - "Community 62"
 Cohesion: 0.06
 Nodes (23): main(), Test that Data Validation Patterns section exists., Test that basic data quality check pattern exists., Test that full data validation with expectations pattern exists., Test that data drift detection pattern exists., Test that schema validation pattern exists., Test that pre-training data validation pattern exists., Test that important rules include data validation requirement. (+15 more)
 
 ### Community 63 - "Community 63"
-Cohesion: 0.06
-Nodes (31): approve_action(), get_session_details(), get_session_status(), _has_session_access(), require_session_access(), run_agent_session(), approve_action(), get_session_details() (+23 more)
+Cohesion: 0.11
+Nodes (45): ApprovalGate, ArtifactRequirement, _build_capstone_pipeline_template(), _deploy_gpu_inference_template(), _deploy_gradio_demo_template(), _deploy_kserve_production_template(), _deploy_litserve_gpu_template(), _deploy_litserve_preflight_template() (+37 more)
 
 ### Community 64 - "Community 64"
-Cohesion: 0.06
-Nodes (27): HTTPException, Tests for input validation., Test successful path validation., Test path traversal detection., Test path validation with base path restriction., Test empty path validation., Test string sanitization., Test string length truncation. (+19 more)
+Cohesion: 0.04
+Nodes (45): Test getting circuit stats., Test circuit breaker property access., Test getting circuit stats., Test getting circuit stats., Tests for AgentLoop event emission., Test circuit breaker property access., Test getting circuit stats., Tests for AgentLoop event emission. (+37 more)
 
 ### Community 65 - "Community 65"
-Cohesion: 0.1
-Nodes (45): test_approval_gate_uses_controlled_risk_categories(), ApprovalGate, ArtifactRequirement, _build_capstone_pipeline_template(), _deploy_gpu_inference_template(), _deploy_gradio_demo_template(), _deploy_kserve_production_template(), _deploy_litserve_gpu_template() (+37 more)
+Cohesion: 0.04
+Nodes (44): Test retry step ID generation with failures., Test should_continue when within limits., Test should_continue when within limits., Test circuit is initially closed., Test should_continue when within limits., Test circuit is initially closed., Test circuit is initially closed., Test _needs_deployment returns True when route is deploy. (+36 more)
 
 ### Community 66 - "Community 66"
-Cohesion: 0.08
-Nodes (41): List all sessions from database, optionally filtered by status., Delete a session from database and cache., get_async_session(), Async context manager for database sessions.      Yields an async database sessi, cleanup(), Create a temporary database file path., Create a temporary database URL., temp_db_path() (+33 more)
+Cohesion: 0.04
+Nodes (44): Test incrementing tries counter., Test incrementing tries counter., Test retry step ID generation with failures., Test incrementing tries counter., Test retry step ID generation with failures., Test incrementing tries counter., Test retry step ID generation with failures., Test incrementing tries counter. (+36 more)
 
 ### Community 67 - "Community 67"
-Cohesion: 0.05
-Nodes (43): create_k8s_deployment_yaml(), generate_kserve_config(), Generate KServe configuration., Generate KServe configuration., Create Kubernetes Deployment YAML., Create Kubernetes Deployment YAML., Generate KServe configuration., Create Kubernetes Deployment YAML. (+35 more)
+Cohesion: 0.04
+Nodes (43): Test SUMMARIZE route constant., Test SUMMARIZE route constant., Test SUMMARIZE route constant., Test _should_summarize returns True when route is summarize., Test has_exceeded_retries when within limit., Test _should_summarize returns True when route is summarize., Test _needs_improvement returns False when no accuracy recorded., Test SUMMARIZE route constant. (+35 more)
 
 ### Community 68 - "Community 68"
 Cohesion: 0.05
-Nodes (22): Test updating agent session timestamp., Test session_id uniqueness constraint., Test querying agent session by session_id., Tests for AgentSession model., Test creating an agent session., Test marking agent session as completed., Test marking agent session as failed., TestAgentSessionModel (+14 more)
+Nodes (44): Tests for AgentLoop initialization., Test creating AgentLoop with event callback., Tests for AgentLoop initialization., Tests for StepExecutionError exception., Tests for AgentLoop initialization., Test creating AgentLoop with event callback., Test creating AgentLoop with custom tools module., Tests for AgentLoop initialization. (+36 more)
 
 ### Community 69 - "Community 69"
-Cohesion: 0.05
-Nodes (22): HttpUser, AdminUser, create_api_key(), create_user(), HighFrequencyPollingUser, MetricsUser, MLOpsAPIUser, on_test_start() (+14 more)
+Cohesion: 0.06
+Nodes (39): end_mlflow_run(), init_mlflow_experiment(), Create a Helm chart for Kubernetes deployment., Update kubeconfig for an EKS cluster., Update kubeconfig for an EKS cluster., Initialize MLflow experiment., Initialize MLflow experiment., Start a new MLflow run. (+31 more)
 
 ### Community 70 - "Community 70"
-Cohesion: 0.06
-Nodes (21): Unit tests for the summarizer module.  Tests summary generation, fallback behavi, Test default prompt content., Test prompt formatting with context., Tests for Summarizer class., Test fallback summary generation., Test fallback summary with no artifacts., Test artifact formatting with list., Test artifact formatting with empty list. (+13 more)
+Cohesion: 0.05
+Nodes (43): Tests for Route constants., Test DECISION route constant., Test DEPLOY route constant., Test DECISION route constant., Test DEPLOY route constant., Tests for Route constants., Test DECISION route constant., Test DEPLOY route constant. (+35 more)
 
 ### Community 71 - "Community 71"
 Cohesion: 0.05
-Nodes (22): Tests for new ModelMonitor features: moving average, percentiles, health check,, Test moving average calculation., Test moving average with insufficient data., Test percentile calculation., Test percentile calculation with custom percentiles., Test percentile calculation with no data., Test health status when model is healthy., Test health status when model has critical degradation. (+14 more)
+Nodes (42): Tests for Route constants., Test DEPLOY step type constant., Test creating AgentLoop with custom profile., Test DEPLOY step type constant., Test creating AgentLoop with custom profile., Test creating AgentLoop with custom profile., Test _pick_next_step skips completed steps., Test DEPLOY step type constant. (+34 more)
 
 ### Community 72 - "Community 72"
-Cohesion: 0.07
-Nodes (30): profile_dataset(), Profile a dataset to get comprehensive statistics.      Args:         dataset_pa, Profile a dataset to get comprehensive statistics.      Args:         dataset_pa, Profile a dataset to get comprehensive statistics.      Args:         dataset_pa, Profile a dataset to get comprehensive statistics.      Args:         dataset_pa, Profile a dataset to get comprehensive statistics.      Args:         dataset_pa, Profile a dataset to get comprehensive statistics.      Args:         dataset_pa, Profile a dataset to get comprehensive statistics.      Args:         dataset_pa (+22 more)
+Cohesion: 0.05
+Nodes (41): Test CODE step type constant., Test CODE step type constant., Test CODE step type constant., Test creating AgentLoop with default values., Test creating AgentLoop with default values., Test _pick_next_step returns first pending step., Test CODE step type constant., Tests for StepType constants. (+33 more)
 
 ### Community 73 - "Community 73"
 Cohesion: 0.05
-Nodes (42): get_best_mlflow_run(), log_mlflow_metrics(), log_mlflow_params(), Log parameters to MLflow., Log metrics to MLflow., Register model in MLflow Model Registry., Get best run from experiment based on metric., Log metrics to MLflow. (+34 more)
+Nodes (41): Test creating tracker with default values., Test creating tracker with default values., Test creating tracker with custom values., Test creating tracker with default values., Test creating tracker with custom values., Test creating tracker with default values., Test creating tracker with custom values., Test that _initialize_session creates context manager. (+33 more)
 
 ### Community 74 - "Community 74"
-Cohesion: 0.06
-Nodes (22): clear(), Structured logger with context binding.      Wraps structlog to provide a consis, Bind context values to the logger. Returns self for chaining., Remove context keys. Returns self for chaining., Clear all bound context. Returns self for chaining., Create a new logger with additional bound values., Log at WARNING level., Log at CRITICAL level. (+14 more)
+Cohesion: 0.08
+Nodes (40): List all sessions from database, optionally filtered by status., Delete a session from database and cache., get_async_session(), Async context manager for database sessions.      Yields an async database sessi, Create a temporary database file path., Create a temporary database URL., temp_db_path(), temp_db_url() (+32 more)
 
 ### Community 75 - "Community 75"
 Cohesion: 0.05
-Nodes (37): Capture explicit registry workflow evidence from a completed step result., Return setup artifact manifest entries explicitly reported by a step., Capture explicit registry workflow evidence from a completed step result., Return verification records explicitly reported by a registry step., Return artifact manifest entries explicitly reported by a registry step., Return verification records explicitly reported by a registry step., Return artifact manifest entries explicitly reported by a registry step., Capture explicit registry workflow evidence from a completed step result. (+29 more)
+Nodes (25): Tests for session ownership., Test session registration., Test session unregistration., Test access check for owner., Test access check for untracked session., Test verify access success., Test verify access denial., Test getting all sessions for a user. (+17 more)
 
 ### Community 76 - "Community 76"
 Cohesion: 0.05
-Nodes (21): Test no alert when above threshold., Test no alert for different metric., Test different threshold comparisons., Test cooldown period between alerts., Test disabled alert is not triggered., Test manually triggering an alert., Test filtering alerts., Test acknowledging an alert. (+13 more)
+Nodes (22): Test updating agent session timestamp., Test session_id uniqueness constraint., Test querying agent session by session_id., Tests for AgentSession model., Test creating an agent session., Test marking agent session as completed., Test marking agent session as failed., TestAgentSessionModel (+14 more)
 
 ### Community 77 - "Community 77"
 Cohesion: 0.05
-Nodes (26): client(), Test HELP lines follow Prometheus format., Test TYPE lines follow Prometheus format., Tests that Prometheus endpoint works without authentication., Test /metrics/prometheus works without authentication headers., Verify /metrics/prometheus endpoint has no current_user dependency., Verify /metrics/prometheus endpoint has request parameter for rate limiting., Tests for rate limiting on Prometheus endpoint. (+18 more)
+Nodes (22): Tests for new ModelMonitor features: moving average, percentiles, health check,, Test moving average calculation., Test moving average with insufficient data., Test percentile calculation., Test percentile calculation with custom percentiles., Test percentile calculation with no data., Test health status when model is healthy., Test health status when model has critical degradation. (+14 more)
 
 ### Community 78 - "Community 78"
-Cohesion: 0.05
-Nodes (38): Test CODE step type constant., Test CODE step type constant., Test CODE step type constant., Test creating AgentLoop with default values., Test creating AgentLoop with default values., Test _pick_next_step returns first pending step., Test CODE step type constant., Tests for StepType constants. (+30 more)
+Cohesion: 0.06
+Nodes (22): clear(), Structured logger with context binding.      Wraps structlog to provide a consis, Bind context values to the logger. Returns self for chaining., Remove context keys. Returns self for chaining., Clear all bound context. Returns self for chaining., Create a new logger with additional bound values., Log at WARNING level., Log at CRITICAL level. (+14 more)
 
 ### Community 79 - "Community 79"
 Cohesion: 0.05
-Nodes (23): Tests for Decision output normalization., Test that normalization adds missing required fields., Test that normalization preserves existing fields., Test that normalization adds defaults to nodes., Test that normalization sets next_step_id from first node., Tests for Decision class., Test that normalization handles empty nodes list., Tests for Decision fallback behavior. (+15 more)
+Nodes (42): get_best_mlflow_run(), log_mlflow_metrics(), log_mlflow_params(), Log parameters to MLflow., Log metrics to MLflow., Register model in MLflow Model Registry., Get best run from experiment based on metric., Log metrics to MLflow. (+34 more)
 
 ### Community 80 - "Community 80"
 Cohesion: 0.05
-Nodes (21): Tests for ContextManager class., Test creating a context manager., Test that ROOT node is properly initialized., Test adding a step to the graph., Test adding steps with dependencies., Test checking if step is completed., Test updating step with result., Test marking step as completed. (+13 more)
+Nodes (22): HttpUser, AdminUser, create_api_key(), create_user(), HighFrequencyPollingUser, MetricsUser, MLOpsAPIUser, on_test_start() (+14 more)
 
 ### Community 81 - "Community 81"
-Cohesion: 0.06
-Nodes (19): mock_context_manager(), mock_prompts_dir(), perception(), Tests for Perception._get_fallback_output method., Test fallback output has correct structure., Tests for Perception class initialization., Test fallback output has correct values., Test fallback preserves input stage. (+11 more)
+Cohesion: 0.05
+Nodes (27): Tests for DriftDetector class., Test DriftDetector initialization., Test evidently_available property., Test drift detection with no drift., Test installed Evidently API versions do not leak import errors., Test drift detection with drift present., Test drift detection with no drift., Test drift detection on specific columns. (+19 more)
 
 ### Community 82 - "Community 82"
 Cohesion: 0.05
-Nodes (38): SessionManager, Test getting a non-existent session., Test updating session status., Test updating multiple session fields., Test updating session errors list., Test updating a non-existent session (should not raise)., Test that broadcast_event stores events in the database., Test broadcasting multiple events. (+30 more)
+Nodes (26): BulkheadRegistry, Registry for managing multiple bulkheads.      Usage:         registry = Bulkhea, Get existing or create new bulkhead., Get bulkhead by name., Get statistics for all bulkheads., CircuitBreakerError, CircuitBreakerRegistry, CircuitState (+18 more)
 
 ### Community 83 - "Community 83"
 Cohesion: 0.05
-Nodes (37): Tests for Route constants., Test IMPROVE route constant., Test IMPROVE route constant., Tests for Route constants., Test IMPROVE route constant., Test that _initialize_session creates a session ID., Tests for Route constants., Test IMPROVE route constant. (+29 more)
+Nodes (37): Capture explicit registry workflow evidence from a completed step result., Return setup artifact manifest entries explicitly reported by a step., Capture explicit registry workflow evidence from a completed step result., Return verification records explicitly reported by a registry step., Return artifact manifest entries explicitly reported by a registry step., Return verification records explicitly reported by a registry step., Return artifact manifest entries explicitly reported by a registry step., Capture explicit registry workflow evidence from a completed step result. (+29 more)
 
 ### Community 84 - "Community 84"
 Cohesion: 0.05
-Nodes (37): async_client(), decision_prompt_template(), event_loop(), failed_tool_result(), mlflow_init_result(), mlflow_run_result(), mock_api_server_dependencies(), mock_decision_response() (+29 more)
+Nodes (26): client(), Test HELP lines follow Prometheus format., Test TYPE lines follow Prometheus format., Tests that Prometheus endpoint works without authentication., Test /metrics/prometheus works without authentication headers., Verify /metrics/prometheus endpoint has no current_user dependency., Verify /metrics/prometheus endpoint has request parameter for rate limiting., Tests for rate limiting on Prometheus endpoint. (+18 more)
 
 ### Community 85 - "Community 85"
 Cohesion: 0.05
-Nodes (20): Tests for fallback validation when GE is not available., Test basic validation., Test not null validation passes for clean data., Test not null validation fails for data with nulls., Test not null validation with mostly threshold., Test unique validation passes for unique column., Test unique validation fails for non-unique column., Test range validation passes. (+12 more)
+Nodes (38): create_decision_response(), create_perception_response(), mock_prompts_dir(), mock_tools_module(), Test the complete flow: setup -> train -> improve -> deploy., Test the complete flow: setup -> train -> improve -> deploy., Create a mock tools module with all required MLOps tools., Test error handling during the train -> deploy flow. (+30 more)
 
 ### Community 86 - "Community 86"
-Cohesion: 0.08
-Nodes (22): ImageClassifier, main(), Inference utilities for tabular regression models., Run interactive inference demo., Inference wrapper for the image classification model., Make a single prediction.          Args:             features: Input features as, Predict class for a single image.          Args:             image: Path to imag, Predict classes for multiple images.          Args:             images: List of (+14 more)
+Cohesion: 0.05
+Nodes (23): Tests for Decision output normalization., Test that normalization adds missing required fields., Test that normalization preserves existing fields., Test that normalization adds defaults to nodes., Test that normalization sets next_step_id from first node., Tests for Decision class., Test that normalization handles empty nodes list., Tests for Decision fallback behavior. (+15 more)
 
 ### Community 87 - "Community 87"
-Cohesion: 0.06
-Nodes (37): add_data_to_dvc(), build_ml_docker_image(), check_tool_installed(), Add data to DVC tracking., Add data to DVC tracking., Add data to DVC tracking., Build Docker image for ML project., Add data to DVC tracking. (+29 more)
+Cohesion: 0.05
+Nodes (21): Tests for ContextManager class., Test creating a context manager., Test that ROOT node is properly initialized., Test adding a step to the graph., Test adding steps with dependencies., Test checking if step is completed., Test updating step with result., Test marking step as completed. (+13 more)
 
 ### Community 88 - "Community 88"
 Cohesion: 0.06
-Nodes (18): Tests for DVC pipeline configuration., Tests for DVC pipeline configuration., Tests for DVC pipeline configuration., Test that dvc.yaml exists., Test that dvc.yaml exists., Test that dvc.yaml is valid YAML., Test prepare_data stage configuration., Test that train stage is defined. (+10 more)
+Nodes (25): calculate_delay(), Determine if an error should trigger a retry.      Args:         error: The exce, Calculate delay for the given attempt number.      Args:         attempt: Curren, should_retry(), Edge case tests for retry logic., Test delay calculation for first attempt., Test exponential growth of delays., Test that delay is capped at max_delay_seconds. (+17 more)
 
 ### Community 89 - "Community 89"
-Cohesion: 0.08
-Nodes (30): _add_context_processor(), _add_logger_name(), _add_timestamp_processor(), configure(), configure_logging(), _get_console_processors(), _get_json_processors(), get_logger() (+22 more)
+Cohesion: 0.05
+Nodes (38): SessionManager, Test getting a non-existent session., Test updating session status., Test updating multiple session fields., Test updating session errors list., Test updating a non-existent session (should not raise)., Test that broadcast_event stores events in the database., Test broadcasting multiple events. (+30 more)
 
 ### Community 90 - "Community 90"
-Cohesion: 0.08
-Nodes (30): cmd_init(), cmd_monitor(), Initialize a new ML project structure., # TODO: Implement training logic, Monitor model performance and detect drift., AgentEventHandler, cmd_deploy(), cmd_init() (+22 more)
+Cohesion: 0.07
+Nodes (34): _add_context_processor(), _add_logger_name(), _add_timestamp_processor(), configure(), configure_logging(), _get_console_processors(), _get_json_processors(), get_logger() (+26 more)
 
 ### Community 91 - "Community 91"
-Cohesion: 0.06
-Nodes (18): Tests for DriftDetector class., Test DriftDetector initialization., Test DriftDetector with custom parameters., Test drift detection when no drift exists., Test drift detection when drift exists., Test drift detection on specific columns., Test that drift report has correct structure., Test FeatureDriftResult structure. (+10 more)
+Cohesion: 0.05
+Nodes (37): async_client(), decision_prompt_template(), event_loop(), failed_tool_result(), mlflow_init_result(), mlflow_run_result(), mock_decision_response(), mock_llm() (+29 more)
 
 ### Community 92 - "Community 92"
-Cohesion: 0.06
-Nodes (28): MonitoringConfig, Configuration for the monitoring system., alert_manager(), classification_data(), current_data_no_drift(), current_data_with_drift(), drift_detector(), model_monitor() (+20 more)
+Cohesion: 0.05
+Nodes (20): Tests for fallback validation when GE is not available., Test basic validation., Test not null validation passes for clean data., Test not null validation fails for data with nulls., Test not null validation with mostly threshold., Test unique validation passes for unique column., Test unique validation fails for non-unique column., Test range validation passes. (+12 more)
 
 ### Community 93 - "Community 93"
 Cohesion: 0.07
-Nodes (19): Tests for session ownership., Test session registration., Test session unregistration., Test access check for owner., Test access check for untracked session., Test verify access success., Test verify access denial., Test getting all sessions for a user. (+11 more)
+Nodes (27): profile_dataset(), Profile a dataset to get comprehensive statistics.      Args:         dataset_pa, Profile a dataset to get comprehensive statistics.      Args:         dataset_pa, Profile a dataset to get comprehensive statistics.      Args:         dataset_pa, Profile a dataset to get comprehensive statistics.      Args:         dataset_pa, Profile a dataset to get comprehensive statistics.      Args:         dataset_pa, Profile a dataset to get comprehensive statistics.      Args:         dataset_pa, Profile a dataset to get comprehensive statistics.      Args:         dataset_pa (+19 more)
 
 ### Community 94 - "Community 94"
-Cohesion: 0.14
-Nodes (18): Colors, main(), print_header(), print_test(), Run all tests or filtered tests., Clean up test directory., Test Hydra configuration tools., Test MLflow experiment tracking tools. (+10 more)
+Cohesion: 0.07
+Nodes (24): Bulkhead, BulkheadConfig, BulkheadFullError, BulkheadStats, Bulkhead Pattern Implementation.  Provides resource isolation to prevent cascadi, Try to acquire a permit without blocking., Acquire a permit from the bulkhead.          Raises:             BulkheadFullErr, Release a permit back to the bulkhead. (+16 more)
 
 ### Community 95 - "Community 95"
-Cohesion: 0.08
-Nodes (19): ExperimentState, Check if accuracy threshold is met., Check if more improvement attempts are allowed., Get gap between current and target accuracy., Tracks the current ML experiment state., Create experiment state for a session.          Args:             agent_session_, Tests for ExperimentState model., Test creating an experiment state. (+11 more)
+Cohesion: 0.06
+Nodes (37): add_data_to_dvc(), build_ml_docker_image(), check_tool_installed(), Add data to DVC tracking., Add data to DVC tracking., Add data to DVC tracking., Build Docker image for ML project., Add data to DVC tracking. (+29 more)
 
 ### Community 96 - "Community 96"
-Cohesion: 0.13
-Nodes (31): lifespan(), lifespan(), Lifespan context manager for startup/shutdown., close_async_db(), get_async_engine(), init_async_db(), Get or create async SQLAlchemy engine singleton.      Creates appropriate engine, Initialize database schema asynchronously.      Creates all tables defined in SQ (+23 more)
+Cohesion: 0.11
+Nodes (36): lifespan(), Lifespan context manager for startup/shutdown., close_async_db(), get_async_engine(), get_async_session_factory(), init_async_db(), Get or create async SQLAlchemy engine singleton.      Creates appropriate engine, Get or create async session factory singleton.      Returns:         Async SQLAl (+28 more)
 
 ### Community 97 - "Community 97"
 Cohesion: 0.07
-Nodes (16): Tests for DriftDetector class., Test DriftDetector initialization., Test evidently_available property., Test drift detection with no drift., Test drift detection with drift present., Test drift detection on specific columns., Test severity calculation with no drift., Test severity calculation with low drift. (+8 more)
+Nodes (28): api_key_auth(), config_with_keys(), full_config(), jwt_auth(), jwt_config(), manager(), rate_config(), rate_limiter() (+20 more)
 
 ### Community 98 - "Community 98"
-Cohesion: 0.08
-Nodes (24): do_run_migrations(), get_async_database_url(), get_database_url(), is_async_database(), Alembic Environment Configuration for MLOps Agent.  Supports both synchronous an, Run migrations with an existing connection., Run migrations asynchronously.      Creates an async Engine and associates a con, Get database URL from environment or alembic.ini.      Priority:     1. DATABASE (+16 more)
+Cohesion: 0.06
+Nodes (19): _dedupe_capabilities(), Additional tests for APIKeyAuth., Test that key hashing is deterministic., Test that key hash has correct length (SHA-256)., Test that generated keys are unique., Test validating None key., Test validating empty string key., Test removing a key that doesn't exist (should not error). (+11 more)
 
 ### Community 99 - "Community 99"
-Cohesion: 0.08
-Nodes (17): async_search_past_experiments(), index_data(), Simple substring-based search fallback., Search for sessions with best metrics.          Args:             metric_name: M, Search for sessions with specific configuration.          Args:             conf, Load all session logs from database asynchronously., Explicitly load session data from database., Search for similar past sessions using fuzzy matching.          Args: (+9 more)
+Cohesion: 0.07
+Nodes (28): test_registry_rejects_fake_templates(), _approval_gate_for_step(), _approval_record_matches_gate(), _artifact_matches_requirement(), _artifact_requirement_satisfied(), _artifact_requirements_for_check(), _contract_check_condition_applies(), _evidence_satisfies_check() (+20 more)
 
 ### Community 100 - "Community 100"
-Cohesion: 0.07
-Nodes (27): Test DECISION route constant., Test DECISION route constant., Test circuit breaker property access., Test DECISION route constant., Test circuit breaker property access., Test DECISION route constant., Test DECISION route constant., Test circuit breaker property access. (+19 more)
+Cohesion: 0.06
+Nodes (18): Tests for DVC pipeline configuration., Tests for DVC pipeline configuration., Tests for DVC pipeline configuration., Test that dvc.yaml exists., Test that dvc.yaml exists., Test that dvc.yaml is valid YAML., Test prepare_data stage configuration., Test that train stage is defined. (+10 more)
 
 ### Community 101 - "Community 101"
-Cohesion: 0.09
-Nodes (17): Timeout Management for Async Operations.  Provides configurable timeouts for asy, Record a timed out call., Decorator for adding timeout to async functions., Context manager for timeout operations.      Usage:         async with TimeoutCo, Enter the timeout context., Exit the timeout context., Configuration for timeout behavior., Statistics for timeout operations. (+9 more)
+Cohesion: 0.06
+Nodes (18): Tests for DriftDetector class., Test DriftDetector initialization., Test DriftDetector with custom parameters., Test drift detection when no drift exists., Test drift detection when drift exists., Test drift detection on specific columns., Test that drift report has correct structure., Test FeatureDriftResult structure. (+10 more)
 
 ### Community 102 - "Community 102"
-Cohesion: 0.1
-Nodes (18): Observability Module for MLOps Agent  Provides structured logging, Prometheus me, LogContext, Context data attached to log entries., A structured log entry for JSON serialization., StructuredLogEntry, Metric, MetricLabel, MetricType (+10 more)
+Cohesion: 0.09
+Nodes (14): build_decision_input(), Decision Module for MLOps Agent. Generates graph-based execution plans with tool, Build input for decision module.      Args:         ctx: Context manager with ex, Tests for build_decision_input function., Test that build_decision_input returns correct structure., Test that build_decision_input creates proper run_id., Test that build_decision_input includes state., Test that build_decision_input includes completed steps. (+6 more)
 
 ### Community 103 - "Community 103"
 Cohesion: 0.07
-Nodes (27): Get improvement suggestions from LLM., Run the MLOps agent with a query.      Args:         query: User query (e.g., "S, Get improvement suggestions from LLM., Run the MLOps agent with a query.      Args:         query: User query (e.g., "S, Get improvement suggestions from LLM., Run the MLOps agent with a query.      Args:         query: User query (e.g., "S, Get improvement suggestions from LLM., Run the MLOps agent with a query.      Args:         query: User query (e.g., "S (+19 more)
+Nodes (20): ExperimentState, Check if accuracy threshold is met., Check if more improvement attempts are allowed., Get gap between current and target accuracy., Tracks the current ML experiment state., Create experiment state for a session.          Args:             agent_session_, Create experiment state for a session.          Args:             agent_session_, Tests for ExperimentState model. (+12 more)
 
 ### Community 104 - "Community 104"
-Cohesion: 0.1
-Nodes (15): Test basic distribution comparison., Test detecting distribution drift., Test comparing specific columns., Test handling non-existent reference file., Test handling non-existent current file., Test distribution comparison functions., TestCompareDistributions, Tests for compare_distributions MCP tool. (+7 more)
+Cohesion: 0.14
+Nodes (18): Colors, main(), print_header(), print_test(), Run all tests or filtered tests., Clean up test directory., Test Hydra configuration tools., Test MLflow experiment tracking tools. (+10 more)
 
 ### Community 105 - "Community 105"
-Cohesion: 0.1
-Nodes (21): load_imdb_data(), Load IMDB movie review dataset from local directory.      Expects directory stru, compute_metrics(), evaluate(), evaluate_model(), load_model(), load_model_for_eval(), main() (+13 more)
+Cohesion: 0.06
+Nodes (30): Test has_exceeded_retries when at limit., Test has_exceeded_retries when at limit., Test has_exceeded_retries when at limit., Test has_exceeded_retries when at limit., Test _should_summarize returns True when goal achieved., Test has_exceeded_retries when at limit., Test _needs_deployment returns True when stage is deploy., Test should_continue when within limits. (+22 more)
 
 ### Community 106 - "Community 106"
-Cohesion: 0.08
-Nodes (14): Tests for ModelMonitor class., Test ModelMonitor initialization., Test ModelMonitor with custom parameters., Test classification metrics calculation., Test regression metrics calculation., Test recording performance snapshots., Test retrieving snapshots., Test retrieving snapshots within time range. (+6 more)
+Cohesion: 0.06
+Nodes (30): Test recording step failures., Test recording step failures., Test recording step failures., Test recording step failures., Test has_exceeded_retries when within limit., Test should_continue when at limit., Test has_exceeded_retries when within limit., Test recording step failures. (+22 more)
 
 ### Community 107 - "Community 107"
-Cohesion: 0.1
-Nodes (15): Counter, Prometheus Counter metric.      Monotonically increasing counter that resets on, Increment the counter., Create a hashable key from labels., Tests for Prometheus Counter metric., Test creating a counter., Test incrementing counter., Test counter with labels. (+7 more)
+Cohesion: 0.08
+Nodes (22): Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa, Validate a dataset against a defined schema.      Args:         dataset_path: Pa (+14 more)
 
 ### Community 108 - "Community 108"
-Cohesion: 0.08
-Nodes (13): Test create-key with short argument forms., Test list-users argument parsing., Test list-keys argument parsing., Test list-keys with short argument forms., Test revoke-key argument parsing., Test revoke-key with short argument forms., Test that API URL has a default value., Test API key argument. (+5 more)
+Cohesion: 0.09
+Nodes (30): cmd_init(), cmd_monitor(), interactive_mode(), main(), print_banner(), print_help(), Print welcome banner., Print help information. (+22 more)
 
 ### Community 109 - "Community 109"
-Cohesion: 0.09
-Nodes (23): Tests for AgentLoop routing logic., Test _should_summarize returns False when not achieved., Tests for AgentLoop routing logic., Test _should_summarize returns False when not achieved., Test _should_summarize returns False when not achieved., Tests for StepExecutionTracker class., Test _should_summarize returns False when not achieved., Tests for AgentLoop routing logic. (+15 more)
+Cohesion: 0.07
+Nodes (31): detect_gpu_cuda(), Record the LitServe launch command without starting a server., Record live evidence intentionally absent from a local LitServe preflight., Record the LitServe launch command without starting a server., Record live evidence intentionally absent from a local LitServe preflight., Detect GPU availability from observed nvidia-smi and PyTorch CUDA checks., Generate or validate a Dockerfile for local LitServe preflight., Record live evidence intentionally absent from a local LitServe preflight. (+23 more)
 
 ### Community 110 - "Community 110"
-Cohesion: 0.08
-Nodes (13): Tests for helper methods that add specific expectations., Test add_not_null_expectation method., Test add_not_null_expectation with mostly parameter., Test add_unique_expectation method., Test add_range_expectation method., Test add_range_expectation with strict bounds., Test add_in_set_expectation method., Test add_regex_expectation method. (+5 more)
+Cohesion: 0.07
+Nodes (31): create_dvc_pipeline(), dvc_push(), dvc_reproduce(), Create DVC pipeline (dvc.yaml)., Push data to DVC remote., Create DVC pipeline (dvc.yaml)., Reproduce DVC pipeline., Initialize DVC in a repository. (+23 more)
 
 ### Community 111 - "Community 111"
-Cohesion: 0.13
-Nodes (21): execute_step(), Execute a single step by calling the specified MCP tool.      Args:         step, Execute a single step by calling the specified MCP tool.      Args:         step, test_execute_step_logs_error_on_exception(), test_execute_step_logs_info_on_execution(), Tests for execute_step async function., test_execute_async_tool_success(), test_execute_step_async_with_delay() (+13 more)
+Cohesion: 0.06
+Nodes (29): Test IMPROVE route constant., Test IMPROVE route constant., Test IMPROVE route constant., Test creating AgentLoop with custom tools module., Test that _initialize_session creates a session ID., Test IMPROVE route constant., Tests for Route constants., Test IMPROVE route constant. (+21 more)
 
 ### Community 112 - "Community 112"
-Cohesion: 0.15
-Nodes (14): get_cors_origins(), get_cors_origins(), Get CORS origins from environment variable.      Returns a list of allowed origi, Tests for get_cors_origins function., Test that default (unset env var) returns ['*']., Test that empty string returns ['*']., Test that whitespace-only string returns ['*']., Test parsing a single origin. (+6 more)
+Cohesion: 0.07
+Nodes (30): list_tools(), Record the Capstone Orchestrator skeleton without faking full capstone success., List all available MLOps tools., Record the Capstone Orchestrator skeleton without faking full capstone success., Record the Capstone Orchestrator skeleton without faking full capstone success., Record the Capstone Orchestrator skeleton without faking full capstone success., List all available MLOps tools., List all available MLOps tools. (+22 more)
 
 ### Community 113 - "Community 113"
-Cohesion: 0.09
-Nodes (12): Tests for AlertManager class., Test AlertManager initialization., Test adding alert configuration., Test removing alert configuration., Test alert checking and triggering., Test alert not triggering when threshold not breached., Test manual alert triggering., Test getting alerts with filters. (+4 more)
+Cohesion: 0.07
+Nodes (20): Test removing nonexistent configuration., Test no alert when above threshold., Test getting all configurations., Test no alert when above threshold., Test filtering alerts., Test filtering alerts., Test acknowledging nonexistent alert., Test acknowledging nonexistent alert. (+12 more)
 
 ### Community 114 - "Community 114"
-Cohesion: 0.09
-Nodes (13): env_example_content(), Load .env.example file content., Tests for .env.example file., Test that .env.example file exists., Test that DATABASE_URL is defined in .env.example., Test that DATABASE_URL has SQLite as default for development., Test that DATABASE_URL has PostgreSQL example for production., Test that LLM API keys are defined. (+5 more)
+Cohesion: 0.07
+Nodes (29): Get improvement suggestions from LLM., Run the MLOps agent with a query.      Args:         query: User query (e.g., "S, Get improvement suggestions from LLM., Run the MLOps agent with a query.      Args:         query: User query (e.g., "S, Get improvement suggestions from LLM., Run the MLOps agent with a query.      Args:         query: User query (e.g., "S, Get improvement suggestions from LLM., Run the MLOps agent with a query.      Args:         query: User query (e.g., "S (+21 more)
 
 ### Community 115 - "Community 115"
-Cohesion: 0.11
-Nodes (13): Histogram, Prometheus Histogram metric.      Tracks distribution of values with configurabl, Context manager for timing operations., Timer, Tests for Prometheus Histogram metric., Test creating a histogram., Test observing values in histogram., Test that histogram buckets are cumulative. (+5 more)
+Cohesion: 0.08
+Nodes (24): do_run_migrations(), get_async_database_url(), get_database_url(), is_async_database(), Alembic Environment Configuration for MLOps Agent.  Supports both synchronous an, Run migrations with an existing connection., Run migrations asynchronously.      Creates an async Engine and associates a con, Get database URL from environment or alembic.ini.      Priority:     1. DATABASE (+16 more)
 
 ### Community 116 - "Community 116"
-Cohesion: 0.12
-Nodes (17): compute_metrics(), create_model(), load_california_housing(), main(), Compute regression metrics.      Args:         y_true: Ground truth values, Train a sklearn model on California Housing dataset.      Args:         model_na, Main entry point with Hydra configuration.      Args:         cfg: Hydra configu, Load and prepare California Housing dataset.      Args:         test_size: Fract (+9 more)
+Cohesion: 0.08
+Nodes (17): async_search_past_experiments(), index_data(), Simple substring-based search fallback., Search for sessions with best metrics.          Args:             metric_name: M, Search for sessions with specific configuration.          Args:             conf, Load all session logs from database asynchronously., Explicitly load session data from database., Search for similar past sessions using fuzzy matching.          Args: (+9 more)
 
 ### Community 117 - "Community 117"
-Cohesion: 0.1
-Nodes (19): _check_numpy_torch_compatibility(), feature_names(), numpy_torch_compatible(), project_dir(), pytest_collection_modifyitems(), Pytest fixtures for tabular regression tests., Check if numpy and torchvision are compatible., Return the project directory path. (+11 more)
+Cohesion: 0.07
+Nodes (23): alert_manager(), classification_data(), current_data_no_drift(), current_data_with_drift(), drift_detector(), model_monitor(), Tests for the Model Monitoring Module.  Tests for DriftDetector, ConceptDriftDet, Create a DriftDetector instance. (+15 more)
 
 ### Community 118 - "Community 118"
 Cohesion: 0.09
-Nodes (12): Tests for JWTAuth class., Test creating a JWT token., Test creating token with roles., Test creating token with session IDs., Test creating token with custom expiration., Test verifying a valid token., Test verifying an expired token returns None., Test verifying invalid token format returns None. (+4 more)
+Nodes (17): Timeout Management for Async Operations.  Provides configurable timeouts for asy, Record a timed out call., Decorator for adding timeout to async functions., Context manager for timeout operations.      Usage:         async with TimeoutCo, Enter the timeout context., Exit the timeout context., Configuration for timeout behavior., Statistics for timeout operations. (+9 more)
 
 ### Community 119 - "Community 119"
-Cohesion: 0.09
-Nodes (22): configure_dvc_remote(), create_dvc_pipeline(), Configure DVC remote storage., Create DVC pipeline (dvc.yaml)., Configure DVC remote storage., Create DVC pipeline (dvc.yaml)., Configure DVC remote storage., Configure DVC remote storage. (+14 more)
+Cohesion: 0.07
+Nodes (27): Tests for run_mlops_agent convenience function., Tests for run_mlops_agent convenience function., Tests for run_mlops_agent convenience function., Tests for run_mlops_agent convenience function., Tests for run_mlops_agent convenience function., Test approved setup workflow approval allows tool execution., Tests for run_mlops_agent convenience function., Tests for run_mlops_agent convenience function. (+19 more)
 
 ### Community 120 - "Community 120"
-Cohesion: 0.13
-Nodes (10): MLOpsClient, List available MCP tools., Start an agent session without waiting for completion.          Args:, Get the status of a session.          Args:             session_id: The session, Run a query and wait for completion.          Args:             query: Natural l, List past sessions.          Args:             limit: Maximum number of sessions, Get system and agent metrics., Close the HTTP client. (+2 more)
+Cohesion: 0.08
+Nodes (14): Tests for ModelMonitor class., Test ModelMonitor initialization., Test ModelMonitor with custom parameters., Test classification metrics calculation., Test regression metrics calculation., Test recording performance snapshots., Test retrieving snapshots., Test retrieving snapshots within time range. (+6 more)
 
 ### Community 121 - "Community 121"
-Cohesion: 0.1
-Nodes (19): get_available_tools(), Get list of available MLOps tools., Get list of available MLOps tools., Get list of available MLOps tools., Get list of available MLOps tools., Get list of available MLOps tools., Get list of available MLOps tools., Get list of available MLOps tools. (+11 more)
+Cohesion: 0.08
+Nodes (19): Tests for AVAILABLE_TOOLS constant., Test AVAILABLE_TOOLS contains Hydra tools., Test AVAILABLE_TOOLS contains MLflow tools., Test AVAILABLE_TOOLS contains DVC tools., Test AVAILABLE_TOOLS contains Docker tools., Test AVAILABLE_TOOLS contains Docker tools., Test AVAILABLE_TOOLS contains GitHub Actions tools., Test AVAILABLE_TOOLS contains GitHub Actions tools. (+11 more)
 
 ### Community 122 - "Community 122"
-Cohesion: 0.11
-Nodes (21): _bounded_training_blocked_result(), _bounded_training_verification_results(), _find_training_artifacts(), _parse_training_metrics(), Run a detected training entrypoint with bounded controls and capture evidence., Run a detected training entrypoint with bounded controls and capture evidence., Run a detected training entrypoint with bounded controls and capture evidence., Run a detected training entrypoint with bounded controls and capture evidence. (+13 more)
+Cohesion: 0.1
+Nodes (24): test_setup_pipeline_captures_artifact_manifest_entry(), test_setup_pipeline_passing_contract_succeeds_from_structured_evidence(), test_artifact_manifest_entry_requires_path_or_uri_and_known_state(), test_artifact_manifest_rejects_unknown_producing_step_for_workflow(), test_build_capstone_pipeline_blocks_until_future_capabilities_are_implemented(), test_declared_rollback_plan_satisfies_litserve_rollback_readiness(), test_litserve_deployment_contract_requires_selected_model_and_generated_serving_artifact(), test_litserve_deployment_success_blocks_missing_rollback_readiness() (+16 more)
 
 ### Community 123 - "Community 123"
-Cohesion: 0.1
-Nodes (21): detect_gpu_cuda(), Record live evidence intentionally absent from a local LitServe preflight., Record live evidence intentionally absent from a local LitServe preflight., Detect GPU availability from observed nvidia-smi and PyTorch CUDA checks., Record live evidence intentionally absent from a local LitServe preflight., Record live evidence intentionally absent from a local LitServe preflight., Detect GPU availability from observed nvidia-smi and PyTorch CUDA checks., Record the LitServe launch command without starting a server. (+13 more)
+Cohesion: 0.09
+Nodes (10): mock_context_manager(), mock_prompts_dir(), perception(), Tests for Perception class initialization., Test creating Perception with valid prompt file., Test creating Perception with missing prompt file uses default., Test _load_prompt successfully reads file content., Test _load_prompt handles Unicode content. (+2 more)
 
 ### Community 124 - "Community 124"
-Cohesion: 0.11
-Nodes (18): AgentEventHandler, cmd_deploy(), cmd_validate(), interactive_mode(), main(), print_banner(), print_help(), Print welcome banner. (+10 more)
+Cohesion: 0.1
+Nodes (15): Counter, Prometheus Counter metric.      Monotonically increasing counter that resets on, Increment the counter., Create a hashable key from labels., Tests for Prometheus Counter metric., Test creating a counter., Test incrementing counter., Test counter with labels. (+7 more)
 
 ### Community 125 - "Community 125"
-Cohesion: 0.1
-Nodes (21): dvc_pull(), dvc_reproduce(), Pull data from DVC remote., Reproduce DVC pipeline., Pull data from DVC remote., Reproduce DVC pipeline., Pull data from DVC remote., Reproduce DVC pipeline. (+13 more)
+Cohesion: 0.11
+Nodes (18): create_synthetic_dataset(), download_imdb(), main(), prepare_california_housing(), prepare_cifar10(), prepare_synthetic_data(), Data preparation script for tabular regression., Prepare synthetic regression data for testing.      Args:         data_dir: Dire (+10 more)
 
 ### Community 126 - "Community 126"
-Cohesion: 0.1
-Nodes (7): async_engine(), async_session(), Create an async engine for testing., Create an async session for testing., Create a fresh SessionManager instance., session_manager(), test_broadcast_removes_disconnected_websockets()
+Cohesion: 0.13
+Nodes (15): ImageClassifier, Inference wrapper for the image classification model., Predict class for a single image.          Args:             image: Path to imag, Predict classes for multiple images.          Args:             images: List of, Test that classifier gives consistent results., Tests for ImageClassifier., Create and save a mock trained model., Create a sample image for testing. (+7 more)
 
 ### Community 127 - "Community 127"
-Cohesion: 0.12
-Nodes (19): mock_request(), mock_request_no_client(), mock_request_with_forwarded(), rate_limit_config(), rate_limit_disabled_config(), rate_limiter(), Create a mock FastAPI Request object., Tests for RateLimiter as FastAPI dependency. (+11 more)
+Cohesion: 0.08
+Nodes (13): Test create-key with short argument forms., Test list-users argument parsing., Test list-keys argument parsing., Test list-keys with short argument forms., Test revoke-key argument parsing., Test revoke-key with short argument forms., Test that API URL has a default value., Test API key argument. (+5 more)
 
 ### Community 128 - "Community 128"
-Cohesion: 0.11
-Nodes (11): CircuitBreakerError, Check if enough time has passed to try half-open., Transition to a new state., Record a successful call., Record a failed call., Record a rejected call (circuit open)., Check if a call can be executed., Get seconds until circuit might close. (+3 more)
+Cohesion: 0.12
+Nodes (14): Observability Module for MLOps Agent  Provides structured logging, Prometheus me, Metric, MetricLabel, MetricType, MetricValue, PrometheusRegistry, Prometheus Metrics Module  Provides Prometheus-compatible metrics for monitoring, Collect current metric values. (+6 more)
 
 ### Community 129 - "Community 129"
-Cohesion: 0.14
-Nodes (9): AsyncMLOpsClient, Make an async HTTP request., List available MCP tools., List past sessions.          Args:             limit: Maximum number of sessions, Get system and agent metrics., Close the HTTP client., Asynchronous client for the Auto-MLOps API with WebSocket support.      Usage:, Initialize the async client.          Args:             api_key: API key for aut (+1 more)
+Cohesion: 0.08
+Nodes (23): create_ml_dockerfile(), dvc_pull(), Pull data from DVC remote., Create Dockerfile for ML project., Pull data from DVC remote., Create Dockerfile for ML project., Pull data from DVC remote., Pull data from DVC remote. (+15 more)
 
 ### Community 130 - "Community 130"
-Cohesion: 0.1
-Nodes (11): Test paths config is valid., Tests for configuration file validity., Test that main config file exists., Test that model config files exist., Test TextCNN config is valid., Test DistilBERT config is valid., Test that training config files exist., Test training config is valid. (+3 more)
+Cohesion: 0.13
+Nodes (21): execute_step(), Execute a single step by calling the specified MCP tool.      Args:         step, Execute a single step by calling the specified MCP tool.      Args:         step, test_execute_step_logs_error_on_exception(), test_execute_step_logs_info_on_execution(), Tests for execute_step async function., test_execute_async_tool_success(), test_execute_step_async_with_delay() (+13 more)
 
 ### Community 131 - "Community 131"
-Cohesion: 0.13
-Nodes (10): Gauge, Create a hashable key from labels., Create a hashable key from labels., Prometheus Gauge metric.      Can go up and down, represents current state., Tests for Prometheus Gauge metric., Test creating a gauge., Test setting gauge value., Test incrementing and decrementing gauge. (+2 more)
+Cohesion: 0.08
+Nodes (13): Tests for helper methods that add specific expectations., Test add_not_null_expectation method., Test add_not_null_expectation with mostly parameter., Test add_unique_expectation method., Test add_range_expectation method., Test add_range_expectation with strict bounds., Test add_in_set_expectation method., Test add_regex_expectation method. (+5 more)
 
 ### Community 132 - "Community 132"
-Cohesion: 0.11
-Nodes (13): clean_registry(), Tests for LoggerFactory class., Test getting a new logger creates it., Test getting the same logger returns same instance., Test that configure changes default settings., Tests for get_logger convenience function., Test the get_logger convenience function., Tests for get_structlog_logger function. (+5 more)
+Cohesion: 0.08
+Nodes (13): Test null value checking., Test range validation., Test range validation failure., Test pattern validation., Test allowed values validation., Test allowed values validation failure., Test duplicate row detection., Test clearing validation rules. (+5 more)
 
 ### Community 133 - "Community 133"
-Cohesion: 0.14
-Nodes (12): _format_args(), Format args for logging (truncate long values)., Format args for logging (truncate long values)., Tests for _format_args helper., Test formatting simple arguments., Test that long values are truncated., Test formatting empty arguments., Test formatting args with special characters. (+4 more)
+Cohesion: 0.15
+Nodes (14): get_cors_origins(), get_cors_origins(), Get CORS origins from environment variable.      Returns a list of allowed origi, Tests for get_cors_origins function., Test that default (unset env var) returns ['*']., Test that empty string returns ['*']., Test that whitespace-only string returns ['*']., Test parsing a single origin. (+6 more)
 
 ### Community 134 - "Community 134"
-Cohesion: 0.17
-Nodes (11): MLOpsStepNode, Add a new step node to the graph., Represents a node in the MLOps execution graph., mlops_step_node(), Create a sample MLOpsStepNode for testing., Tests for MLOpsStepNode dataclass., Test creating a step node with required fields., Test creating a step node with tool configuration. (+3 more)
+Cohesion: 0.09
+Nodes (12): Tests for AlertManager class., Test AlertManager initialization., Test adding alert configuration., Test removing alert configuration., Test alert checking and triggering., Test alert not triggering when threshold not breached., Test manual alert triggering., Test getting alerts with filters. (+4 more)
 
 ### Community 135 - "Community 135"
 Cohesion: 0.11
-Nodes (10): Test threshold checking., Test improvement attempt checking., Test accuracy gap calculation., Test recording improvement attempts., Test serializing experiment state to dict., Tests for ExperimentState dataclass., Test creating experiment state with defaults., Test updating metrics. (+2 more)
+Nodes (13): Histogram, Prometheus Histogram metric.      Tracks distribution of values with configurabl, Context manager for timing operations., Timer, Tests for Prometheus Histogram metric., Test creating a histogram., Test observing values in histogram., Test that histogram buckets are cumulative. (+5 more)
 
 ### Community 136 - "Community 136"
-Cohesion: 0.11
-Nodes (10): Test /metrics response has time series history arrays., Tests for /metrics endpoint., Test /metrics endpoint returns 200 status., Test /metrics returns JSON content type., Test /metrics response has timestamp., Test /metrics response has system metrics., Test /metrics response has agent metrics., Test /metrics response has pipeline metrics. (+2 more)
+Cohesion: 0.09
+Nodes (13): env_example_content(), Load .env.example file content., Tests for .env.example file., Test that .env.example file exists., Test that DATABASE_URL is defined in .env.example., Test that DATABASE_URL has SQLite as default for development., Test that DATABASE_URL has PostgreSQL example for production., Test that LLM API keys are defined. (+5 more)
 
 ### Community 137 - "Community 137"
 Cohesion: 0.12
-Nodes (18): _capstone_dvc_tracking_result(), _capstone_lineage_artifacts(), _capstone_package_paths_from_split_records(), _configure_capstone_dvc_remote(), _ensure_local_dvc_repo(), Validate/init local DVC and track generated capstone package paths., Validate/init local DVC and track generated capstone package paths., Validate/init local DVC and track generated capstone package paths. (+10 more)
+Nodes (17): compute_metrics(), create_model(), load_california_housing(), main(), Compute regression metrics.      Args:         y_true: Ground truth values, Train a sklearn model on California Housing dataset.      Args:         model_na, Main entry point with Hydra configuration.      Args:         cfg: Hydra configu, Load and prepare California Housing dataset.      Args:         test_size: Fract (+9 more)
 
 ### Community 138 - "Community 138"
-Cohesion: 0.11
-Nodes (10): Tests that verify endpoints have the rate limit decorator., Verify /health endpoint has request parameter for rate limiting., Verify /run endpoint has request parameter for rate limiting., Verify /status/{session_id} endpoint has request parameter., Verify /sessions endpoint has request parameter., Verify /metrics endpoint has request parameter., Verify POST /logs endpoint has request parameter., Verify POST /admin/users endpoint has request parameter. (+2 more)
+Cohesion: 0.1
+Nodes (19): get_available_tools(), Get list of available MLOps tools., Get list of available MLOps tools., Get list of available MLOps tools., Get list of available MLOps tools., Get list of available MLOps tools., Get list of available MLOps tools., Get list of available MLOps tools. (+11 more)
 
 ### Community 139 - "Community 139"
-Cohesion: 0.13
-Nodes (10): AdaptiveTimeout, Adaptive timeout that adjusts based on historical performance.      Tracks opera, Record an operation duration., Update the timeout based on recorded durations., Decorator for adding adaptive timeout to async functions., Tests for AdaptiveTimeout class., Test initial timeout value., Test timeout adjusts based on recorded durations. (+2 more)
+Cohesion: 0.11
+Nodes (15): Tests for security headers., Test default security headers., Test overriding default headers., test_security_headers_middleware(), TestSecurityHeaders, Security headers configuration.      Provides recommended security headers for H, Get all security headers., Middleware to add security headers to all responses.      Usage:         app.mid (+7 more)
 
 ### Community 140 - "Community 140"
-Cohesion: 0.12
-Nodes (17): estimate_deployment_cost(), Estimate monthly cost for basic deployment usage., Estimate monthly cost for basic deployment usage., Estimate monthly cost for basic deployment usage., Estimate monthly cost for basic deployment usage., Estimate monthly cost for basic deployment usage., Estimate monthly cost for basic deployment usage., Estimate monthly cost for basic deployment usage. (+9 more)
+Cohesion: 0.09
+Nodes (12): Tests for JWTAuth class., Test creating a JWT token., Test creating token with roles., Test creating token with session IDs., Test creating token with custom expiration., Test verifying a valid token., Test verifying an expired token returns None., Test verifying invalid token format returns None. (+4 more)
 
 ### Community 141 - "Community 141"
-Cohesion: 0.12
-Nodes (17): generate_iam_policy(), Generate a least-privilege IAM policy document., Create TorchServe custom handler., Generate a least-privilege IAM policy document., Generate a least-privilege IAM policy document., Generate a least-privilege IAM policy document., Generate a least-privilege IAM policy document., Generate a least-privilege IAM policy document. (+9 more)
+Cohesion: 0.13
+Nodes (10): MLOpsClient, Start an agent session without waiting for completion.          Args:, Get the status of a session.          Args:             session_id: The session, Run a query and wait for completion.          Args:             query: Natural l, List past sessions.          Args:             limit: Maximum number of sessions, Get system and agent metrics., Close the HTTP client., Synchronous client for the Auto-MLOps API.      Usage:         client = MLOpsCli (+2 more)
 
 ### Community 142 - "Community 142"
-Cohesion: 0.12
-Nodes (17): create_fastapi_app(), Create FastAPI application for model serving., Create FastAPI application for model serving., Create FastAPI application for model serving., Create FastAPI application for model serving., Create FastAPI application for model serving., Create FastAPI application for model serving., Create FastAPI application for model serving. (+9 more)
+Cohesion: 0.09
+Nodes (12): Tests for DataProfiler class., Test basic profiling., Test column-level statistics., Test categorical column statistics., Test missing value statistics., Test duplicate row detection in profile., Test outlier detection., Test missing value anomaly detection. (+4 more)
 
 ### Community 143 - "Community 143"
-Cohesion: 0.12
-Nodes (17): deploy_to_huggingface(), Deploy Gradio app to Hugging Face Spaces., Deploy Gradio app to Hugging Face Spaces., Deploy Gradio app to Hugging Face Spaces., Deploy Gradio app to Hugging Face Spaces., Deploy Gradio app to Hugging Face Spaces., Deploy Gradio app to Hugging Face Spaces., Deploy Gradio app to Hugging Face Spaces. (+9 more)
+Cohesion: 0.1
+Nodes (19): _check_numpy_torch_compatibility(), feature_names(), numpy_torch_compatible(), project_dir(), pytest_collection_modifyitems(), Pytest fixtures for tabular regression tests., Check if numpy and torchvision are compatible., Return the project directory path. (+11 more)
 
 ### Community 144 - "Community 144"
-Cohesion: 0.12
-Nodes (17): generate_rollback_plan(), Generate a rollback plan with suggested commands., Generate a rollback plan with suggested commands., Generate a rollback plan with suggested commands., Generate a rollback plan with suggested commands., Generate a rollback plan with suggested commands., Generate a rollback plan with suggested commands., Generate a rollback plan with suggested commands. (+9 more)
+Cohesion: 0.14
+Nodes (10): Tests for rate limiting., Test that requests within limit are allowed., Test that rate limit is enforced., Test getting remaining requests., Test that rate limiting can be disabled., Test client ID extraction from X-Forwarded-For header., test_require_rate_limit_decorator(), TestRateLimiter (+2 more)
 
 ### Community 145 - "Community 145"
-Cohesion: 0.12
-Nodes (17): configure_litserver(), Configure LitServe server settings., Configure LitServe server settings., Configure LitServe server settings., Configure LitServe server settings., Configure LitServe server settings., Configure LitServe server settings., Configure LitServe server settings. (+9 more)
+Cohesion: 0.1
+Nodes (15): Tests for ConceptDriftDetector class., Tests for ConceptDriftDetector class., Test ConceptDriftDetector initialization., Test concept drift detection with no drift., Test ConceptDriftDetector initialization., Test concept drift detection with drift present., Test concept drift detection with no drift., Test concept drift detection without prediction column. (+7 more)
 
 ### Community 146 - "Community 146"
-Cohesion: 0.12
-Nodes (17): generate_torchserve_config(), Generate TorchServe configuration., Generate TorchServe configuration., Generate TorchServe configuration., Generate TorchServe configuration., Generate TorchServe configuration., Generate TorchServe configuration., Generate TorchServe configuration. (+9 more)
+Cohesion: 0.1
+Nodes (15): Tests for ModelMonitor class., Test ModelMonitor initialization., Tests for ModelMonitor class., Test ModelMonitor initialization., Test classification metrics with probabilities., Test classification metrics with probabilities., Test recording a performance snapshot., Test recording a performance snapshot. (+7 more)
 
 ### Community 147 - "Community 147"
 Cohesion: 0.12
-Nodes (17): create_k8s_service_yaml(), Create Kubernetes Service YAML., Create Kubernetes Service YAML., Create Kubernetes Service YAML., Create Kubernetes Service YAML., Create Kubernetes Service YAML., Create Kubernetes Service YAML., Create Kubernetes Service YAML. (+9 more)
+Nodes (19): mock_request(), mock_request_no_client(), mock_request_with_forwarded(), rate_limit_config(), rate_limit_disabled_config(), rate_limiter(), Create a mock FastAPI Request object., Tests for RateLimiter as FastAPI dependency. (+11 more)
 
 ### Community 148 - "Community 148"
-Cohesion: 0.12
-Nodes (17): create_k8s_secret_yaml(), Create Kubernetes Secret YAML., Create Kubernetes Secret YAML., Create Kubernetes Secret YAML., Create Kubernetes Secret YAML., Create Kubernetes Secret YAML., Create Kubernetes Secret YAML., Create Kubernetes Secret YAML. (+9 more)
+Cohesion: 0.14
+Nodes (9): AsyncMLOpsClient, Make an async HTTP request., List available MCP tools., List past sessions.          Args:             limit: Maximum number of sessions, Get system and agent metrics., Close the HTTP client., Asynchronous client for the Auto-MLOps API with WebSocket support.      Usage:, Initialize the async client.          Args:             api_key: API key for aut (+1 more)
 
 ### Community 149 - "Community 149"
-Cohesion: 0.12
-Nodes (17): create_helm_chart(), Create a Helm chart for Kubernetes deployment., Create a Helm chart for Kubernetes deployment., Create a Helm chart for Kubernetes deployment., Create a Helm chart for Kubernetes deployment., Create a Helm chart for Kubernetes deployment., Create a Helm chart for Kubernetes deployment., Create a Helm chart for Kubernetes deployment. (+9 more)
+Cohesion: 0.1
+Nodes (11): Test paths config is valid., Tests for configuration file validity., Test that main config file exists., Test that model config files exist., Test TextCNN config is valid., Test DistilBERT config is valid., Test that training config files exist., Test training config is valid. (+3 more)
 
 ### Community 150 - "Community 150"
-Cohesion: 0.12
-Nodes (17): create_inference_service_yaml(), Create KServe InferenceService YAML., Create KServe InferenceService YAML., Create KServe InferenceService YAML., Create KServe InferenceService YAML., Create KServe InferenceService YAML., Create KServe InferenceService YAML., Create KServe InferenceService YAML. (+9 more)
+Cohesion: 0.11
+Nodes (6): async_engine(), async_session(), Create an async engine for testing., Create an async session for testing., Create a fresh SessionManager instance., session_manager()
 
 ### Community 151 - "Community 151"
-Cohesion: 0.12
-Nodes (7): mock_config(), model_manager(), Tests for ModelManager LLM fallback chain functionality., Test model configuration., Create a ModelManager with test config., test_all_models_fail_raises_error(), test_fallback_disabled()
+Cohesion: 0.11
+Nodes (13): clean_registry(), Tests for LoggerFactory class., Test getting a new logger creates it., Test getting the same logger returns same instance., Test that configure changes default settings., Tests for get_logger convenience function., Test the get_logger convenience function., Tests for get_structlog_logger function. (+5 more)
 
 ### Community 152 - "Community 152"
-Cohesion: 0.12
-Nodes (17): create_k8s_configmap_yaml(), Create Kubernetes ConfigMap YAML., Create Kubernetes ConfigMap YAML., Create Kubernetes ConfigMap YAML., Create Kubernetes ConfigMap YAML., Create Kubernetes ConfigMap YAML., Create Kubernetes ConfigMap YAML., Create Kubernetes ConfigMap YAML. (+9 more)
+Cohesion: 0.13
+Nodes (10): Gauge, Create a hashable key from labels., Create a hashable key from labels., Prometheus Gauge metric.      Can go up and down, represents current state., Tests for Prometheus Gauge metric., Test creating a gauge., Test setting gauge value., Test incrementing and decrementing gauge. (+2 more)
 
 ### Community 153 - "Community 153"
-Cohesion: 0.12
-Nodes (17): create_lambda_dockerfile(), Create Dockerfile for AWS Lambda deployment., Create Dockerfile for AWS Lambda deployment., Create Dockerfile for AWS Lambda deployment., Create Dockerfile for AWS Lambda deployment., Create Dockerfile for AWS Lambda deployment., Create Dockerfile for AWS Lambda deployment., Create Dockerfile for AWS Lambda deployment. (+9 more)
+Cohesion: 0.14
+Nodes (12): _format_args(), Format args for logging (truncate long values)., Format args for logging (truncate long values)., Tests for _format_args helper., Test formatting simple arguments., Test that long values are truncated., Test formatting empty arguments., Test formatting args with special characters. (+4 more)
 
 ### Community 154 - "Community 154"
-Cohesion: 0.12
-Nodes (15): Suggest improvements based on training results., Suggest improvements based on training results., Suggest improvements based on training results., Suggest improvements based on training results., Suggest improvements based on training results., Suggest improvements based on training results., Suggest improvements based on training results., Suggest improvements based on training results. (+7 more)
+Cohesion: 0.11
+Nodes (10): Test that sklearn integration works., Test Evidently library integration for drift detection., Test fallback drift detection without Evidently., Test drift detection for categorical features., Test drift detection handles NaN values correctly., Test that drift reports can be serialized to JSON., Test running multiple drift checks on the same detector., Integration tests for the monitoring module. (+2 more)
 
 ### Community 155 - "Community 155"
-Cohesion: 0.12
-Nodes (17): Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl. (+9 more)
+Cohesion: 0.17
+Nodes (11): MLOpsStepNode, Add a new step node to the graph., Represents a node in the MLOps execution graph., mlops_step_node(), Create a sample MLOpsStepNode for testing., Tests for MLOpsStepNode dataclass., Test creating a step node with required fields., Test creating a step node with tool configuration. (+3 more)
 
 ### Community 156 - "Community 156"
-Cohesion: 0.12
-Nodes (11): Tests for AVAILABLE_TOOLS constant., Test AVAILABLE_TOOLS contains Hydra tools., Test AVAILABLE_TOOLS contains MLflow tools., Test AVAILABLE_TOOLS contains DVC tools., Test AVAILABLE_TOOLS contains Docker tools., Test AVAILABLE_TOOLS contains Docker tools., Test AVAILABLE_TOOLS contains GitHub Actions tools., Test AVAILABLE_TOOLS contains GitHub Actions tools. (+3 more)
+Cohesion: 0.11
+Nodes (10): Test threshold checking., Test improvement attempt checking., Test accuracy gap calculation., Test recording improvement attempts., Test serializing experiment state to dict., Tests for ExperimentState dataclass., Test creating experiment state with defaults., Test updating metrics. (+2 more)
 
 ### Community 157 - "Community 157"
-Cohesion: 0.12
-Nodes (16): Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools. (+8 more)
+Cohesion: 0.11
+Nodes (17): current_json(), current_no_drift_csv(), current_parquet(), current_with_drift_csv(), Pytest tests for detect_data_drift MCP Tool  Tests for the detect_data_drift MCP, Create a reference JSON file for drift detection., Create a current JSON file with drift., Create a temporary directory for test files. (+9 more)
 
 ### Community 158 - "Community 158"
-Cohesion: 0.12
-Nodes (9): Tests for config directory structure., Test that config directory exists., Test that main config.yaml exists., Test that model configs exist., Test that training configs exist., Test that data configs exist., Test that paths configs exist., Test that experiment configs exist. (+1 more)
+Cohesion: 0.11
+Nodes (10): Test that expired keys fail verification., Test that verification updates last_used_at., Test verification with required scope present., Test verification fails when required scope is missing., Tests for API key verification., Test verifying a valid key., Test verifying an invalid key., Test verifying an empty key. (+2 more)
 
 ### Community 159 - "Community 159"
-Cohesion: 0.12
-Nodes (14): get_async_config(), get_async_db(), get_async_session_factory(), Async Database Session Module for MLOps Agent.  Provides async PostgreSQL connec, Get or create async session factory singleton.      Returns:         Async SQLAl, FastAPI dependency for async database sessions.      Usage in FastAPI endpoints:, Get async database configuration singleton.      Returns:         AsyncDatabaseC, test_close_async_db_resets_singletons() (+6 more)
+Cohesion: 0.11
+Nodes (10): Test /metrics response has time series history arrays., Tests for /metrics endpoint., Test /metrics endpoint returns 200 status., Test /metrics returns JSON content type., Test /metrics response has timestamp., Test /metrics response has system metrics., Test /metrics response has agent metrics., Test /metrics response has pipeline metrics. (+2 more)
 
 ### Community 160 - "Community 160"
-Cohesion: 0.12
-Nodes (16): create_gradio_interface(), Create Gradio interface for model demo., Create Gradio interface for model demo., Create Gradio interface for model demo., Create Gradio interface for model demo., Create Gradio interface for model demo., Create Gradio interface for model demo., Create Gradio interface for model demo. (+8 more)
+Cohesion: 0.11
+Nodes (10): Tests that verify endpoints have the rate limit decorator., Verify /health endpoint has request parameter for rate limiting., Verify /run endpoint has request parameter for rate limiting., Verify /status/{session_id} endpoint has request parameter., Verify /sessions endpoint has request parameter., Verify /sessions/{session_id} endpoint has request parameter., Verify /metrics/agent endpoint has request parameter., Verify POST /logs endpoint has request parameter. (+2 more)
 
 ### Community 161 - "Community 161"
 Cohesion: 0.12
-Nodes (16): list_tools(), List all available MLOps tools., List all available MLOps tools., List all available MLOps tools., List all available MLOps tools., List all available MLOps tools., List all available MLOps tools., List all available MLOps tools. (+8 more)
+Nodes (15): Access the circuit breaker for monitoring or testing., Get circuit breaker statistics., Check if the circuit breaker is in open state., Check if the circuit breaker is in open state., Check if the circuit breaker is in open state., Check if the circuit breaker is in open state., Check if the circuit breaker is in open state., Get circuit breaker statistics. (+7 more)
 
 ### Community 162 - "Community 162"
 Cohesion: 0.12
-Nodes (16): Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence. (+8 more)
+Nodes (17): create_k8s_secret_yaml(), Create Kubernetes Secret YAML., Create Kubernetes Secret YAML., Create Kubernetes Secret YAML., Create Kubernetes Secret YAML., Create Kubernetes Secret YAML., Create Kubernetes Secret YAML., Create Kubernetes Secret YAML. (+9 more)
 
 ### Community 163 - "Community 163"
 Cohesion: 0.12
-Nodes (16): get_ecr_login(), Get ECR login command., Get ECR login command., Get ECR login command., Get ECR login command., Get ECR login command., Get ECR login command., Get ECR login command. (+8 more)
+Nodes (17): generate_rollback_plan(), Generate a rollback plan with suggested commands., Generate a rollback plan with suggested commands., Generate a rollback plan with suggested commands., Generate a rollback plan with suggested commands., Generate a rollback plan with suggested commands., Generate a rollback plan with suggested commands., Generate a rollback plan with suggested commands. (+9 more)
 
 ### Community 164 - "Community 164"
 Cohesion: 0.12
-Nodes (16): create_ecr_repo(), _ensure_boto3(), Create or get an ECR repository., Create or get an ECR repository., Create or get an ECR repository., Create or get an ECR repository., Create or get an ECR repository., Create or get an ECR repository. (+8 more)
+Nodes (17): create_inference_service_yaml(), Create KServe InferenceService YAML., Create KServe InferenceService YAML., Create KServe InferenceService YAML., Create KServe InferenceService YAML., Create KServe InferenceService YAML., Create KServe InferenceService YAML., Create KServe InferenceService YAML. (+9 more)
 
 ### Community 165 - "Community 165"
 Cohesion: 0.12
-Nodes (16): capture_litserve_logs_and_endpoint(), Record endpoint URL and server log location as observed deployment evidence., Record endpoint URL and server log location as observed deployment evidence., Record endpoint URL and server log location as observed deployment evidence., Record endpoint URL and server log location as observed deployment evidence., Record endpoint URL and server log location as observed deployment evidence., Record endpoint URL and server log location as observed deployment evidence., Record endpoint URL and server log location as observed deployment evidence. (+8 more)
+Nodes (17): create_k8s_service_yaml(), Create Kubernetes Service YAML., Create Kubernetes Service YAML., Create Kubernetes Service YAML., Create Kubernetes Service YAML., Create Kubernetes Service YAML., Create Kubernetes Service YAML., Create Kubernetes Service YAML. (+9 more)
 
 ### Community 166 - "Community 166"
-Cohesion: 0.2
-Nodes (16): _approved_transfer_record(), _container_build_result(), _registry_target_result(), test_pull_capstone_data_blocks_missing_credentials(), test_pull_capstone_data_records_observed_transfer_evidence(), test_push_capstone_data_blocks_when_dvc_is_missing(), test_push_capstone_data_blocks_without_validated_s3_remote(), test_push_capstone_data_denied_approval_blocks_without_transfer() (+8 more)
+Cohesion: 0.12
+Nodes (17): generate_torchserve_config(), Generate TorchServe configuration., Generate TorchServe configuration., Generate TorchServe configuration., Generate TorchServe configuration., Generate TorchServe configuration., Generate TorchServe configuration., Generate TorchServe configuration. (+9 more)
 
 ### Community 167 - "Community 167"
 Cohesion: 0.12
-Nodes (16): Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence. (+8 more)
+Nodes (17): configure_litserver(), Configure LitServe server settings., Configure LitServe server settings., Configure LitServe server settings., Configure LitServe server settings., Configure LitServe server settings., Configure LitServe server settings., Configure LitServe server settings. (+9 more)
 
 ### Community 168 - "Community 168"
 Cohesion: 0.12
-Nodes (16): generate_cdk_stack(), Generate AWS CDK stack for Lambda deployment., Generate AWS CDK stack for Lambda deployment., Generate AWS CDK stack for Lambda deployment., Generate AWS CDK stack for Lambda deployment., Generate AWS CDK stack for Lambda deployment., Generate AWS CDK stack for Lambda deployment., Generate AWS CDK stack for Lambda deployment. (+8 more)
+Nodes (17): create_helm_chart(), Create a Helm chart for Kubernetes deployment., Create a Helm chart for Kubernetes deployment., Create a Helm chart for Kubernetes deployment., Create a Helm chart for Kubernetes deployment., Create a Helm chart for Kubernetes deployment., Create a Helm chart for Kubernetes deployment., Create a Helm chart for Kubernetes deployment. (+9 more)
 
 ### Community 169 - "Community 169"
 Cohesion: 0.12
-Nodes (9): Tests for detect_anomalies MCP tool., Test basic anomaly detection., Test anomaly detection with specific methods., Test anomaly detection with custom thresholds., Test that clear outliers are detected., Test that duplicates are detected., Test error handling for non-existent file., Test that affected percentage is calculated. (+1 more)
+Nodes (17): create_k8s_hpa_yaml(), Create Kubernetes HPA YAML., Create Kubernetes HPA YAML., Create Kubernetes HPA YAML., Create Kubernetes HPA YAML., Create Kubernetes HPA YAML., Create Kubernetes HPA YAML., Create Kubernetes HPA YAML. (+9 more)
 
 ### Community 170 - "Community 170"
 Cohesion: 0.12
-Nodes (15): Test circuit is initially closed., Test circuit is initially closed., Test circuit is initially closed., Test circuit is initially closed., Test should_continue when within limits., Test circuit is initially closed., Test circuit is initially closed., Test circuit is initially closed. (+7 more)
+Nodes (17): deploy_to_huggingface(), Deploy Gradio app to Hugging Face Spaces., Deploy Gradio app to Hugging Face Spaces., Deploy Gradio app to Hugging Face Spaces., Deploy Gradio app to Hugging Face Spaces., Deploy Gradio app to Hugging Face Spaces., Deploy Gradio app to Hugging Face Spaces., Deploy Gradio app to Hugging Face Spaces. (+9 more)
 
 ### Community 171 - "Community 171"
 Cohesion: 0.12
-Nodes (15): Test recording step failures., Test recording step failures., Test recording step failures., Test recording step failures., Test recording step failures., Test recording step failures., Test recording step failures., Test recording step failures. (+7 more)
+Nodes (17): estimate_deployment_cost(), Estimate monthly cost for basic deployment usage., Estimate monthly cost for basic deployment usage., Estimate monthly cost for basic deployment usage., Estimate monthly cost for basic deployment usage., Estimate monthly cost for basic deployment usage., Estimate monthly cost for basic deployment usage., Estimate monthly cost for basic deployment usage. (+9 more)
 
 ### Community 172 - "Community 172"
 Cohesion: 0.12
-Nodes (15): Test retry step ID with no failures., Test retry step ID with no failures., Test retry step ID with no failures., Test retry step ID with no failures., Test retry step ID with no failures., Test retry step ID with no failures., Test retry step ID with no failures., Test retry step ID with no failures. (+7 more)
+Nodes (17): generate_iam_policy(), Generate a least-privilege IAM policy document., Create TorchServe custom handler., Generate a least-privilege IAM policy document., Generate a least-privilege IAM policy document., Generate a least-privilege IAM policy document., Generate a least-privilege IAM policy document., Generate a least-privilege IAM policy document. (+9 more)
 
 ### Community 173 - "Community 173"
 Cohesion: 0.12
-Nodes (9): Test that sklearn integration works., Test Evidently library integration for drift detection., Test fallback drift detection without Evidently., Test drift detection for categorical features., Test drift detection handles NaN values correctly., Test that drift reports can be serialized to JSON., Test running multiple drift checks on the same detector., Integration tests for the monitoring module. (+1 more)
+Nodes (15): Suggest improvements based on training results., Suggest improvements based on training results., Suggest improvements based on training results., Suggest improvements based on training results., Suggest improvements based on training results., Suggest improvements based on training results., Suggest improvements based on training results., Suggest improvements based on training results. (+7 more)
 
 ### Community 174 - "Community 174"
 Cohesion: 0.12
-Nodes (16): Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI. (+8 more)
+Nodes (17): create_lambda_dockerfile(), Create Dockerfile for AWS Lambda deployment., Create Dockerfile for AWS Lambda deployment., Create Dockerfile for AWS Lambda deployment., Create Dockerfile for AWS Lambda deployment., Create Dockerfile for AWS Lambda deployment., Create Dockerfile for AWS Lambda deployment., Create Dockerfile for AWS Lambda deployment. (+9 more)
 
 ### Community 175 - "Community 175"
 Cohesion: 0.12
-Nodes (16): Rollback a deployment based on target type., Rollback a deployment based on target type., Rollback a deployment based on target type., Rollback a deployment based on target type., Rollback a deployment based on target type., Rollback a deployment based on target type., Rollback a deployment based on target type., Rollback a deployment based on target type. (+8 more)
+Nodes (17): _capstone_dvc_tracking_result(), _capstone_package_paths_from_split_records(), _configure_capstone_dvc_remote(), _ensure_local_dvc_repo(), Validate/init local DVC and track generated capstone package paths., Validate/init local DVC and track generated capstone package paths., Validate/init local DVC and track generated capstone package paths., Validate/init local DVC and track generated capstone package paths. (+9 more)
 
 ### Community 176 - "Community 176"
 Cohesion: 0.12
-Nodes (16): Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions. (+8 more)
+Nodes (17): Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl., Rollback a Kubernetes deployment using kubectl. (+9 more)
 
 ### Community 177 - "Community 177"
 Cohesion: 0.12
-Nodes (16): Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy). (+8 more)
+Nodes (16): Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools., Test AVAILABLE_TOOLS has expected number of tools. (+8 more)
 
 ### Community 178 - "Community 178"
-Cohesion: 0.17
-Nodes (13): clear_log_context(), get_log_context(), Get the current logging context., Set values in the logging context., Clear the logging context., set_log_context(), Tests for log context functions., Test setting and getting log context. (+5 more)
+Cohesion: 0.12
+Nodes (17): create_k8s_configmap_yaml(), Create Kubernetes ConfigMap YAML., Create Kubernetes ConfigMap YAML., Create Kubernetes ConfigMap YAML., Create Kubernetes ConfigMap YAML., Create Kubernetes ConfigMap YAML., Create Kubernetes ConfigMap YAML., Create Kubernetes ConfigMap YAML. (+9 more)
 
 ### Community 179 - "Community 179"
 Cohesion: 0.12
-Nodes (15): Test DEPLOY route constant., Test DEPLOY route constant., Test DEPLOY route constant., Test DEPLOY route constant., Test DEPLOY route constant., Test DEPLOY route constant., Test DEPLOY route constant., Test DEPLOY route constant. (+7 more)
+Nodes (9): Tests for config directory structure., Test that config directory exists., Test that main config.yaml exists., Test that model configs exist., Test that training configs exist., Test that data configs exist., Test that paths configs exist., Test that experiment configs exist. (+1 more)
 
 ### Community 180 - "Community 180"
 Cohesion: 0.12
-Nodes (9): Tests that verify Hydra config structure matches README documentation., Test that configs directory exists., Test that main config.yaml exists., Test that model config files exist., Test that training config files exist., Test that data config files exist., Test that paths config files exist., Test that experiment config files exist. (+1 more)
+Nodes (16): Test _should_summarize returns False when not achieved., Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying. (+8 more)
 
 ### Community 181 - "Community 181"
 Cohesion: 0.12
-Nodes (9): Test paths config loads and has required fields., Test baseline experiment config loads., Test high_accuracy experiment config loads., Tests for sklearn config content validity., Test Ridge config loads and has required fields., Test RandomForest config loads and has required fields., Test GradientBoosting config loads and has required fields., Test data config loads and has required fields. (+1 more)
+Nodes (16): create_k8s_deployment_yaml(), Create Kubernetes Deployment YAML., Create Kubernetes Deployment YAML., Create Kubernetes Deployment YAML., Create Kubernetes Deployment YAML., Create Kubernetes Deployment YAML., Create Kubernetes Deployment YAML., Create Kubernetes Deployment YAML. (+8 more)
 
 ### Community 182 - "Community 182"
 Cohesion: 0.12
-Nodes (9): Tests for sklearn config directory structure., Test that config directory exists., Test that main config.yaml exists., Test that model configs exist., Test that training configs exist., Test that data configs exist., Test that paths configs exist., Test that experiment configs exist. (+1 more)
+Nodes (16): create_torchserve_handler(), Create TorchServe custom handler., Create TorchServe custom handler., Create TorchServe custom handler., Create TorchServe custom handler., Create TorchServe custom handler., Create TorchServe custom handler., Create TorchServe custom handler. (+8 more)
 
 ### Community 183 - "Community 183"
 Cohesion: 0.12
-Nodes (8): Update a step with execution result and mark as completed., Attach perception analysis to a step node., Process tool results to update experiment state., Update experiment state from perception output., Record an improvement attempt., Update global variables with new execution results., Update current metrics and track best., Record an improvement attempt for history.
+Nodes (16): Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence., Call /predict and record observed HTTP evidence. (+8 more)
 
 ### Community 184 - "Community 184"
+Cohesion: 0.12
+Nodes (16): get_ecr_login(), Get ECR login command., Get ECR login command., Get ECR login command., Get ECR login command., Get ECR login command., Get ECR login command., Get ECR login command. (+8 more)
+
+### Community 185 - "Community 185"
+Cohesion: 0.12
+Nodes (16): capture_litserve_logs_and_endpoint(), Record endpoint URL and server log location as observed deployment evidence., Record endpoint URL and server log location as observed deployment evidence., Record endpoint URL and server log location as observed deployment evidence., Record endpoint URL and server log location as observed deployment evidence., Record endpoint URL and server log location as observed deployment evidence., Record endpoint URL and server log location as observed deployment evidence., Record endpoint URL and server log location as observed deployment evidence. (+8 more)
+
+### Community 186 - "Community 186"
+Cohesion: 0.12
+Nodes (16): create_fastapi_app(), Create FastAPI application for model serving., Create FastAPI application for model serving., Create FastAPI application for model serving., Create FastAPI application for model serving., Create FastAPI application for model serving., Create FastAPI application for model serving., Create FastAPI application for model serving. (+8 more)
+
+### Community 187 - "Community 187"
+Cohesion: 0.12
+Nodes (16): _ensure_boto3(), list_eks_clusters(), List EKS clusters in a region., List EKS clusters in a region., List EKS clusters in a region., List EKS clusters in a region., List EKS clusters in a region., List EKS clusters in a region. (+8 more)
+
+### Community 188 - "Community 188"
+Cohesion: 0.12
+Nodes (16): create_ecr_repo(), Create or get an ECR repository., Create or get an ECR repository., Create or get an ECR repository., Create or get an ECR repository., Create FastAPI application for model serving., Create or get an ECR repository., Create or get an ECR repository. (+8 more)
+
+### Community 189 - "Community 189"
+Cohesion: 0.17
+Nodes (13): clear_log_context(), get_log_context(), Get the current logging context., Set values in the logging context., Clear the logging context., set_log_context(), Tests for log context functions., Test setting and getting log context. (+5 more)
+
+### Community 190 - "Community 190"
+Cohesion: 0.12
+Nodes (16): Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy)., Rollback an AWS Lambda CDK stack (destroy). (+8 more)
+
+### Community 191 - "Community 191"
+Cohesion: 0.12
+Nodes (16): Rollback a deployment based on target type., Rollback a deployment based on target type., Rollback a deployment based on target type., Rollback a deployment based on target type., Rollback a deployment based on target type., Rollback a deployment based on target type., Rollback a deployment based on target type., Rollback a deployment based on target type. (+8 more)
+
+### Community 192 - "Community 192"
+Cohesion: 0.12
+Nodes (16): create_gradio_interface(), Create Gradio interface for model demo., Create Gradio interface for model demo., Create Gradio interface for model demo., Create Gradio interface for model demo., Create Gradio interface for model demo., Create Gradio interface for model demo., Create Gradio interface for model demo. (+8 more)
+
+### Community 193 - "Community 193"
+Cohesion: 0.12
+Nodes (16): Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions., Record process cleanup and manual Lambda Cloud stop instructions. (+8 more)
+
+### Community 194 - "Community 194"
+Cohesion: 0.12
+Nodes (16): Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI., Update kubeconfig for an EKS cluster using AWS CLI. (+8 more)
+
+### Community 195 - "Community 195"
+Cohesion: 0.12
+Nodes (16): Select an existing model artifact or preflight artifact for LitServe deployment., Select a model artifact for deterministic training comparison or LitServe deploy, Select a model artifact for deterministic training comparison or LitServe deploy, Select a model artifact for deterministic training comparison or LitServe deploy, Select a model artifact for deterministic training comparison or LitServe deploy, Select a model artifact for deterministic training comparison or LitServe deploy, Select a model artifact for deterministic training comparison or LitServe deploy, Select a model artifact for deterministic training comparison or LitServe deploy (+8 more)
+
+### Community 196 - "Community 196"
+Cohesion: 0.2
+Nodes (16): _approved_transfer_record(), _container_build_result(), _registry_target_result(), test_pull_capstone_data_blocks_missing_credentials(), test_pull_capstone_data_records_observed_transfer_evidence(), test_push_capstone_data_blocks_when_dvc_is_missing(), test_push_capstone_data_blocks_without_validated_s3_remote(), test_push_capstone_data_denied_approval_blocks_without_transfer() (+8 more)
+
+### Community 197 - "Community 197"
+Cohesion: 0.17
+Nodes (10): detect_data_drift(), Detect data drift between reference and current datasets using Evidently AI., Tests for the structure of detect_data_drift results., Test that result contains report metadata., Test that result contains dataset information., Test that result contains detailed feature results., Test that result contains recommendations when drift is detected., Test that result contains drift summary. (+2 more)
+
+### Community 198 - "Community 198"
+Cohesion: 0.12
+Nodes (13): test_deployment_report_is_structured_evidence_with_rollback_plan(), DeploymentCheckResult, DeploymentReport, GpuEvidence, LatencySummary, Structured GPU evidence captured for deployment reports., Structured deployment outcome report backed by contract validation., Structured deployment outcome report backed by contract validation. (+5 more)
+
+### Community 199 - "Community 199"
+Cohesion: 0.12
+Nodes (8): Update a step with execution result and mark as completed., Attach perception analysis to a step node., Process tool results to update experiment state., Update experiment state from perception output., Record an improvement attempt., Update global variables with new execution results., Update current metrics and track best., Record an improvement attempt for history.
+
+### Community 200 - "Community 200"
+Cohesion: 0.12
+Nodes (6): Validate selected registry approval gates before tool execution., Validate selected registry approval gates before tool execution., Validate selected registry approval gates before tool execution., Validate setup_pipeline registry approval gates before tool execution., Validate selected registry approval gates before tool execution., Validate selected registry approval gates before tool execution.
+
+### Community 201 - "Community 201"
+Cohesion: 0.12
+Nodes (4): decision_with_extra_placeholder(), decision_with_template(), mock_context_manager(), mock_prompts_dir()
+
+### Community 202 - "Community 202"
+Cohesion: 0.12
+Nodes (9): Tests that verify Hydra config structure matches README documentation., Test that configs directory exists., Test that main config.yaml exists., Test that model config files exist., Test that training config files exist., Test that data config files exist., Test that paths config files exist., Test that experiment config files exist. (+1 more)
+
+### Community 203 - "Community 203"
+Cohesion: 0.12
+Nodes (9): Tests for sklearn config directory structure., Test that config directory exists., Test that main config.yaml exists., Test that model configs exist., Test that training configs exist., Test that data configs exist., Test that paths configs exist., Test that experiment configs exist. (+1 more)
+
+### Community 204 - "Community 204"
+Cohesion: 0.12
+Nodes (9): Test paths config loads and has required fields., Test baseline experiment config loads., Tests for sklearn config content validity., Test that main config loads without error., Test Ridge config loads and has required fields., Test RandomForest config loads and has required fields., Test GradientBoosting config loads and has required fields., Test data config loads and has required fields. (+1 more)
+
+### Community 205 - "Community 205"
+Cohesion: 0.12
+Nodes (9): Tests for detect_anomalies MCP tool., Test basic anomaly detection., Test anomaly detection with specific methods., Test anomaly detection with custom thresholds., Test that clear outliers are detected., Test that duplicates are detected., Test error handling for non-existent file., Test that affected percentage is calculated. (+1 more)
+
+### Community 206 - "Community 206"
+Cohesion: 0.12
+Nodes (15): Test error message format., Test error message format., Test error message format., Test error message format., Test error message format., Test error message format., Test error message format., Test error message format. (+7 more)
+
+### Community 207 - "Community 207"
+Cohesion: 0.12
+Nodes (16): create_mar_archive(), Create TorchServe MAR (Model Archive) file., Create TorchServe MAR (Model Archive) file., Create TorchServe MAR (Model Archive) file., Create TorchServe MAR (Model Archive) file., Create TorchServe MAR (Model Archive) file., Call /health and record observed HTTP evidence., Create TorchServe MAR (Model Archive) file. (+8 more)
+
+### Community 208 - "Community 208"
+Cohesion: 0.12
+Nodes (16): generate_cdk_stack(), Generate AWS CDK stack for Lambda deployment., Generate AWS CDK stack for Lambda deployment., Generate AWS CDK stack for Lambda deployment., Generate AWS CDK stack for Lambda deployment., Generate AWS CDK stack for Lambda deployment., Generate AWS CDK stack for Lambda deployment., Generate AWS CDK stack for Lambda deployment. (+8 more)
+
+### Community 209 - "Community 209"
+Cohesion: 0.13
+Nodes (15): ensure_directory(), Select or create a local model artifact for LitServe preflight., Select or create a local model artifact for LitServe preflight., Ensure directory exists and return Path object., Select or create a local model artifact for LitServe preflight., Select or create a local model artifact for LitServe preflight., Select or create a local model artifact for LitServe preflight., Select or create a local model artifact for LitServe preflight. (+7 more)
+
+### Community 210 - "Community 210"
+Cohesion: 0.13
+Nodes (15): generate_kserve_config(), Generate KServe configuration., Generate KServe configuration., Generate KServe configuration., Generate KServe configuration., Generate KServe configuration., Generate KServe configuration., Generate KServe configuration. (+7 more)
+
+### Community 211 - "Community 211"
 Cohesion: 0.13
 Nodes (15): Start LitServe server and record observed process evidence., Start LitServe server and record observed process evidence., Start LitServe server and record observed process evidence., Start LitServe server and record observed process evidence., Start LitServe server and record observed process evidence., Start LitServe server and record observed process evidence., Start LitServe server and record observed process evidence., Start LitServe server and record observed process evidence. (+7 more)
 
-### Community 185 - "Community 185"
+### Community 212 - "Community 212"
 Cohesion: 0.13
-Nodes (15): _load_capstone_data_stage_evidence(), Record the Capstone Orchestrator skeleton without faking full capstone success., Record the Capstone Orchestrator skeleton without faking full capstone success., Record the Capstone Orchestrator skeleton without faking full capstone success., Record the Capstone Orchestrator skeleton without faking full capstone success., Record the Capstone Orchestrator skeleton without faking full capstone success., Record the Capstone Orchestrator skeleton without faking full capstone success., Record the Capstone Orchestrator skeleton without faking full capstone success. (+7 more)
+Nodes (15): create_k8s_ingress_yaml(), Create Kubernetes Ingress YAML (ALB annotations for EKS)., Create Kubernetes Ingress YAML (ALB annotations for EKS)., Create Kubernetes Ingress YAML (ALB annotations for EKS)., Create Kubernetes Ingress YAML (ALB annotations for EKS)., Create Kubernetes Ingress YAML (ALB annotations for EKS)., Create Kubernetes Ingress YAML (ALB annotations for EKS)., Create Kubernetes Ingress YAML (ALB annotations for EKS). (+7 more)
 
-### Community 186 - "Community 186"
+### Community 213 - "Community 213"
 Cohesion: 0.13
 Nodes (15): Record that Docker image build is optional and skipped by default., Record that Docker image build is optional and skipped by default., Record that Docker image build is optional and skipped by default., Record that Docker image build is optional and skipped by default., Record that Docker image build is optional and skipped by default., Record that Docker image build is optional and skipped by default., Record that Docker image build is optional and skipped by default., Record that Docker image build is optional and skipped by default. (+7 more)
 
-### Community 187 - "Community 187"
+### Community 215 - "Community 215"
 Cohesion: 0.13
-Nodes (15): list_eks_clusters(), List EKS clusters in a region., List EKS clusters in a region., List EKS clusters in a region., List EKS clusters in a region., List EKS clusters in a region., List EKS clusters in a region., List EKS clusters in a region. (+7 more)
+Nodes (14): create_github_workflow(), Create DVC pipeline (dvc.yaml)., Create GitHub Actions workflow for ML pipeline., Create GitHub Actions workflow for ML pipeline., Create GitHub Actions workflow for ML pipeline., Create GitHub Actions workflow for ML pipeline., Create GitHub Actions workflow for ML pipeline., Create GitHub Actions workflow for ML pipeline. (+6 more)
 
-### Community 189 - "Community 189"
-Cohesion: 0.14
-Nodes (10): _dedupe_capabilities(), Initialize the API key manager with in-memory storage., test_detect_training_project_blocks_ambiguous_entrypoints(), test_detect_training_project_recognizes_session_06_shape(), test_run_detect_training_project_succeeds_from_supported_detection(), test_run_train_and_track_blocks_missing_bounded_controls(), test_run_train_and_track_succeeds_from_supported_detection(), test_select_best_model_artifact_blocks_without_explicit_comparison_inputs() (+2 more)
-
-### Community 190 - "Community 190"
-Cohesion: 0.13
-Nodes (15): Select an existing model artifact or preflight artifact for LitServe deployment., Select a model artifact for deterministic training comparison or LitServe deploy, Select a model artifact for deterministic training comparison or LitServe deploy, Select a model artifact for deterministic training comparison or LitServe deploy, Select a model artifact for deterministic training comparison or LitServe deploy, Select a model artifact for deterministic training comparison or LitServe deploy, Select a model artifact for deterministic training comparison or LitServe deploy, Select a model artifact for deterministic training comparison or LitServe deploy (+7 more)
-
-### Community 191 - "Community 191"
-Cohesion: 0.13
-Nodes (15): create_mar_archive(), Create TorchServe MAR (Model Archive) file., Create TorchServe MAR (Model Archive) file., Create TorchServe MAR (Model Archive) file., Create TorchServe MAR (Model Archive) file., Create TorchServe MAR (Model Archive) file., Create TorchServe MAR (Model Archive) file., Create TorchServe MAR (Model Archive) file. (+7 more)
-
-### Community 192 - "Community 192"
-Cohesion: 0.13
-Nodes (14): Test _should_summarize returns True when route is summarize., Test _should_summarize returns True when route is summarize., Test StepExecutionError is an Exception., Test _should_summarize returns True when route is summarize., Test _should_summarize returns True when route is summarize., Test _should_summarize returns True when route is summarize., Test _should_summarize returns True when route is summarize., Test _should_summarize returns True when route is summarize. (+6 more)
-
-### Community 193 - "Community 193"
-Cohesion: 0.13
-Nodes (14): Test that _initialize_session creates context manager., Test that _initialize_session creates context manager., Tests for StepExecutionError exception., Test creating tracker with default values., Test that _initialize_session creates context manager., Test that _initialize_session creates context manager., Test that _initialize_session creates context manager., Test that _initialize_session creates context manager. (+6 more)
-
-### Community 194 - "Community 194"
-Cohesion: 0.13
-Nodes (14): Test retry step ID generation with failures., Test retry step ID generation with failures., Test retry step ID generation with failures., Test retry step ID generation with failures., Test retry step ID generation with failures., Test incrementing tries counter., Test retry step ID generation with failures., Test retry step ID generation with failures. (+6 more)
-
-### Community 195 - "Community 195"
-Cohesion: 0.13
-Nodes (14): Test getting circuit stats., Test getting circuit stats., Test getting circuit stats., Test getting circuit stats., Test getting circuit stats., Test getting circuit stats., Test getting circuit stats., Test getting circuit stats. (+6 more)
-
-### Community 196 - "Community 196"
-Cohesion: 0.13
-Nodes (14): Test creating tracker with custom values., Test creating tracker with custom values., Test creating tracker with custom values., Test creating tracker with custom values., Test creating tracker with custom values., Test creating tracker with custom values., Test creating tracker with custom values., Test creating tracker with custom values. (+6 more)
-
-### Community 197 - "Community 197"
-Cohesion: 0.13
-Nodes (14): Test incrementing tries counter., Test incrementing tries counter., Test incrementing tries counter., Test incrementing tries counter., Test incrementing tries counter., Test incrementing tries counter., Test incrementing tries counter., Test incrementing tries counter. (+6 more)
-
-### Community 198 - "Community 198"
-Cohesion: 0.13
-Nodes (14): Test _needs_deployment returns True when route is deploy., Test _needs_deployment returns True when route is deploy., Test _needs_deployment returns True when route is deploy., Test _needs_deployment returns True when route is deploy., Test _needs_deployment returns True when route is deploy., Test _needs_deployment returns True when route is deploy., Test _needs_deployment returns True when route is deploy., Test _needs_deployment returns True when route is deploy. (+6 more)
-
-### Community 199 - "Community 199"
-Cohesion: 0.13
-Nodes (14): Test error message format., Test error message format., Test error message format., Test error message format., Test error message format., Test error message format., Test error message format., Test error message format. (+6 more)
-
-### Community 200 - "Community 200"
-Cohesion: 0.13
-Nodes (14): Test _needs_improvement returns True when below threshold., Test _needs_improvement returns True when below threshold., Test _needs_improvement returns True when below threshold., Test _needs_improvement returns True when below threshold., Test _needs_improvement returns True when below threshold., Test _needs_improvement returns True when below threshold., Test _needs_improvement returns True when below threshold., Test _needs_improvement returns True when below threshold. (+6 more)
-
-### Community 201 - "Community 201"
-Cohesion: 0.13
-Nodes (14): Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying., Test _needs_deployment returns False when not deploying. (+6 more)
-
-### Community 202 - "Community 202"
-Cohesion: 0.13
-Nodes (14): Test _should_summarize returns True when goal achieved., Test _should_summarize returns True when goal achieved., Test _should_summarize returns True when goal achieved., Test _should_summarize returns True when goal achieved., Test _should_summarize returns True when goal achieved., Test _should_summarize returns True when goal achieved., Test _should_summarize returns True when goal achieved., Test _should_summarize returns True when goal achieved. (+6 more)
-
-### Community 203 - "Community 203"
-Cohesion: 0.13
-Nodes (14): Test resetting circuit breaker., Test resetting circuit breaker., Test resetting circuit breaker., Test resetting circuit breaker., Test resetting circuit breaker., Test resetting circuit breaker., Test resetting circuit breaker., Test resetting circuit breaker. (+6 more)
-
-### Community 204 - "Community 204"
-Cohesion: 0.13
-Nodes (14): Test has_exceeded_retries when at limit., Test has_exceeded_retries when at limit., Test has_exceeded_retries when at limit., Test has_exceeded_retries when at limit., Test has_exceeded_retries when at limit., Test has_exceeded_retries when at limit., Test should_continue when within limits., Test has_exceeded_retries when at limit. (+6 more)
-
-### Community 205 - "Community 205"
-Cohesion: 0.14
-Nodes (9): AgentEvent, Asynchronous MLOps Client for the Auto-MLOps API., Start an agent session without waiting for completion.          Args:, Get the status of a session.          Args:             session_id: The session, Run a query and wait for completion.          Args:             query: Natural l, Run a query and stream events via WebSocket.          Args:             query: N, Result of an agent session., Event from the agent WebSocket stream. (+1 more)
-
-### Community 206 - "Community 206"
-Cohesion: 0.17
-Nodes (10): _get_tool_params(), Get parameter names for a function., Get parameter names for a function., Tests for _get_tool_params helper., Test getting parameter names from function., Test getting params from function with no arguments., Test getting params from lambda function., Test getting params from non-callable returns empty set. (+2 more)
-
-### Community 207 - "Community 207"
+### Community 216 - "Community 216"
 Cohesion: 0.16
 Nodes (10): _get_tool_function(), Step Execution Module for MLOps Agent. Executes MCP tool calls for ML pipeline o, Get tool function by name from the tools module., Get tool function by name from the tools module., Tests for _get_tool_function helper., Test getting tool from provided module., Test getting non-existent tool returns None., Test getting tool with None module tries mcp_mlops_tools. (+2 more)
 
-### Community 208 - "Community 208"
-Cohesion: 0.19
-Nodes (11): admin_list_users(), List all users via the API., admin_list_users(), get_admin_headers(), Get headers for admin API requests., List all users via the API., Tests for admin_list_users function., Test successful user listing. (+3 more)
-
-### Community 209 - "Community 209"
-Cohesion: 0.21
-Nodes (10): admin_create_user(), Create a new user via the API., admin_create_user(), Create a new user via the API., Tests for admin_create_user function., Test successful user creation., Test user creation with API error., Test user creation with connection error. (+2 more)
-
-### Community 210 - "Community 210"
-Cohesion: 0.19
-Nodes (11): admin_list_keys(), get_admin_headers(), Get headers for admin API requests., List all API keys via the API., admin_list_keys(), List all API keys via the API., Tests for admin_list_keys function., Test successful API key listing. (+3 more)
-
-### Community 211 - "Community 211"
-Cohesion: 0.21
-Nodes (10): admin_revoke_key(), Revoke an API key via the API., admin_revoke_key(), Revoke an API key via the API., Tests for admin_revoke_key function., Test successful API key revocation., Test revoking non-existent key., Test revoking already revoked key. (+2 more)
-
-### Community 212 - "Community 212"
-Cohesion: 0.14
-Nodes (8): Tests for edge cases and special scenarios., Test handling of empty X-Forwarded-For header., Test exact boundary of rate limit., Test multiple clients making requests concurrently., Test that rate limit resets after window expires., Test rate limiting with IPv6 client address., Test rate limiting for localhost., TestEdgeCases
-
-### Community 213 - "Community 213"
-Cohesion: 0.14
-Nodes (8): Tests for rate limit enforcement logic., Test that requests within limit are allowed., Test that requests exceeding limit are blocked., Test that RateLimitExceeded includes Retry-After header., Test that disabled rate limiting allows all requests., Test that different clients have independent rate limits., Test that requests are tracked with timestamps., TestRateLimitEnforcement
-
-### Community 214 - "Community 214"
-Cohesion: 0.14
-Nodes (8): Test that WebSocket receives current session state on connect., Test ping/pong keepalive mechanism.          This test creates a session directl, Test that WebSocket receives past events on connect., Test that multiple WebSocket clients can connect to same session., Test the /ws/{session_id} WebSocket endpoint., Test that connecting to non-existent session closes connection., Test successful WebSocket connection to existing session., TestSessionWebSocket
-
-### Community 215 - "Community 215"
-Cohesion: 0.14
-Nodes (13): create_github_workflow(), Create GitHub Actions workflow for ML pipeline., Create GitHub Actions workflow for ML pipeline., Create GitHub Actions workflow for ML pipeline., Create GitHub Actions workflow for ML pipeline., Create GitHub Actions workflow for ML pipeline., Create GitHub Actions workflow for ML pipeline., Create GitHub Actions workflow for ML pipeline. (+5 more)
-
-### Community 216 - "Community 216"
-Cohesion: 0.14
-Nodes (13): Test creating AgentLoop with custom profile., Test creating AgentLoop with custom profile., Test creating AgentLoop with custom profile., Test creating AgentLoop with custom profile., Test DEPLOY step type constant., Test creating AgentLoop with custom profile., Test creating AgentLoop with custom profile., Test creating AgentLoop with custom profile. (+5 more)
-
 ### Community 217 - "Community 217"
-Cohesion: 0.14
-Nodes (13): Test _load_prompt returns empty string for missing file., Test _load_prompt returns empty string for missing file., Test _load_prompt returns empty string for missing file., Test _load_prompt returns empty string for missing file., Test _load_prompt returns empty string for missing file., Test _load_prompt returns empty string for missing file., Test _load_prompt returns empty string for missing file., Test _load_prompt returns empty string for missing file. (+5 more)
+Cohesion: 0.17
+Nodes (10): _get_tool_params(), Get parameter names for a function., Get parameter names for a function., Tests for _get_tool_params helper., Test getting parameter names from function., Test getting params from function with no arguments., Test getting params from lambda function., Test getting params from non-callable returns empty set. (+2 more)
 
 ### Community 218 - "Community 218"
 Cohesion: 0.14
-Nodes (13): Test ROOT step type constant., Test ROOT step type constant., Test ROOT step type constant., Test ROOT step type constant., Test ROOT step type constant., Test ROOT step type constant., Test ROOT step type constant., Test ROOT step type constant. (+5 more)
+Nodes (9): AgentEvent, Asynchronous MLOps Client for the Auto-MLOps API., Start an agent session without waiting for completion.          Args:, Get the status of a session.          Args:             session_id: The session, Run a query and wait for completion.          Args:             query: Natural l, Run a query and stream events via WebSocket.          Args:             query: N, Result of an agent session., Event from the agent WebSocket stream. (+1 more)
 
 ### Community 219 - "Community 219"
-Cohesion: 0.14
-Nodes (13): Test _pick_next_step returns None when all completed., Tests for AgentLoop routing logic., Test _load_prompt returns empty string for missing file., Test _pick_next_step returns None when all completed., Test _pick_next_step returns None when all completed., Test _pick_next_step returns None when all completed., Test _pick_next_step returns None when all completed., Test _pick_next_step returns None when all completed. (+5 more)
+Cohesion: 0.13
+Nodes (14): Pick the next pending step to execute., Pick the next pending step to execute., Pick the next pending step to execute., Pick the next pending step to execute., Pick the next pending step to execute., Pick the next pending step to execute., Pick the next pending step to execute., Pick the next pending step to execute. (+6 more)
 
 ### Community 220 - "Community 220"
-Cohesion: 0.14
-Nodes (13): Test _pick_next_step skips completed steps., Test _pick_next_step skips completed steps., Test ROOT step type constant., Test _pick_next_step skips completed steps., Test creating AgentLoop with custom profile., Test _pick_next_step skips completed steps., Test _pick_next_step skips completed steps., Test _pick_next_step skips completed steps. (+5 more)
+Cohesion: 0.13
+Nodes (7): Tests for Hydra configuration files., Test experiment config loads., Tests for config content validity., Test MLP config loads and has required fields., Test training config loads and has required fields., Test data config loads and has required fields., TestConfigContent
 
 ### Community 221 - "Community 221"
-Cohesion: 0.14
-Nodes (13): Tests for Route constants., Test DEPLOY step type constant., Test DEPLOY step type constant., Test DEPLOY step type constant., Test DEPLOY step type constant., Test DEPLOY step type constant., Test DEPLOY step type constant., Test DEPLOY step type constant. (+5 more)
+Cohesion: 0.13
+Nodes (15): Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence., Call /health and record observed HTTP evidence. (+7 more)
 
 ### Community 222 - "Community 222"
-Cohesion: 0.14
-Nodes (13): Test that _initialize_session initializes placeholders., Test that _initialize_session initializes placeholders., Test that _initialize_session initializes placeholders., Test DEPLOY step type constant., Test that _initialize_session initializes placeholders., Test that _initialize_session initializes placeholders., Test that _initialize_session initializes placeholders., Test that _initialize_session initializes placeholders. (+5 more)
+Cohesion: 0.21
+Nodes (10): admin_create_user(), Create a new user via the API., admin_create_user(), Create a new user via the API., Tests for admin_create_user function., Test successful user creation., Test user creation with API error., Test user creation with connection error. (+2 more)
 
 ### Community 223 - "Community 223"
-Cohesion: 0.14
-Nodes (13): Test should_continue when at limit., Test should_continue when at limit., Test should_continue when at limit., Test should_continue when at limit., Test should_continue when at limit., Test should_continue when at limit., Test should_continue when at limit., Test should_continue when at limit. (+5 more)
+Cohesion: 0.19
+Nodes (11): admin_create_key(), get_admin_headers(), Get headers for admin API requests., Create a new API key via the API., admin_create_key(), Create a new API key via the API., Tests for admin_create_key function., Test successful API key creation. (+3 more)
 
 ### Community 224 - "Community 224"
-Cohesion: 0.14
-Nodes (13): Test has_exceeded_retries when within limit., Test _needs_improvement returns False when no accuracy recorded., Test _needs_improvement returns False when no accuracy recorded., Test _needs_improvement returns False when no accuracy recorded., Test _needs_improvement returns False when no accuracy recorded., Test _should_summarize returns True when route is summarize., Test _needs_improvement returns False when no accuracy recorded., Test _needs_improvement returns False when no accuracy recorded. (+5 more)
+Cohesion: 0.21
+Nodes (10): admin_revoke_key(), Revoke an API key via the API., admin_revoke_key(), Revoke an API key via the API., Tests for admin_revoke_key function., Test successful API key revocation., Test revoking non-existent key., Test revoking already revoked key. (+2 more)
 
 ### Community 225 - "Community 225"
-Cohesion: 0.14
-Nodes (13): Test _needs_deployment returns True when stage is deploy., Test _needs_deployment returns True when stage is deploy., Test _needs_deployment returns True when stage is deploy., Test _needs_deployment returns True when stage is deploy., Test _needs_deployment returns True when stage is deploy., Test _needs_deployment returns True when stage is deploy., Test _needs_deployment returns True when stage is deploy., Test _needs_deployment returns True when stage is deploy. (+5 more)
+Cohesion: 0.19
+Nodes (11): admin_list_users(), List all users via the API., admin_list_users(), get_admin_headers(), Get headers for admin API requests., List all users via the API., Tests for admin_list_users function., Test successful user listing. (+3 more)
 
 ### Community 226 - "Community 226"
 Cohesion: 0.14
-Nodes (13): Test should_continue when within limits., Test should_continue when within limits., Test should_continue when within limits., Test should_continue when within limits., Test should_continue when within limits., Test should_continue when within limits., Test should_continue when within limits., Test should_continue when within limits. (+5 more)
+Nodes (8): Database integration tests for APIKey model., Test creating an API key in the database., Test creating an API key with expiration., Test deactivating an API key., Test updating last_used_at on API key., Test the relationship between User and APIKey., Test listing all API keys for a user., TestAPIKeyDatabaseIntegration
 
 ### Community 227 - "Community 227"
 Cohesion: 0.14
-Nodes (13): Test _needs_improvement returns False when at threshold., Test resetting circuit breaker., Tests for StepExecutionTracker class., Test _needs_improvement returns False when at threshold., Test _needs_improvement returns False when at threshold., Test _needs_improvement returns False when at threshold., Test _needs_improvement returns False when at threshold., Test _needs_improvement returns False when at threshold. (+5 more)
+Nodes (8): Tests for rate limit enforcement logic., Test that requests within limit are allowed., Test that requests exceeding limit are blocked., Test that RateLimitExceeded includes Retry-After header., Test that disabled rate limiting allows all requests., Test that different clients have independent rate limits., Test that requests are tracked with timestamps., TestRateLimitEnforcement
 
 ### Community 228 - "Community 228"
 Cohesion: 0.14
-Nodes (13): Test _needs_deployment returns True when deployment target set., Test _needs_deployment returns True when deployment target set., Test _needs_deployment returns True when deployment target set., Test _needs_deployment returns True when deployment target set., Test _needs_deployment returns True when deployment target set., Test _needs_deployment returns True when deployment target set., Test _needs_deployment returns True when deployment target set., Test _needs_deployment returns True when deployment target set. (+5 more)
+Nodes (8): Tests for edge cases and special scenarios., Test handling of empty X-Forwarded-For header., Test exact boundary of rate limit., Test multiple clients making requests concurrently., Test that rate limit resets after window expires., Test rate limiting with IPv6 client address., Test rate limiting for localhost., TestEdgeCases
 
 ### Community 229 - "Community 229"
 Cohesion: 0.14
-Nodes (13): Test has_exceeded_retries when within limit., Test has_exceeded_retries when within limit., Test has_exceeded_retries when within limit., Test has_exceeded_retries when within limit., Test has_exceeded_retries when within limit., Test has_exceeded_retries when within limit., Test has_exceeded_retries when within limit., Test has_exceeded_retries when within limit. (+5 more)
+Nodes (8): Test that WebSocket receives current session state on connect., Test ping/pong keepalive mechanism.          This test creates a session directl, Test that WebSocket receives past events on connect., Test that multiple WebSocket clients can connect to same session., Test the /ws/{session_id} WebSocket endpoint., Test that connecting to non-existent session closes connection., Test successful WebSocket connection to existing session., TestSessionWebSocket
 
 ### Community 230 - "Community 230"
 Cohesion: 0.14
-Nodes (8): Tests for ConceptDriftDetector class., Test ConceptDriftDetector initialization., Test concept drift detection with no drift., Test concept drift detection with drift present., Test concept drift detection without prediction column., Test error when target column missing., Test concept drift detection with categorical target., TestConceptDriftDetector
+Nodes (14): test_detect_training_project_blocks_ambiguous_entrypoints(), test_detect_training_project_recognizes_session_06_shape(), test_run_bounded_training_captures_metrics_logs_duration_and_artifacts(), test_run_bounded_training_records_nonzero_exit_as_failed(), test_run_bounded_training_zero_exit_without_metric_or_artifact_does_not_succeed(), test_run_detect_training_project_succeeds_from_supported_detection(), test_run_train_and_track_blocks_missing_bounded_controls(), test_run_train_and_track_records_failed_training_in_mlflow() (+6 more)
 
 ### Community 231 - "Community 231"
 Cohesion: 0.15
@@ -2832,19 +2887,19 @@ Nodes (9): JWTPayload, JWT token payload structure., Base64url decode with paddi
 
 ### Community 232 - "Community 232"
 Cohesion: 0.14
-Nodes (8): Additional tests for APIKeyAuth., Test that key hashing is deterministic., Test that key hash has correct length (SHA-256)., Test that generated keys are unique., Test validating None key., Test validating empty string key., Test removing a key that doesn't exist (should not error)., TestAPIKeyAuthAdditional
+Nodes (8): Tests for edge cases., Test validation of empty DataFrame., Test validation with missing column., Test validation of all-null column., Test validation of single-row DataFrame., Test validation with no expectations configured., Test handling multiple validation failures., TestEdgeCases
 
 ### Community 233 - "Community 233"
 Cohesion: 0.14
-Nodes (8): Tests for edge cases., Test validation of empty DataFrame., Test validation with missing column., Test validation of all-null column., Test validation of single-row DataFrame., Test validation with no expectations configured., Test handling multiple validation failures., TestEdgeCases
+Nodes (8): Tests for compare_distributions MCP tool., Test basic distribution comparison., Test that significant drift is detected., Test comparison of specific columns only., Test error handling for non-existent reference file., Test error handling for non-existent current file., Test that shift details are returned., TestCompareDistributions
 
 ### Community 234 - "Community 234"
 Cohesion: 0.14
-Nodes (13): Test SUMMARIZE route constant., Test SUMMARIZE route constant., Test SUMMARIZE route constant., Test SUMMARIZE route constant., Test SUMMARIZE route constant., Test SUMMARIZE route constant., Test SUMMARIZE route constant., Test SUMMARIZE route constant. (+5 more)
+Nodes (7): Context Manager for MLOps Agent - Graph-based execution tracking with experiment, get_model_manager(), Model Manager for MLOps Agent - LLM provider management. Supports multiple provi, Get the singleton ModelManager instance., Initialize Decision with prompt template.          Args:             prompt_path, Load prompt template from file., Get default prompt if file not found.
 
 ### Community 235 - "Community 235"
-Cohesion: 0.21
-Nodes (11): create_synthetic_dataset(), download_imdb(), main(), prepare_california_housing(), prepare_synthetic_data(), Data preparation script for tabular regression., Prepare synthetic regression data for testing.      Args:         data_dir: Dire, Main entry point for command line usage. (+3 more)
+Cohesion: 0.14
+Nodes (12): dataframe_with_duplicates(), dataframe_with_nulls(), dataframe_with_outliers(), Tests for Data Quality Module  Tests for DataValidator, DataProfiler, and relate, Create a sample DataFrame for testing., Create a DataFrame with null values., Integration tests for complete workflows., Test a complete validation workflow. (+4 more)
 
 ### Community 236 - "Community 236"
 Cohesion: 0.14
@@ -2855,120 +2910,120 @@ Cohesion: 0.14
 Nodes (8): Tests for sklearn training Hydra configuration files., Tests for sklearn config value validity., Test that Ridge alpha is positive., Test that n_estimators are positive for ensemble models., Test that learning rate is in valid range., Test that test_size is in valid range., Test that seed is an integer., TestSklearnConfigValues
 
 ### Community 238 - "Community 238"
-Cohesion: 0.25
-Nodes (12): _local_ml_project(), _local_setup_tools(), _prompts_dir(), test_local_setup_pipeline_real_tools_reach_contract_success_without_perception(), test_local_setup_pipeline_requires_approval_then_reaches_contract_success(), test_prepare_capstone_data_approved_run_generates_split_manifests_only(), test_prepare_capstone_data_blocks_for_split_manifest_write_approval(), test_prepare_capstone_data_capstone_complete_pulls_when_requested() (+4 more)
+Cohesion: 0.15
+Nodes (10): get_async_config(), get_async_db(), Async Database Session Module for MLOps Agent.  Provides async PostgreSQL connec, FastAPI dependency for async database sessions.      Usage in FastAPI endpoints:, Reset database by dropping and recreating all tables asynchronously.      WARNIN, Get async database configuration singleton.      Returns:         AsyncDatabaseC, reset_async_db(), test_config_singleton() (+2 more)
 
 ### Community 239 - "Community 239"
 Cohesion: 0.15
-Nodes (12): create_ml_dockerfile(), Create Dockerfile for ML project., Create Dockerfile for ML project., Create Dockerfile for ML project., Create Dockerfile for ML project., Create Dockerfile for ML project., Create Dockerfile for ML project., Create Dockerfile for ML project. (+4 more)
+Nodes (9): clear_hydra(), Tests for paths configuration files., Test default paths configuration., Clear Hydra's global state before and after each test., Tests for model configuration files., Test CIFAR10 CNN model configuration., Test ResNet18 model configuration., TestModelConfigs (+1 more)
 
 ### Community 240 - "Community 240"
 Cohesion: 0.15
-Nodes (13): Tests for StepExecutionTracker class., Tests for StepExecutionTracker class., Tests for StepExecutionTracker class., Tests for StepExecutionTracker class., Tests for StepExecutionTracker class., Tests for StepExecutionTracker class., Tests for StepExecutionTracker class., Tests for StepExecutionTracker class. (+5 more)
-
-### Community 241 - "Community 241"
-Cohesion: 0.15
-Nodes (13): Tests for AgentLoop _pick_next_step method., Test IMPROVE route constant., Tests for AgentLoop _pick_next_step method., Create temporary prompts directory with test prompts., Tests for AgentLoop _pick_next_step method., Tests for AgentLoop _pick_next_step method., Tests for AgentLoop _pick_next_step method., Tests for AgentLoop _pick_next_step method. (+5 more)
-
-### Community 242 - "Community 242"
-Cohesion: 0.15
 Nodes (9): mock_tool_executor(), Create a mock tool executor for testing action execution.      Returns:, Create a mock tool executor for testing action execution.      Returns:, Tests for additional helper fixtures., Test sample_execution_plan has expected structure., Test mock_tool_executor returns success by default., Test context_manager fixture provides valid ContextManager., Test experiment_state fixture provides valid ExperimentState. (+1 more)
 
-### Community 243 - "Community 243"
+### Community 241 - "Community 241"
 Cohesion: 0.17
-Nodes (12): load_template(), Load a template file., Load a template file., Load a template file., Load a template file., Load a template file., Load a template file., Load a template file. (+4 more)
+Nodes (12): Validate a tabular dataset (CSV, Parquet, JSON)., Validate a tabular dataset (CSV, Parquet, JSON)., Validate a tabular dataset (CSV, Parquet, JSON)., Validate a tabular dataset (CSV, Parquet, JSON)., Validate a tabular dataset (CSV, Parquet, JSON)., Validate a tabular dataset (CSV, Parquet, JSON)., Validate a tabular dataset (CSV, Parquet, JSON)., Validate a tabular dataset (CSV, Parquet, JSON). (+4 more)
+
+### Community 242 - "Community 242"
+Cohesion: 0.18
+Nodes (9): AgentEventHandler, cmd_deploy(), cmd_validate(), Run agent with event handling., Handles agent events and displays progress., Handle events from the agent loop., Deploy a trained model to a target platform., Validate a dataset using Great Expectations. (+1 more)
+
+### Community 243 - "Community 243"
+Cohesion: 0.23
+Nodes (9): admin_list_keys(), List all API keys via the API., admin_list_keys(), List all API keys via the API., Tests for admin_list_keys function., Test successful API key listing., Test API key listing with filters., Test listing with no keys. (+1 more)
 
 ### Community 244 - "Community 244"
 Cohesion: 0.17
-Nodes (12): create_litserve_api(), Create LitServe API for model serving., Create LitServe API for model serving., Create LitServe API for model serving., Create LitServe API for model serving., Create LitServe API for model serving., Create LitServe API for model serving., Create LitServe API for model serving. (+4 more)
+Nodes (7): Test adding a websocket to a session., Test that add_websocket creates a list if not present., Test removing a websocket from a session., Test removing a websocket that's not in the list., Test removing a websocket from a non-existent session., Tests for SessionManager class., TestSessionManager
 
 ### Community 245 - "Community 245"
 Cohesion: 0.17
-Nodes (12): Select or create a local model artifact for LitServe preflight., Select or create a local model artifact for LitServe preflight., Select or create a local model artifact for LitServe preflight., Select or create a local model artifact for LitServe preflight., Select or create a local model artifact for LitServe preflight., Select or create a local model artifact for LitServe preflight., Select or create a local model artifact for LitServe preflight., Select or create a local model artifact for LitServe preflight. (+4 more)
+Nodes (7): Tests for ConceptDriftDetector class., Test ConceptDriftDetector initialization., Test ConceptDriftDetector with custom parameters., Test concept drift detection., Test concept drift detection with predictions., Test error when target column is missing., TestConceptDriftDetector
 
 ### Community 246 - "Community 246"
-Cohesion: 0.17
-Nodes (12): _capstone_split_verification_result(), _existing_split_record(), generate_capstone_split_manifests(), Write deterministic split manifests for supported capstone datasets only., Write deterministic split manifests for supported capstone datasets only., Write deterministic split manifests for supported capstone datasets only., Write deterministic split manifests for supported capstone datasets only., Write deterministic split manifests for supported capstone datasets only. (+4 more)
+Cohesion: 0.21
+Nodes (7): MLOpsMetrics, Pre-defined Prometheus metrics for the MLOps agent.      Usage:         from obs, Register all metrics with the registry., Tests for pre-defined MLOps metrics., Test creating MLOps metrics., Test session metrics., TestMLOpsMetrics
 
 ### Community 247 - "Community 247"
-Cohesion: 0.23
-Nodes (9): admin_create_key(), Create a new API key via the API., admin_create_key(), Create a new API key via the API., Tests for admin_create_key function., Test successful API key creation., Test API key creation with all options., Test API key creation with API error. (+1 more)
-
-### Community 248 - "Community 248"
-Cohesion: 0.17
-Nodes (7): Test adding a websocket to a session., Test that add_websocket creates a list if not present., Test removing a websocket from a session., Test removing a websocket that's not in the list., Test removing a websocket from a non-existent session., Tests for SessionManager class., TestSessionManager
-
-### Community 249 - "Community 249"
 Cohesion: 0.17
 Nodes (7): Integration tests for MLOps-specific context manager features., Test that artifacts are tracked from tool results., Test that MLflow run info is tracked., Test that metrics are extracted from training results., Test that pipeline stage is updated from perception., Test that globals are versioned on conflict., TestContextManagerMLOpsIntegration
 
-### Community 250 - "Community 250"
+### Community 248 - "Community 248"
 Cohesion: 0.17
 Nodes (7): Tests for get_remaining() functionality., Test get_remaining returns full quota for new client., Test get_remaining decreases after requests., Test get_remaining returns 0 at limit., Test get_remaining never returns negative value., Test get_remaining excludes expired requests., TestGetRemaining
 
-### Community 251 - "Community 251"
+### Community 249 - "Community 249"
 Cohesion: 0.17
 Nodes (7): Tests for client ID extraction from requests., Test extracting client ID from direct client IP., Test extracting client ID from X-Forwarded-For header., Test extracting client ID when client info is missing., Test X-Forwarded-For header with extra whitespace., Test X-Forwarded-For with single IP., TestClientIdExtraction
 
-### Community 252 - "Community 252"
-Cohesion: 0.17
-Nodes (12): compare_distributions(), Compare distributions between a reference dataset and current dataset for drift, Compare distributions between a reference dataset and current dataset for drift, Compare distributions between a reference dataset and current dataset for drift, Compare distributions between a reference dataset and current dataset for drift, Compare distributions between a reference dataset and current dataset for drift, Compare distributions between a reference dataset and current dataset for drift, Compare distributions between a reference dataset and current dataset for drift (+4 more)
-
-### Community 253 - "Community 253"
-Cohesion: 0.17
-Nodes (12): Create GitHub Actions workflow for ML pipeline., Validate an image dataset directory., Validate an image dataset directory., Validate an image dataset directory., Validate an image dataset directory., Validate an image dataset directory., Validate an image dataset directory., Validate an image dataset directory. (+4 more)
-
-### Community 254 - "Community 254"
-Cohesion: 0.17
-Nodes (12): analyze_training_results(), Analyze training results and suggest improvements., Analyze training results and suggest improvements., Analyze training results and suggest improvements., Analyze training results and suggest improvements., Analyze training results and suggest improvements., Analyze training results and suggest improvements., Analyze training results and suggest improvements. (+4 more)
-
-### Community 255 - "Community 255"
-Cohesion: 0.17
-Nodes (12): Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax. (+4 more)
-
-### Community 256 - "Community 256"
-Cohesion: 0.17
-Nodes (12): detect_anomalies(), Detect anomalies in a dataset using statistical methods.      Args:         data, Detect anomalies in a dataset using statistical methods.      Args:         data, Detect anomalies in a dataset using statistical methods.      Args:         data, Detect anomalies in a dataset using statistical methods.      Args:         data, Detect anomalies in a dataset using statistical methods.      Args:         data, Detect anomalies in a dataset using statistical methods.      Args:         data, Detect anomalies in a dataset using statistical methods.      Args:         data (+4 more)
-
-### Community 257 - "Community 257"
-Cohesion: 0.17
-Nodes (7): Test empty VALID_API_KEYS returns empty set., Test ALLOWED_ORIGINS environment variable parsing., Tests for SecurityConfig class., Test SecurityConfig loads default values when env vars not set., Test SecurityConfig loads values from environment variables., Test VALID_API_KEYS environment variable parsing., TestSecurityConfig
-
-### Community 258 - "Community 258"
-Cohesion: 0.17
-Nodes (7): Tests for /metrics/system endpoint., Test /metrics/system endpoint returns 200 status., Test /metrics/system has cpu_percent field., Test /metrics/system has memory fields., Test /metrics/system has disk fields., Test /metrics/system has platform info., TestSystemMetricsEndpoint
-
-### Community 259 - "Community 259"
-Cohesion: 0.17
-Nodes (11): dataframe_with_duplicates(), dataframe_with_nulls(), dataframe_with_outliers(), ge_validator(), Tests for Great Expectations Validator Integration  Tests for GreatExpectationsV, Create a sample DataFrame for testing., Create a DataFrame with null values., Create a DataFrame with outliers. (+3 more)
-
-### Community 260 - "Community 260"
-Cohesion: 0.17
-Nodes (7): Tests for report quality metrics., Test quality score is high for clean data., Test quality score is low for data with issues., Test passed/failed counts are correct., Test recommendations are generated., Test statistics are included in report., TestReportQuality
-
-### Community 261 - "Community 261"
-Cohesion: 0.17
-Nodes (12): check_accuracy_threshold(), Check if accuracy threshold is met., Check if accuracy threshold is met., Check if accuracy threshold is met., Check if accuracy threshold is met., Check if accuracy threshold is met., Check if accuracy threshold is met., Check if accuracy threshold is met. (+4 more)
-
-### Community 262 - "Community 262"
-Cohesion: 0.17
-Nodes (7): Tests for validate_schema MCP tool., Test successful schema validation., Test detection of missing column in schema., Test strict mode detects extra columns., Test error handling for non-existent file., Test detection of type mismatches., TestValidateSchema
-
-### Community 263 - "Community 263"
-Cohesion: 0.17
-Nodes (12): push_docker_image(), Push Docker image to registry., Push Docker image to registry., Push Docker image to registry., Push Docker image to registry., Push Docker image to registry., Push Docker image to registry., Push Docker image to registry. (+4 more)
-
-### Community 264 - "Community 264"
+### Community 250 - "Community 250"
 Cohesion: 0.17
 Nodes (12): add_workflow_step(), Add step to existing GitHub workflow., Add step to existing GitHub workflow., Add step to existing GitHub workflow., Add step to existing GitHub workflow., Add step to existing GitHub workflow., Add step to existing GitHub workflow., Add step to existing GitHub workflow. (+4 more)
 
+### Community 251 - "Community 251"
+Cohesion: 0.17
+Nodes (12): push_docker_image(), Push Docker image to registry., Push Docker image to registry., Push Docker image to registry., Push Docker image to registry., Push Docker image to registry., Push Docker image to registry., Push Docker image to registry. (+4 more)
+
+### Community 252 - "Community 252"
+Cohesion: 0.17
+Nodes (7): Test basic distribution comparison., Test detecting distribution drift., Test comparing specific columns., Test handling non-existent reference file., Test handling non-existent current file., Test distribution comparison functions., TestCompareDistributions
+
+### Community 253 - "Community 253"
+Cohesion: 0.17
+Nodes (12): load_template(), Load a template file., Load a template file., Load a template file., Load a template file., Load a template file., Load a template file., Load a template file. (+4 more)
+
+### Community 254 - "Community 254"
+Cohesion: 0.17
+Nodes (12): create_litserve_api(), Create LitServe API for model serving., Create LitServe API for model serving., Create LitServe API for model serving., Create LitServe API for model serving., Create LitServe API for model serving., Create LitServe API for model serving., Create LitServe API for model serving. (+4 more)
+
+### Community 255 - "Community 255"
+Cohesion: 0.17
+Nodes (12): monitor_model_performance(), Monitor model performance metrics and detect degradation.      Uses the ModelMon, Monitor model performance metrics and detect degradation.      Uses the ModelMon, Monitor model performance metrics and detect degradation.      Uses the ModelMon, Detect data drift between reference and current datasets using Evidently AI., Monitor model performance metrics and detect degradation.      Uses the ModelMon, Monitor model performance metrics and detect degradation.      Uses the ModelMon, Monitor model performance metrics and detect degradation.      Uses the ModelMon (+4 more)
+
+### Community 256 - "Community 256"
+Cohesion: 0.21
+Nodes (8): monitor_model_performance(), Monitor model performance metrics and detect degradation.      Uses the ModelMon, Tests for snapshot recording in monitor_model_performance., Test that snapshot is recorded by default., Test that snapshot is not recorded when disabled., Test snapshot persistence to storage., Test loading existing snapshots from storage., TestMonitorModelPerformanceSnapshots
+
+### Community 257 - "Community 257"
+Cohesion: 0.17
+Nodes (11): classification_data(), classification_data_with_probs(), degraded_classification_data(), Pytest tests for monitor_model_performance MCP Tool  Tests for the monitor_model, Create a temporary directory for test files., Create classification data for testing., Create classification data with probabilities., Create regression data for testing. (+3 more)
+
+### Community 258 - "Community 258"
+Cohesion: 0.17
+Nodes (7): Tests for detect_data_drift parameters., Test drift detection on specific columns only., Test drift detection with custom threshold., Test drift detection with custom dataset name., Test drift detection with explicit categorical column specification., Test drift detection with explicit numerical column specification., TestDetectDataDriftParameters
+
+### Community 259 - "Community 259"
+Cohesion: 0.17
+Nodes (7): Tests for /metrics/system endpoint., Test /metrics/system endpoint returns 200 status., Test /metrics/system has cpu_percent field., Test /metrics/system has memory fields., Test /metrics/system has disk fields., Test /metrics/system has platform info., TestSystemMetricsEndpoint
+
+### Community 260 - "Community 260"
+Cohesion: 0.17
+Nodes (11): dataframe_with_duplicates(), dataframe_with_nulls(), dataframe_with_outliers(), ge_validator(), Tests for Great Expectations Validator Integration  Tests for GreatExpectationsV, Create a sample DataFrame for testing., Create a DataFrame with null values., Create a DataFrame with outliers. (+3 more)
+
+### Community 261 - "Community 261"
+Cohesion: 0.17
+Nodes (7): Tests for report quality metrics., Test quality score is high for clean data., Test quality score is low for data with issues., Test passed/failed counts are correct., Test recommendations are generated., Test statistics are included in report., TestReportQuality
+
+### Community 262 - "Community 262"
+Cohesion: 0.17
+Nodes (12): check_accuracy_threshold(), Check if accuracy threshold is met., Check if accuracy threshold is met., Check if accuracy threshold is met., Check if accuracy threshold is met., Check if accuracy threshold is met., Check if accuracy threshold is met., Check if accuracy threshold is met. (+4 more)
+
+### Community 263 - "Community 263"
+Cohesion: 0.17
+Nodes (7): Tests for validate_schema MCP tool., Test successful schema validation., Test detection of missing column in schema., Test strict mode detects extra columns., Test error handling for non-existent file., Test detection of type mismatches., TestValidateSchema
+
+### Community 264 - "Community 264"
+Cohesion: 0.18
+Nodes (9): AgentEventHandler, cmd_deploy(), cmd_validate(), Run agent with event handling., Handles agent events and displays progress., Handle events from the agent loop., Deploy a trained model to a target platform., Validate a dataset using Great Expectations. (+1 more)
+
 ### Community 265 - "Community 265"
 Cohesion: 0.17
-Nodes (7): CircuitState, CircuitStats, Circuit Breaker Pattern Implementation.  Provides protection against cascading f, Reset the circuit breaker to closed state., Circuit breaker states., Reset all circuit breakers., Statistics for circuit breaker monitoring.
+Nodes (6): Test SGD training configuration., Test that main config loads without error., Test default training configuration., Test TabNet config loads and has required fields., Test long training configuration., TestTrainingConfigs
 
 ### Community 266 - "Community 266"
-Cohesion: 0.21
-Nodes (7): MLOpsMetrics, Pre-defined Prometheus metrics for the MLOps agent.      Usage:         from obs, Register all metrics with the registry., Tests for pre-defined MLOps metrics., Test creating MLOps metrics., Test session metrics., TestMLOpsMetrics
+Cohesion: 0.17
+Nodes (7): Tests that verify the project structure matches README documentation., Test that README.md exists., Test that project directory exists., Test that main Python scripts exist., Test that requirements.txt exists., Test that dvc.yaml exists., TestProjectStructure
 
 ### Community 267 - "Community 267"
 Cohesion: 0.17
@@ -2976,59 +3031,59 @@ Nodes (7): Tests that verify README content is accurate., Test that README menti
 
 ### Community 268 - "Community 268"
 Cohesion: 0.17
-Nodes (7): Tests that verify the project structure matches README documentation., Test that README.md exists., Test that project directory exists., Test that main Python scripts exist., Test that requirements.txt exists., Test that dvc.yaml exists., TestProjectStructure
+Nodes (12): compare_distributions(), Compare distributions between a reference dataset and current dataset for drift, Compare distributions between a reference dataset and current dataset for drift, Compare distributions between a reference dataset and current dataset for drift, Compare distributions between a reference dataset and current dataset for drift, Compare distributions between a reference dataset and current dataset for drift, Compare distributions between a reference dataset and current dataset for drift, Compare distributions between a reference dataset and current dataset for drift (+4 more)
 
 ### Community 269 - "Community 269"
 Cohesion: 0.17
-Nodes (6): Test SGD training configuration., Test that main config loads without error., Test default training configuration., Test TabNet config loads and has required fields., Test long training configuration., TestTrainingConfigs
+Nodes (12): analyze_training_results(), Analyze training results and suggest improvements., Analyze training results and suggest improvements., Analyze training results and suggest improvements., Analyze training results and suggest improvements., Analyze training results and suggest improvements., Analyze training results and suggest improvements., Analyze training results and suggest improvements. (+4 more)
 
 ### Community 270 - "Community 270"
-Cohesion: 0.18
-Nodes (11): generate_litserve_dockerfile(), Generate or validate a Dockerfile for local LitServe preflight., Generate or validate a Dockerfile for local LitServe preflight., Generate or validate a Dockerfile for local LitServe preflight., Generate or validate a Dockerfile for local LitServe preflight., Generate or validate a Dockerfile for local LitServe preflight., Generate or validate a Dockerfile for local LitServe preflight., Generate or validate a Dockerfile for local LitServe preflight. (+3 more)
+Cohesion: 0.17
+Nodes (12): Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax., Simple template rendering with ${var} syntax. (+4 more)
 
 ### Community 271 - "Community 271"
-Cohesion: 0.18
-Nodes (11): detect_runtime_environment(), Record local runtime context without provisioning cloud resources., Record local runtime context without provisioning cloud resources., Record local runtime context without provisioning cloud resources., Record local runtime context without provisioning cloud resources., Record local runtime context without provisioning cloud resources., Record local runtime context without provisioning cloud resources., Record local runtime context without provisioning cloud resources. (+3 more)
+Cohesion: 0.17
+Nodes (12): detect_anomalies(), Detect anomalies in a dataset using statistical methods.      Args:         data, Detect anomalies in a dataset using statistical methods.      Args:         data, Detect anomalies in a dataset using statistical methods.      Args:         data, Detect anomalies in a dataset using statistical methods.      Args:         data, Detect anomalies in a dataset using statistical methods.      Args:         data, Detect anomalies in a dataset using statistical methods.      Args:         data, Detect anomalies in a dataset using statistical methods.      Args:         data (+4 more)
 
 ### Community 272 - "Community 272"
-Cohesion: 0.22
-Nodes (7): _generate_key_id(), _generate_raw_key(), _hash_key(), API Key Manager for MLOps Agent.  Provides a high-level interface for managing A, Generate a new API key.          Args:             name: Human-readable name for, Verify an API key and return its info if valid.          Args:             raw_k, Revoke an API key using the raw key string.          Args:             raw_key:
+Cohesion: 0.17
+Nodes (12): Create GitHub Actions workflow for ML pipeline., Validate an image dataset directory., Validate an image dataset directory., Validate an image dataset directory., Validate an image dataset directory., Validate an image dataset directory., Validate an image dataset directory., Validate an image dataset directory. (+4 more)
 
 ### Community 273 - "Community 273"
 Cohesion: 0.18
-Nodes (11): dvc_push(), Push data to DVC remote., Initialize DVC in a repository., Push data to DVC remote., Push data to DVC remote., Push data to DVC remote., Push data to DVC remote., Create DVC pipeline (dvc.yaml). (+3 more)
+Nodes (11): detect_runtime_environment(), Record local runtime context without provisioning cloud resources., Record local runtime context without provisioning cloud resources., Record local runtime context without provisioning cloud resources., Record local runtime context without provisioning cloud resources., Record local runtime context without provisioning cloud resources., Record local runtime context without provisioning cloud resources., Record local runtime context without provisioning cloud resources. (+3 more)
 
 ### Community 274 - "Community 274"
 Cohesion: 0.18
-Nodes (6): clear_hydra(), Tests for Hydra configuration files., Tests for paths configuration files., Test default paths configuration., Clear Hydra's global state before and after each test., TestPathsConfigs
+Nodes (11): configure_dvc_remote(), Configure DVC remote storage., Configure DVC remote storage., Configure DVC remote storage., Configure DVC remote storage., Configure DVC remote storage., Configure DVC remote storage., Configure DVC remote storage. (+3 more)
 
 ### Community 275 - "Community 275"
 Cohesion: 0.18
-Nodes (6): Test experiment config loads., Tests for config content validity., Test MLP config loads and has required fields., Test training config loads and has required fields., Test data config loads and has required fields., TestConfigContent
+Nodes (11): generate_litserve_dockerfile(), Generate or validate a Dockerfile for local LitServe preflight., Generate or validate a Dockerfile for local LitServe preflight., Generate or validate a Dockerfile for local LitServe preflight., Generate or validate a Dockerfile for local LitServe preflight., Generate or validate a Dockerfile for local LitServe preflight., Generate or validate a Dockerfile for local LitServe preflight., Generate or validate a Dockerfile for local LitServe preflight. (+3 more)
 
 ### Community 276 - "Community 276"
+Cohesion: 0.18
+Nodes (11): detect_data_drift(), Detect data drift between reference and current datasets using Evidently AI., Detect data drift between reference and current datasets using Evidently AI., Detect data drift between reference and current datasets using Evidently AI., Detect data drift between reference and current datasets using Evidently AI., Detect data drift between reference and current datasets using Evidently AI., Detect data drift between reference and current datasets using Evidently AI., Detect data drift between reference and current datasets using Evidently AI. (+3 more)
+
+### Community 277 - "Community 277"
+Cohesion: 0.22
+Nodes (7): _generate_key_id(), _generate_raw_key(), _hash_key(), API Key Manager for MLOps Agent.  Provides a high-level interface for managing A, Generate a new API key.          Args:             name: Human-readable name for, Verify an API key and return its info if valid.          Args:             raw_k, Revoke an API key using the raw key string.          Args:             raw_key:
+
+### Community 278 - "Community 278"
 Cohesion: 0.22
 Nodes (10): ApprovalDecision, get_latest_decision(), Approval utilities for human-in-the-loop workflows.  Stores and retrieves approv, Represents a human approval decision., Represents a human approval decision., Fetch the latest approval decision for a session (optionally filtered by approva, Fetch the latest approval decision for a session (optionally filtered by approva, Wait for an approval decision to appear in the session event log. (+2 more)
 
-### Community 277 - "Community 277"
-Cohesion: 0.18
-Nodes (10): Return whether the selected workflow should be finalized by registry contract., Return whether the selected workflow should be finalized by registry contract., Return whether the selected workflow should be finalized by registry contract., Return whether the selected workflow should be finalized by registry contract., Return whether the selected workflow should be finalized by registry contract., Return whether the selected workflow should be finalized by registry contract., Return whether the selected workflow is an executable setup_pipeline run., Return whether the selected workflow should be finalized by registry contract. (+2 more)
-
-### Community 278 - "Community 278"
-Cohesion: 0.18
-Nodes (10): Return whether this completed step should trigger perception feedback., Return whether the selected workflow is an executable setup_pipeline run., Return whether this completed step should trigger perception feedback., Return whether this completed step should trigger perception feedback., Return whether this completed step should trigger perception feedback., Return whether this completed step should trigger perception feedback., Return whether this completed step should trigger perception feedback., Return whether this completed step should trigger perception feedback. (+2 more)
-
 ### Community 279 - "Community 279"
-Cohesion: 0.18
-Nodes (10): Derive selected registry workflow status from captured evidence., Derive selected registry workflow status from captured evidence., Derive selected registry workflow status from captured evidence., Derive setup_pipeline status from captured success contract evidence., Derive selected registry workflow status from captured evidence., Derive selected registry workflow status from captured evidence., Derive selected registry workflow status from captured evidence., Derive selected registry workflow status from captured evidence. (+2 more)
+Cohesion: 0.2
+Nodes (10): pull_capstone_data(), Run approval-gated DVC pull and record observed capstone transfer evidence., Run approval-gated DVC pull and record observed capstone transfer evidence., Run approval-gated DVC pull and record observed capstone transfer evidence., Run approval-gated DVC pull and record observed capstone transfer evidence., Run approval-gated DVC pull and record observed capstone transfer evidence., Run approval-gated DVC pull and record observed capstone transfer evidence., Run approval-gated DVC pull and record observed capstone transfer evidence. (+2 more)
 
 ### Community 280 - "Community 280"
-Cohesion: 0.2
-Nodes (10): Record the LitServe launch command without starting a server., Record the LitServe launch command without starting a server., Generate or validate a Dockerfile for local LitServe preflight., Record the LitServe launch command without starting a server., Record the LitServe launch command without starting a server., Record the LitServe launch command without starting a server., Record the LitServe launch command without starting a server., Record the LitServe launch command without starting a server. (+2 more)
+Cohesion: 0.22
+Nodes (8): get_prometheus_metrics(), Get metrics in Prometheus text format.      This endpoint is designed to be scra, get_metrics_endpoint(), Get the Prometheus metrics endpoint output.      Returns:         Prometheus tex, Tests for get_metrics_endpoint function., Test that get_metrics_endpoint returns a string., Test that endpoint includes MLOps metrics., TestGetMetricsEndpoint
 
 ### Community 281 - "Community 281"
 Cohesion: 0.2
-Nodes (10): pull_capstone_data(), Run approval-gated DVC pull and record observed capstone transfer evidence., Run approval-gated DVC pull and record observed capstone transfer evidence., Run approval-gated DVC pull and record observed capstone transfer evidence., Run approval-gated DVC pull and record observed capstone transfer evidence., Run approval-gated DVC pull and record observed capstone transfer evidence., Run approval-gated DVC pull and record observed capstone transfer evidence., Run approval-gated DVC pull and record observed capstone transfer evidence. (+2 more)
+Nodes (6): Tests for RateLimiter initialization., Test RateLimiter initializes with default SecurityConfig., Test RateLimiter initializes with custom config., Test RateLimiter starts with empty request tracking., Test RateLimiter sets initial cleanup timestamp., TestRateLimiterInitialization
 
 ### Community 282 - "Community 282"
 Cohesion: 0.2
@@ -3036,23 +3091,23 @@ Nodes (6): Tests for RateLimitExceeded exception., Test RateLimitExceeded has co
 
 ### Community 283 - "Community 283"
 Cohesion: 0.2
-Nodes (6): Tests for RateLimiter initialization., Test RateLimiter initializes with default SecurityConfig., Test RateLimiter initializes with custom config., Test RateLimiter starts with empty request tracking., Test RateLimiter sets initial cleanup timestamp., TestRateLimiterInitialization
+Nodes (6): Test anomaly detection functions., Test basic anomaly detection., Test anomaly detection with specific methods., Test anomaly detection with custom thresholds., Test handling non-existent file., TestDetectAnomalies
 
 ### Community 284 - "Community 284"
 Cohesion: 0.2
-Nodes (6): Test anomaly detection functions., Test basic anomaly detection., Test anomaly detection with specific methods., Test anomaly detection with custom thresholds., Test handling non-existent file., TestDetectAnomalies
+Nodes (6): Test schema validation functions., Test basic schema validation., Test detecting missing column., Test detecting extra columns in strict mode., Test handling non-existent file., TestValidateSchema
 
 ### Community 285 - "Community 285"
 Cohesion: 0.2
-Nodes (6): Test schema validation functions., Test basic schema validation., Test detecting missing column., Test detecting extra columns in strict mode., Test handling non-existent file., TestValidateSchema
+Nodes (6): Test successful regression monitoring., Test classification monitoring with prediction probabilities., Test monitoring with model version., Basic functionality tests for monitor_model_performance., Test successful classification monitoring., TestMonitorModelPerformanceBasic
 
 ### Community 286 - "Community 286"
-Cohesion: 0.24
-Nodes (7): Tests for schema integrity after migrations., Test that migrated schema supports data operations., Test inserting agent session with steps and experiment state., Test that foreign key constraints are enforced., Run an alembic command and return the result., run_alembic_command(), TestSchemaIntegrity
+Cohesion: 0.2
+Nodes (6): Basic functionality tests for detect_data_drift., Test successful drift detection on CSV files., Test drift detection when significant drift exists., Test drift detection on Parquet files., Test drift detection on JSON files., TestDetectDataDriftBasic
 
 ### Community 287 - "Community 287"
-Cohesion: 0.2
-Nodes (6): Tests for /metrics/pipeline endpoint., Test /metrics/pipeline endpoint returns 200 status., Test /metrics/pipeline has pipeline count fields., Test /metrics/pipeline has tool information., Test /metrics/pipeline has duration field., TestPipelineMetricsEndpoint
+Cohesion: 0.24
+Nodes (7): Tests for schema integrity after migrations., Test that migrated schema supports data operations., Test inserting agent session with steps and experiment state., Test that foreign key constraints are enforced., Run an alembic command and return the result., run_alembic_command(), TestSchemaIntegrity
 
 ### Community 288 - "Community 288"
 Cohesion: 0.2
@@ -3060,254 +3115,318 @@ Nodes (6): Tests for /metrics/agent endpoint., Test /metrics/agent endpoint retu
 
 ### Community 289 - "Community 289"
 Cohesion: 0.2
-Nodes (6): Basic tests for GreatExpectationsValidator., Test validator can be created., Test adding expectations., Test adding multiple expectations., Test clearing expectations., TestGreatExpectationsValidatorBasic
+Nodes (6): Tests for /metrics/pipeline endpoint., Test /metrics/pipeline endpoint returns 200 status., Test /metrics/pipeline has pipeline count fields., Test /metrics/pipeline has tool information., Test /metrics/pipeline has duration field., TestPipelineMetricsEndpoint
 
 ### Community 290 - "Community 290"
 Cohesion: 0.2
-Nodes (6): Tests for file-based validation., Test validating a CSV file., Test validating a Parquet file., Test error handling for nonexistent file., Test error handling for unsupported format., TestFileValidation
+Nodes (6): Basic tests for GreatExpectationsValidator., Test validator can be created., Test adding expectations., Test adding multiple expectations., Test clearing expectations., TestGreatExpectationsValidatorBasic
 
 ### Community 291 - "Community 291"
-Cohesion: 0.22
-Nodes (7): get_rate_limit(), Get rate limit from environment variable.      Returns rate limit string for slo, Tests for rate limit configuration., Test default rate limit is 100/minute when env var not set., Test rate limit can be set via environment variable., Test that limiter is attached to app state., TestRateLimitConfiguration
+Cohesion: 0.2
+Nodes (6): Tests for file-based validation., Test validating a CSV file., Test validating a Parquet file., Test error handling for nonexistent file., Test error handling for unsupported format., TestFileValidation
 
 ### Community 292 - "Community 292"
-Cohesion: 0.24
-Nodes (7): Raised when all retry attempts have been exhausted., RetryExhaustedError, Tests for RetryExhaustedError exception., Test error contains attempt count., Test error contains last error., Test error contains total delay., TestRetryExhaustedError
+Cohesion: 0.2
+Nodes (6): Integration tests for data validation workflow., Test validation followed by quality check workflow., Test profiling followed by anomaly detection., Test creating expectation suite then using for quality check., Test complete validation pipeline., TestDataValidationIntegration
 
 ### Community 293 - "Community 293"
 Cohesion: 0.22
-Nodes (8): get_prometheus_metrics(), Get metrics in Prometheus text format.      This endpoint is designed to be scra, get_metrics_endpoint(), Get the Prometheus metrics endpoint output.      Returns:         Prometheus tex, Tests for get_metrics_endpoint function., Test that get_metrics_endpoint returns a string., Test that endpoint includes MLOps metrics., TestGetMetricsEndpoint
+Nodes (7): get_rate_limit(), Get rate limit from environment variable.      Returns rate limit string for slo, Tests for rate limit configuration., Test default rate limit is 100/minute when env var not set., Test rate limit can be set via environment variable., Test that limiter is attached to app state., TestRateLimitConfiguration
 
 ### Community 294 - "Community 294"
-Cohesion: 0.2
-Nodes (6): Tests that verify supporting files exist., Test that setup script exists., Test that agent_queries.md exists., Test that run_example.py exists., Test that docs directory exists., TestSupportingFiles
+Cohesion: 0.22
+Nodes (5): AdaptiveTimeout, Adaptive timeout that adjusts based on historical performance.      Tracks opera, Record an operation duration., Update the timeout based on recorded durations., Decorator for adding adaptive timeout to async functions.
 
 ### Community 295 - "Community 295"
-Cohesion: 0.2
-Nodes (5): Tests for data configuration files., Test CIFAR-10 data configuration., Test CIFAR-10 minimal data configuration., Test CIFAR-10 normalization values are correct., TestDataConfigs
+Cohesion: 0.24
+Nodes (7): Raised when all retry attempts have been exhausted., RetryExhaustedError, Tests for RetryExhaustedError exception., Test error contains attempt count., Test error contains last error., Test error contains total delay., TestRetryExhaustedError
 
 ### Community 296 - "Community 296"
 Cohesion: 0.2
-Nodes (6): Tests for configuration overrides., Test overriding model config., Test overriding training config., Test overriding individual config values., Test combining different model and training configs., TestConfigOverrides
+Nodes (6): Tests for file-based validation., Test validating a CSV file., Test validating a Parquet file., Test error handling for nonexistent file., Test error handling for unsupported format., TestFileValidation
 
 ### Community 297 - "Community 297"
 Cohesion: 0.2
-Nodes (6): Tests for experiment configuration files., Test baseline experiment configuration., Test quick_test experiment configuration., Test high_accuracy experiment configuration., Test resnet_baseline experiment configuration., TestExperimentConfigs
+Nodes (6): Tests for configuration overrides., Test overriding model config., Test overriding training config., Test overriding individual config values., Test combining different model and training configs., TestConfigOverrides
 
 ### Community 298 - "Community 298"
 Cohesion: 0.2
-Nodes (9): Return whether the selected workflow is an executable setup_pipeline run., Return whether the selected workflow is an executable setup_pipeline run., Return whether the selected workflow is an executable setup_pipeline run., Return whether the selected workflow is an executable setup_pipeline run., Return whether the selected workflow is an executable setup_pipeline run., Return whether the selected workflow is an executable setup_pipeline run., Return whether the selected workflow is an executable setup_pipeline run., Return whether the selected workflow is an executable setup_pipeline run. (+1 more)
+Nodes (6): Tests for experiment configuration files., Test baseline experiment configuration., Test quick_test experiment configuration., Test high_accuracy experiment configuration., Test resnet_baseline experiment configuration., TestExperimentConfigs
 
 ### Community 299 - "Community 299"
 Cohesion: 0.2
-Nodes (9): Derive setup_pipeline status from captured success contract evidence., Derive setup_pipeline status from captured success contract evidence., Derive setup_pipeline status from captured success contract evidence., Derive setup_pipeline status from captured success contract evidence., Derive setup_pipeline status from captured success contract evidence., Derive setup_pipeline status from captured success contract evidence., Derive setup_pipeline status from captured success contract evidence., Derive setup_pipeline status from captured success contract evidence. (+1 more)
+Nodes (5): Tests for data configuration files., Test CIFAR-10 data configuration., Test CIFAR-10 minimal data configuration., Test CIFAR-10 normalization values are correct., TestDataConfigs
 
 ### Community 300 - "Community 300"
-Cohesion: 0.22
-Nodes (6): Set up the admin subcommand parser., setup_admin_parser(), parser(), Test that DEFAULT_API_URL is set correctly., Test that DEFAULT_API_URL can be set from environment., TestDefaultApiUrl
+Cohesion: 0.2
+Nodes (6): Tests that verify supporting files exist., Test that setup script exists., Test that agent_queries.md exists., Test that run_example.py exists., Test that docs directory exists., TestSupportingFiles
 
 ### Community 301 - "Community 301"
 Cohesion: 0.22
-Nodes (8): clean_db_state(), migration_env(), Clean up database state before and after each test., Create a temporary database file path., Create a temporary database URL., Set up environment for running migrations., temp_db_path(), temp_db_url()
+Nodes (6): Set up the admin subcommand parser., setup_admin_parser(), parser(), Test that DEFAULT_API_URL is set correctly., Test that DEFAULT_API_URL can be set from environment., TestDefaultApiUrl
 
 ### Community 302 - "Community 302"
 Cohesion: 0.22
-Nodes (7): client(), Reset rate limiter storage before each test., Tests for rate limiting on metrics endpoints., Test /metrics endpoint has rate limit., Create a test client., reset_limiter(), TestMetricsRateLimiting
+Nodes (8): clean_db_state(), migration_env(), Clean up database state before and after each test., Create a temporary database file path., Create a temporary database URL., Set up environment for running migrations., temp_db_path(), temp_db_url()
 
 ### Community 303 - "Community 303"
 Cohesion: 0.22
-Nodes (8): Test AVAILABLE_TOOLS contains deployment and rollback tools., Test AVAILABLE_TOOLS contains deployment and rollback tools., Test AVAILABLE_TOOLS contains deployment and rollback tools., Test AVAILABLE_TOOLS contains deployment and rollback tools., Test AVAILABLE_TOOLS contains deployment and rollback tools., Test AVAILABLE_TOOLS contains deployment and rollback tools., Test AVAILABLE_TOOLS contains deployment and rollback tools., Test AVAILABLE_TOOLS contains deployment and rollback tools.
+Nodes (7): client(), Reset rate limiter storage before each test., Tests for rate limiting on metrics endpoints., Test /metrics endpoint has rate limit., Create a test client., reset_limiter(), TestMetricsRateLimiting
 
 ### Community 304 - "Community 304"
-Cohesion: 0.25
-Nodes (8): prepare_capstone_container_ci_contract(), Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli, Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli, Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli, Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli, Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli, Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli, Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli
+Cohesion: 0.22
+Nodes (6): Synchronous MLOps Client for the Auto-MLOps API., List available MCP tools., Result of an agent session., Information about an MCP tool., SessionResult, ToolInfo
 
 ### Community 305 - "Community 305"
 Cohesion: 0.25
-Nodes (3): Simple in-memory user store for admin operations., Get user by username., UserStore
+Nodes (8): prepare_capstone_container_ci_contract(), Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli, Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli, Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli, Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli, Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli, Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli, Record Phase 5 Issue 1 blocked/deferred evidence without running container tooli
 
 ### Community 306 - "Community 306"
-Cohesion: 0.25
-Nodes (5): Test that upgrade creates foreign key constraints., Tests for migration upgrade operations., Test upgrading to head creates all tables., Test that upgrade creates necessary indexes., TestMigrationUpgrade
-
-### Community 307 - "Community 307"
-Cohesion: 0.25
-Nodes (5): Tests for Alembic configuration., Test that alembic.ini exists., Test that migrations directory structure exists., Test that initial migration file exists., TestAlembicConfig
-
-### Community 308 - "Community 308"
-Cohesion: 0.25
-Nodes (5): Tests for /metrics/demo endpoint., Test /metrics/demo endpoint returns 200 status., Test /metrics/demo returns ok status., Test /metrics/demo actually generates demo data., TestDemoMetricsEndpoint
-
-### Community 309 - "Community 309"
-Cohesion: 0.25
-Nodes (5): Tests for metrics response data types., Test system metrics have correct numeric types., Test agent metrics have correct numeric types., Test most_used_tools has correct structure., TestMetricsDataTypes
-
-### Community 310 - "Community 310"
-Cohesion: 0.25
-Nodes (5): Test ExpectationConfig with kwargs., Test ExpectationConfig with custom description., Tests for ExpectationConfig class., Test basic ExpectationConfig creation., TestExpectationConfig
-
-### Community 311 - "Community 311"
-Cohesion: 0.25
-Nodes (5): Integration tests for data validation workflow., Test validation followed by quality check workflow., Test creating expectation suite then using for quality check., Test complete validation pipeline., TestDataValidationIntegration
-
-### Community 312 - "Community 312"
-Cohesion: 0.25
-Nodes (5): Tests that rate limiting is applied to endpoints., Test /health endpoint is rate limited., Test /tools endpoint is rate limited., Test /metrics endpoint is rate limited., TestRateLimitOnEndpoints
-
-### Community 313 - "Community 313"
-Cohesion: 0.25
-Nodes (5): Tests for RetryConfig validation and defaults., Test default configuration values., Test custom configuration values., Test configuration with custom retryable exceptions., TestRetryConfigValidation
-
-### Community 314 - "Community 314"
 Cohesion: 0.29
 Nodes (6): get_registry(), Get the global Prometheus registry., Tests for get_registry function., Test that get_registry returns the global registry., Test that get_registry returns the same instance., TestGetRegistry
 
+### Community 307 - "Community 307"
+Cohesion: 0.25
+Nodes (5): Tests for rate limiter configuration handling., Test with high rate limit configuration., Test with very short time window., Test RateLimiter with default config values., TestConfigurationValidation
+
+### Community 308 - "Community 308"
+Cohesion: 0.25
+Nodes (5): Tests for cleanup of expired request entries., Test that expired requests are cleaned up., Test that clients with no recent requests are removed., Test that cleanup only runs at configured interval., TestRequestCleanup
+
+### Community 309 - "Community 309"
+Cohesion: 0.25
+Nodes (5): Integration tests for monitor_model_performance., Test complete monitoring workflow., Test multiple monitoring calls to track performance over time., Test regression monitoring with baseline., TestMonitorModelPerformanceIntegration
+
+### Community 310 - "Community 310"
+Cohesion: 0.25
+Nodes (5): Tests for health status in monitor_model_performance., Test that health status is included in result., Test that health status has valid values., Test health status with custom metrics to check., TestMonitorModelPerformanceHealth
+
+### Community 311 - "Community 311"
+Cohesion: 0.25
+Nodes (5): Tests for specific feature behavior in detect_data_drift., Test drift detection for numerical features., Test drift detection for categorical features., Test drift detection with both numerical and categorical features., TestDetectDataDriftFeatures
+
+### Community 312 - "Community 312"
+Cohesion: 0.25
+Nodes (5): Tests for drift severity calculation., Test that severity is low or none when no significant drift., Test that severity increases with more drift., Test that severity values are from the expected set., TestDetectDataDriftSeverity
+
+### Community 313 - "Community 313"
+Cohesion: 0.25
+Nodes (5): Integration tests for detect_data_drift., Test complete drift detection workflow., Test running multiple drift checks sequentially., Test drift detection handles datasets with missing values., TestDetectDataDriftIntegration
+
+### Community 314 - "Community 314"
+Cohesion: 0.25
+Nodes (5): Tests for error handling in detect_data_drift., Test error handling for non-existent reference file., Test error handling for non-existent current file., Test error handling for unsupported file type., TestDetectDataDriftErrorHandling
+
 ### Community 315 - "Community 315"
-Cohesion: 0.14
-Nodes (8): Tests for async database engine creation., Create a temporary database file path., Create a temporary database URL., Tests for async config singleton., temp_db_path(), temp_db_url(), TestAsyncConfigSingleton, TestAsyncEngine
+Cohesion: 0.25
+Nodes (5): Tests for Alembic configuration., Test that alembic.ini exists., Test that migrations directory structure exists., Test that initial migration file exists., TestAlembicConfig
 
 ### Community 316 - "Community 316"
+Cohesion: 0.25
+Nodes (5): Test that upgrade creates foreign key constraints., Tests for migration upgrade operations., Test upgrading to head creates all tables., Test that upgrade creates necessary indexes., TestMigrationUpgrade
+
+### Community 317 - "Community 317"
+Cohesion: 0.25
+Nodes (5): Tests for /metrics/demo endpoint., Test /metrics/demo endpoint returns 200 status., Test /metrics/demo returns ok status., Test /metrics/demo actually generates demo data., TestDemoMetricsEndpoint
+
+### Community 318 - "Community 318"
+Cohesion: 0.25
+Nodes (5): Tests for metrics response data types., Test system metrics have correct numeric types., Test agent metrics have correct numeric types., Test most_used_tools has correct structure., TestMetricsDataTypes
+
+### Community 319 - "Community 319"
+Cohesion: 0.25
+Nodes (5): Test ExpectationConfig with kwargs., Test ExpectationConfig with custom description., Tests for ExpectationConfig class., Test basic ExpectationConfig creation., TestExpectationConfig
+
+### Community 320 - "Community 320"
+Cohesion: 0.25
+Nodes (5): Tests that rate limiting is applied to endpoints., Test /health endpoint is rate limited., Test /tools endpoint is rate limited., Test /metrics endpoint is rate limited., TestRateLimitOnEndpoints
+
+### Community 321 - "Community 321"
+Cohesion: 0.46
+Nodes (7): test_prepare_capstone_data_approved_run_generates_split_manifests_only(), test_prepare_capstone_data_blocks_for_split_manifest_write_approval(), test_prepare_capstone_data_capstone_complete_pulls_when_requested(), test_prepare_capstone_data_capstone_complete_pushes_after_approval(), test_prepare_capstone_data_detects_two_image_folder_datasets_read_only(), test_prepare_capstone_data_dvc_tracks_capstone_package_after_approval(), _write_tiny_image()
+
+### Community 322 - "Community 322"
+Cohesion: 0.25
+Nodes (4): Normalize and validate decision output., Get fallback output when LLM fails., Run decision to generate execution plan.          Args:             decision_inp, Format the decision prompt with input context.
+
+### Community 323 - "Community 323"
+Cohesion: 0.29
+Nodes (3): Simple in-memory user store for admin operations., Get user by username., UserStore
+
+### Community 324 - "Community 324"
 Cohesion: 0.29
 Nodes (7): _evidence_by_check(), test_generate_validate_capstone_runtime_image_spec_blocks_write_without_approval(), test_generate_validate_capstone_runtime_image_spec_detects_dependency_priority(), test_generate_validate_capstone_runtime_image_spec_generates_conservative_dockerfile_with_approval(), test_generate_validate_capstone_runtime_image_spec_references_existing_dockerfile(), test_generate_validate_capstone_runtime_image_spec_rejects_absolute_dataset_paths(), test_generate_validate_capstone_runtime_image_spec_reports_structured_secret_safety()
 
-### Community 317 - "Community 317"
-Cohesion: 0.29
-Nodes (7): test_run_bounded_training_captures_metrics_logs_duration_and_artifacts(), test_run_bounded_training_records_nonzero_exit_as_failed(), test_run_bounded_training_zero_exit_without_metric_or_artifact_does_not_succeed(), test_run_train_and_track_records_failed_training_in_mlflow(), test_run_train_and_track_succeeds_from_bounded_training_evidence(), test_track_training_in_mlflow_logs_bounded_training_evidence_to_local_run(), _write_bounded_training_fixture()
-
-### Community 318 - "Community 318"
+### Community 325 - "Community 325"
 Cohesion: 0.29
 Nodes (7): test_detect_capstone_data_layouts_blocks_empty_class_folder(), test_generate_capstone_split_manifests_writes_deterministic_manifest(), test_run_prepare_capstone_data_blocks_unsupported_dataset_without_mutation(), test_run_prepare_capstone_data_detects_existing_train_test_layout(), test_run_prepare_capstone_data_detects_two_valid_image_folder_datasets(), test_track_capstone_data_package_adds_split_manifests_to_dvc(), _write_tiny_image()
 
-### Community 319 - "Community 319"
-Cohesion: 0.29
-Nodes (5): Synchronous MLOps Client for the Auto-MLOps API., Result of an agent session., Information about an MCP tool., SessionResult, ToolInfo
-
-### Community 320 - "Community 320"
+### Community 326 - "Community 326"
 Cohesion: 0.29
 Nodes (4): Tests for the main config.yaml., Test loading the default configuration., Test default seed value., TestMainConfig
 
-### Community 321 - "Community 321"
-Cohesion: 0.33
-Nodes (4): Tests for cleanup of expired request entries., Test that expired requests are cleaned up., Test that cleanup only runs at configured interval., TestRequestCleanup
-
-### Community 322 - "Community 322"
-Cohesion: 0.33
-Nodes (4): Test WebSocket connection lifecycle and management., Test that WebSocket handles graceful disconnect., Test that WebSocket is cleaned up from session manager on disconnect., TestWebSocketConnectionManagement
-
-### Community 323 - "Community 323"
+### Community 327 - "Community 327"
 Cohesion: 0.33
 Nodes (4): Test the /ws/metrics WebSocket endpoint.      Note: The metrics WebSocket endpoi, Test that the metrics WebSocket endpoint exists and accepts connections., Test metrics data structure via REST endpoint.          Since the WebSocket endp, TestMetricsWebSocket
 
-### Community 324 - "Community 324"
-Cohesion: 0.33
-Nodes (6): test_record_capstone_orchestrator_blocks_missing_container_ci_when_upstream_ready(), test_record_capstone_orchestrator_references_completed_container_ci_handoff(), test_resolve_capstone_container_upstream_capstone_complete_accepts_structured_training_evidence(), test_resolve_capstone_container_upstream_capstone_complete_requires_capstone_data(), test_resolve_capstone_container_upstream_does_not_infer_from_prose_summary(), _write_capstone_data_stage_evidence()
-
-### Community 325 - "Community 325"
-Cohesion: 0.6
-Nodes (5): _prompt(), test_decision_prompt_preserves_course_planning_rules(), test_deployment_selector_maps_course_targets(), test_improvement_and_summary_prompts_cover_hpo_and_verification(), test_perception_prompt_includes_course_workflow_signals()
-
-### Community 326 - "Community 326"
-Cohesion: 0.33
-Nodes (4): Tests for AuthenticationError exception., Test default error message., Test custom error message., TestAuthenticationError
-
-### Community 327 - "Community 327"
-Cohesion: 0.33
-Nodes (4): Tests for migration downgrade operations., Test that downgrade removes tables., Test downgrading one migration step., TestMigrationDowngrade
-
 ### Community 328 - "Community 328"
 Cohesion: 0.33
-Nodes (4): Tests for migration information commands., Test that current command works after upgrade., Test that history command shows migrations., TestMigrationInfo
+Nodes (4): Test WebSocket connection lifecycle and management., Test that WebSocket handles graceful disconnect., Test that WebSocket is cleaned up from session manager on disconnect., TestWebSocketConnectionManagement
 
 ### Community 329 - "Community 329"
 Cohesion: 0.33
-Nodes (4): Tests for migration idempotency., Test that running upgrade twice doesn't cause errors., Test upgrade -> downgrade -> upgrade cycle., TestMigrationIdempotency
+Nodes (6): test_record_capstone_orchestrator_blocks_missing_container_ci_when_upstream_ready(), test_record_capstone_orchestrator_references_completed_container_ci_handoff(), test_resolve_capstone_container_upstream_capstone_complete_accepts_structured_training_evidence(), test_resolve_capstone_container_upstream_capstone_complete_requires_capstone_data(), test_resolve_capstone_container_upstream_does_not_infer_from_prose_summary(), _write_capstone_data_stage_evidence()
 
 ### Community 330 - "Community 330"
 Cohesion: 0.33
-Nodes (4): Integration tests for complete workflows., Test a complete validation workflow., Test validation with warning-level expectations., TestIntegration
+Nodes (4): Tests for the structure of monitor_model_performance results., Test that result contains all expected fields., Test the structure of health_details., TestMonitorModelPerformanceResultStructure
 
 ### Community 331 - "Community 331"
 Cohesion: 0.33
-Nodes (3): Tests that CORS middleware is properly configured., Test that CORSMiddleware is added to the app., TestCorsMiddlewareConfiguration
+Nodes (4): Tests for degradation threshold in monitor_model_performance., Test monitoring with custom degradation threshold., Test monitoring with strict degradation threshold., TestMonitorModelPerformanceDegradation
 
 ### Community 332 - "Community 332"
 Cohesion: 0.33
-Nodes (4): Tests for rate limit exceeded response., Test that exceeding rate limit returns 429 status code., Test that rate limit response includes Retry-After header., TestRateLimitResponse
+Nodes (4): Tests for error handling in monitor_model_performance., Test error handling for empty input arrays., Test error handling for mismatched array lengths., TestMonitorModelPerformanceErrors
 
 ### Community 333 - "Community 333"
-Cohesion: 0.47
-Nodes (3): AuthProvider(), useAuth(), AppContent()
+Cohesion: 0.33
+Nodes (4): Tests for metrics calculation in monitor_model_performance., Test that classification metrics have valid values., Test that regression metrics have valid values., TestMonitorModelPerformanceMetrics
 
 ### Community 334 - "Community 334"
 Cohesion: 0.33
-Nodes (4): ApprovalStatus, _normalize_risk_categories(), Controlled states for human approval records., Controlled states for human approval records.
+Nodes (4): Tests for baseline comparison in monitor_model_performance., Test monitoring with baseline comparison., Test that degradation is detected when below baseline., TestMonitorModelPerformanceBaseline
 
 ### Community 335 - "Community 335"
-Cohesion: 0.33
-Nodes (4): Tests that verify tests directory structure., Test that tests directory exists., Test that documented test files exist., TestTestsDirectory
+Cohesion: 0.6
+Nodes (5): _prompt(), test_decision_prompt_preserves_course_planning_rules(), test_deployment_selector_maps_course_targets(), test_improvement_and_summary_prompts_cover_hpo_and_verification(), test_perception_prompt_includes_course_workflow_signals()
 
 ### Community 336 - "Community 336"
 Cohesion: 0.33
-Nodes (5): example_dir(), project_dir(), Tests to validate that README.md accurately reflects the project structure., Return the image_classification example directory., Return the project directory.
+Nodes (4): Tests for module exports., Test that all __all__ exports are available., Test that async exports are available from db module., TestAsyncExports
 
 ### Community 337 - "Community 337"
 Cohesion: 0.33
-Nodes (4): Tests for model configuration files., Test CIFAR10 CNN model configuration., Test ResNet18 model configuration., TestModelConfigs
+Nodes (4): Tests for migration information commands., Test that current command works after upgrade., Test that history command shows migrations., TestMigrationInfo
 
 ### Community 338 - "Community 338"
 Cohesion: 0.33
-Nodes (4): Tests for configuration validation., Test that all config files are valid YAML and loadable by Hydra., Test that config values have correct types., TestConfigValidation
+Nodes (4): Tests for migration idempotency., Test that running upgrade twice doesn't cause errors., Test upgrade -> downgrade -> upgrade cycle., TestMigrationIdempotency
 
 ### Community 339 - "Community 339"
 Cohesion: 0.33
-Nodes (4): Tests for module exports., Test that all __all__ exports are available., Test that models are re-exported., TestExports
+Nodes (4): Tests for migration downgrade operations., Test that downgrade removes tables., Test downgrading one migration step., TestMigrationDowngrade
 
 ### Community 340 - "Community 340"
 Cohesion: 0.33
-Nodes (4): Tests for module exports., Test that all __all__ exports are available., Test that async exports are available from db module., TestAsyncExports
+Nodes (4): Integration tests for complete workflows., Test a complete validation workflow., Test validation with warning-level expectations., TestIntegration
 
 ### Community 341 - "Community 341"
 Cohesion: 0.33
-Nodes (5): Reset the circuit breaker to closed state., Reset the circuit breaker to closed state., Reset the circuit breaker to closed state., Reset the circuit breaker to closed state., Reset the circuit breaker to closed state.
+Nodes (3): Tests that CORS middleware is properly configured., Test that CORSMiddleware is added to the app., TestCorsMiddlewareConfiguration
+
+### Community 342 - "Community 342"
+Cohesion: 0.33
+Nodes (4): Tests for rate limit exceeded response., Test that exceeding rate limit returns 429 status code., Test that rate limit response includes Retry-After header., TestRateLimitResponse
 
 ### Community 343 - "Community 343"
+Cohesion: 0.47
+Nodes (3): AuthProvider(), useAuth(), AppContent()
+
+### Community 344 - "Community 344"
+Cohesion: 0.33
+Nodes (4): ApprovalStatus, _normalize_risk_categories(), Controlled states for human approval records., Controlled states for human approval records.
+
+### Community 345 - "Community 345"
+Cohesion: 0.67
+Nodes (5): _local_ml_project(), _local_setup_tools(), _prompts_dir(), test_local_setup_pipeline_real_tools_reach_contract_success_without_perception(), test_local_setup_pipeline_requires_approval_then_reaches_contract_success()
+
+### Community 346 - "Community 346"
+Cohesion: 0.33
+Nodes (4): Tests for Pydantic models., Test ValidationResult model., Test ColumnStatistics model., TestModels
+
+### Community 347 - "Community 347"
+Cohesion: 0.33
+Nodes (4): Tests for configuration validation., Test that all config files are valid YAML and loadable by Hydra., Test that config values have correct types., TestConfigValidation
+
+### Community 348 - "Community 348"
+Cohesion: 0.33
+Nodes (4): Tests that verify tests directory structure., Test that tests directory exists., Test that documented test files exist., TestTestsDirectory
+
+### Community 349 - "Community 349"
+Cohesion: 0.33
+Nodes (5): example_dir(), project_dir(), Tests to validate that README.md accurately reflects the project structure., Return the image_classification example directory., Return the project directory.
+
+### Community 350 - "Community 350"
+Cohesion: 0.33
+Nodes (4): Tests for module exports., Test that all __all__ exports are available., Test that models are re-exported., TestExports
+
+### Community 351 - "Community 351"
+Cohesion: 0.4
+Nodes (3): Test no alert for different metric., Test no alert for different metric., Test cooldown period between alerts.
+
+### Community 352 - "Community 352"
+Cohesion: 0.4
+Nodes (3): Test comparing to baseline., Test comparing to baseline., Test getting latest metrics.
+
+### Community 353 - "Community 353"
+Cohesion: 0.4
+Nodes (3): Test acknowledging an alert., Test acknowledging an alert., Test resolving an alert.
+
+### Community 354 - "Community 354"
+Cohesion: 0.4
+Nodes (3): Test moving average with insufficient data., Test moving average with insufficient data., Test percentiles with no data.
+
+### Community 355 - "Community 355"
+Cohesion: 0.4
+Nodes (3): Test disabled alert is not triggered., Test disabled alert is not triggered., Test manually triggering an alert.
+
+### Community 356 - "Community 356"
+Cohesion: 0.4
+Nodes (3): Test setting baseline metrics., Test setting baseline metrics., Test comparing without baseline set.
+
+### Community 357 - "Community 357"
 Cohesion: 0.4
 Nodes (4): client(), Reset rate limiter storage before each test., Create a test client., reset_limiter()
 
-### Community 344 - "Community 344"
+### Community 358 - "Community 358"
 Cohesion: 0.7
 Nodes (4): load_config(), main(), prepare_dataset(), split_class_images()
 
-### Community 346 - "Community 346"
-Cohesion: 0.83
-Nodes (3): download_dataset(), load_config(), main()
+### Community 361 - "Community 361"
+Cohesion: 0.33
+Nodes (4): Tests for async database engine creation., Tests for async database initialization., TestAsyncEngine, TestInitAsyncDb
 
-### Community 348 - "Community 348"
+### Community 363 - "Community 363"
 Cohesion: 0.5
 Nodes (3): Tests for environment-based configuration., Test that migrations use DATABASE_URL environment variable., TestEnvironmentConfig
 
-### Community 349 - "Community 349"
+### Community 364 - "Community 364"
 Cohesion: 0.83
 Nodes (3): check_api_health(), index(), predict()
 
-### Community 355 - "Community 355"
+### Community 370 - "Community 370"
+Cohesion: 0.83
+Nodes (3): download_dataset(), load_config(), main()
+
+### Community 372 - "Community 372"
 Cohesion: 0.67
-Nodes (3): Return a sample execution plan for testing decision/action modules.      Returns, Return a sample execution plan for testing decision/action modules.      Returns, sample_execution_plan()
+Nodes (3): mock_api_server_dependencies(), Combined fixture that sets up all dependencies needed for API server testing., Combined fixture that sets up all dependencies needed for API server testing.
 
 ## Knowledge Gaps
-- **6212 isolated node(s):** `Run a shell command and return result.`, `Check if a CLI tool is installed.`, `Ensure directory exists and return Path object.`, `Analyze project for configuration needs.`, `Validate Hydra configuration.` (+6207 more)
+- **6291 isolated node(s):** `Run a shell command and return result.`, `Check if a CLI tool is installed.`, `Ensure directory exists and return Path object.`, `Analyze project for configuration needs.`, `Validate Hydra configuration.` (+6286 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **1517 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **1556 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `AgentLoop` connect `Community 7` to `Community 6`, `Community 8`, `Community 9`, `Community 10`, `Community 17`, `Community 18`, `Community 277`, `Community 278`, `Community 279`, `Community 26`, `Community 28`, `Community 34`, `Community 35`, `Community 298`, `Community 299`, `Community 44`, `Community 42`, `Community 300`, `Community 47`, `Community 305`, `Community 50`, `Community 51`, `Community 63`, `Community 75`, `Community 78`, `Community 208`, `Community 81`, `Community 82`, `Community 83`, `Community 210`, `Community 209`, `Community 211`, `Community 341`, `Community 216`, `Community 217`, `Community 90`, `Community 103`, `Community 109`, `Community 238`, `Community 240`, `Community 241`, `Community 247`, `Community 124`?**
-  _High betweenness centrality (0.156) - this node is a cross-community bridge._
-- **Why does `CurrentUser` connect `Community 1` to `Community 0`, `Community 257`, `Community 4`, `Community 5`, `Community 10`, `Community 13`, `Community 363`, `Community 305`, `Community 366`, `Community 53`, `Community 54`, `Community 55`, `Community 63`, `Community 64`, `Community 326`, `Community 82`, `Community 93`, `Community 231`, `Community 359`, `Community 360`, `Community 362`, `Community 232`, `Community 364`, `Community 365`, `Community 361`, `Community 367`, `Community 368`, `Community 369`, `Community 370`, `Community 371`, `Community 372`, `Community 373`, `Community 118`, `Community 375`, `Community 374`?**
-  _High betweenness centrality (0.101) - this node is a cross-community bridge._
-- **Why does `AsyncSessionRepository` connect `Community 3` to `Community 66`, `Community 10`, `Community 12`, `Community 305`, `Community 82`, `Community 18`, `Community 276`, `Community 22`, `Community 27`, `Community 63`?**
-  _High betweenness centrality (0.070) - this node is a cross-community bridge._
+- **Why does `AgentLoop` connect `Community 9` to `Community 5`, `Community 6`, `Community 264`, `Community 12`, `Community 14`, `Community 17`, `Community 18`, `Community 21`, `Community 26`, `Community 29`, `Community 161`, `Community 34`, `Community 36`, `Community 39`, `Community 41`, `Community 42`, `Community 47`, `Community 49`, `Community 50`, `Community 52`, `Community 180`, `Community 56`, `Community 61`, `Community 64`, `Community 321`, `Community 66`, `Community 323`, `Community 68`, `Community 67`, `Community 70`, `Community 71`, `Community 200`, `Community 72`, `Community 73`, `Community 65`, `Community 206`, `Community 83`, `Community 85`, `Community 89`, `Community 345`, `Community 219`, `Community 222`, `Community 223`, `Community 224`, `Community 225`, `Community 102`, `Community 105`, `Community 234`, `Community 106`, `Community 108`, `Community 111`, `Community 114`, `Community 243`, `Community 242`, `Community 119`, `Community 122`, `Community 123`?**
+  _High betweenness centrality (0.145) - this node is a cross-community bridge._
+- **Why does `CurrentUser` connect `Community 0` to `Community 1`, `Community 3`, `Community 6`, `Community 8`, `Community 139`, `Community 140`, `Community 144`, `Community 404`, `Community 405`, `Community 406`, `Community 407`, `Community 408`, `Community 409`, `Community 410`, `Community 411`, `Community 412`, `Community 413`, `Community 414`, `Community 415`, `Community 31`, `Community 417`, `Community 418`, `Community 419`, `Community 420`, `Community 416`, `Community 43`, `Community 44`, `Community 58`, `Community 61`, `Community 323`, `Community 75`, `Community 89`, `Community 97`, `Community 98`, `Community 231`?**
+  _High betweenness centrality (0.098) - this node is a cross-community bridge._
+- **Why does `AsyncSessionRepository` connect `Community 4` to `Community 226`, `Community 323`, `Community 6`, `Community 103`, `Community 7`, `Community 74`, `Community 17`, `Community 278`, `Community 24`, `Community 89`, `Community 27`, `Community 61`?**
+  _High betweenness centrality (0.060) - this node is a cross-community bridge._
 - **Are the 895 inferred relationships involving `CurrentUser` (e.g. with `RunRequest` and `RunResponse`) actually correct?**
   _`CurrentUser` has 895 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 784 inferred relationships involving `AuthorizationError` (e.g. with `RunRequest` and `RunResponse`) actually correct?**

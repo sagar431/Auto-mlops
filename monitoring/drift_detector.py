@@ -67,13 +67,27 @@ class DriftDetector:
         self._evidently_available = self._check_evidently_available()
 
     def _check_evidently_available(self) -> bool:
-        """Check if Evidently is available."""
+        """Check if a supported Evidently drift API is available."""
         try:
-            import evidently  # noqa: F401
-
+            self._load_evidently_drift_api()
             return True
         except ImportError:
             return False
+
+    def _load_evidently_drift_api(self) -> tuple[Any, Any, Any]:
+        """Load Evidently's legacy drift-reporting API across supported versions."""
+        try:
+            from evidently import ColumnMapping
+            from evidently.metric_preset import DataDriftPreset
+            from evidently.report import Report
+
+            return ColumnMapping, DataDriftPreset, Report
+        except ImportError:
+            from evidently.legacy.metric_preset import DataDriftPreset
+            from evidently.legacy.pipeline.column_mapping import ColumnMapping
+            from evidently.legacy.report import Report
+
+            return ColumnMapping, DataDriftPreset, Report
 
     @property
     def evidently_available(self) -> bool:
@@ -130,9 +144,7 @@ class DriftDetector:
         numerical_columns: list[str] | None,
     ) -> DriftReport:
         """Detect drift using Evidently."""
-        from evidently import ColumnMapping
-        from evidently.metric_preset import DataDriftPreset
-        from evidently.report import Report
+        ColumnMapping, DataDriftPreset, Report = self._load_evidently_drift_api()
 
         # Determine columns to analyze
         if feature_columns:
@@ -166,12 +178,15 @@ class DriftDetector:
         report_dict = report.as_dict()
         metrics = report_dict.get("metrics", [])
 
-        # Find the dataset drift metric
+        # Find the dataset drift metric and per-column drift table. Evidently 0.7 keeps
+        # the legacy API under evidently.legacy and reports feature details separately.
         dataset_drift_result = None
+        data_drift_table_result = None
         for metric in metrics:
             if metric.get("metric") == "DatasetDriftMetric":
                 dataset_drift_result = metric.get("result", {})
-                break
+            elif metric.get("metric") == "DataDriftTable":
+                data_drift_table_result = metric.get("result", {})
 
         if not dataset_drift_result:
             return self._detect_drift_fallback(
@@ -182,6 +197,8 @@ class DriftDetector:
         drift_share = dataset_drift_result.get("share_of_drifted_columns", 0.0)
         overall_drift = dataset_drift_result.get("dataset_drift", False)
         drift_by_columns = dataset_drift_result.get("drift_by_columns", {})
+        if not drift_by_columns and data_drift_table_result:
+            drift_by_columns = data_drift_table_result.get("drift_by_columns", {})
 
         # Build feature results
         feature_results = []
@@ -194,8 +211,12 @@ class DriftDetector:
                     stattest_name=col_result.get("stattest_name", self.stattest),
                     stattest_threshold=col_result.get("stattest_threshold", self.drift_threshold),
                     p_value=col_result.get("p_value"),
-                    reference_distribution=col_result.get("reference", {}).get("distribution", {}),
-                    current_distribution=col_result.get("current", {}).get("distribution", {}),
+                    reference_distribution=self._evidently_distribution(
+                        col_result.get("reference", {})
+                    ),
+                    current_distribution=self._evidently_distribution(
+                        col_result.get("current", {})
+                    ),
                 )
             )
 
@@ -217,6 +238,13 @@ class DriftDetector:
             reference_rows=len(reference_data),
             current_rows=len(current_data),
             recommendations=recommendations,
+        )
+
+    def _evidently_distribution(self, distribution_result: dict[str, Any]) -> dict[str, Any]:
+        """Extract distribution payloads from supported Evidently report shapes."""
+        return distribution_result.get(
+            "distribution",
+            distribution_result.get("small_distribution", {}),
         )
 
     def _detect_drift_fallback(

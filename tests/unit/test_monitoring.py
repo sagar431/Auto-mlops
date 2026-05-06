@@ -361,6 +361,22 @@ class TestDriftDetector:
         # Should return bool
         assert isinstance(detector.evidently_available, bool)
 
+    def test_detect_drift_with_installed_evidently_api(
+        self, detector, reference_data, current_data_no_drift
+    ):
+        """Test installed Evidently API versions do not leak import errors."""
+        if not detector.evidently_available:
+            pytest.skip("Evidently is not installed")
+
+        report = detector.detect_drift(
+            reference_data=reference_data,
+            current_data=current_data_no_drift,
+            dataset_name="evidently_api_compat",
+        )
+
+        assert isinstance(report, DriftReport)
+        assert report.feature_results
+
     def test_detect_drift_no_drift(self, detector, reference_data, current_data_no_drift):
         """Test drift detection with no drift."""
         report = detector.detect_drift(
