@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import Landing from './components/Landing';
 import Auth from './components/Auth';
 import MLOpsAgent from './components/MLOpsAgent';
 
 // Main app content with routing logic
 function AppContent() {
   const { user, login, logout, isLoading } = useAuth();
-  const [currentPage, setCurrentPage] = useState('landing'); // 'landing', 'auth', 'dashboard'
+  const [currentPage, setCurrentPage] = useState('dashboard'); // 'auth', 'dashboard'
   const [authMode, setAuthMode] = useState('login');
 
   // Show loading spinner while checking auth
@@ -52,23 +51,47 @@ function AppContent() {
           login(userData);
           setCurrentPage('dashboard');
         }}
-        onBack={() => setCurrentPage('landing')}
+        onBack={() => setCurrentPage('dashboard')}
       />
     );
   }
 
-  // Show landing page
   return (
-    <Landing
-      onGetStarted={() => {
-        setAuthMode('signup');
-        setCurrentPage('auth');
-      }}
-      onLogin={() => {
-        setAuthMode('login');
-        setCurrentPage('auth');
-      }}
-    />
+    <div className="relative">
+      <div className="fixed right-3 top-3 z-50 flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-lg border border-slate-700 bg-slate-950/95 px-3 py-2 text-xs text-slate-300 shadow-lg shadow-black/20 backdrop-blur">
+        {user ? (
+          <>
+            <span className="min-w-0 truncate">{user.name}</span>
+            <button onClick={logout} className="rounded-md border border-slate-700 px-2 py-1 hover:bg-slate-900">
+              Logout
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="hidden text-slate-500 sm:inline">Demo console</span>
+            <button
+              onClick={() => {
+                setAuthMode('login');
+                setCurrentPage('auth');
+              }}
+              className="rounded-md border border-slate-700 px-2 py-1 hover:bg-slate-900"
+            >
+              Sign in
+            </button>
+            <button
+              onClick={() => {
+                setAuthMode('signup');
+                setCurrentPage('auth');
+              }}
+              className="rounded-md bg-cyan-600 px-2 py-1 font-semibold text-white hover:bg-cyan-500"
+            >
+              Create account
+            </button>
+          </>
+        )}
+      </div>
+      <MLOpsAgent />
+    </div>
   );
 }
 

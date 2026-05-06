@@ -1,128 +1,313 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
-// API Configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-// Icons
+const Icon = ({ children, className = 'h-4 w-4' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    {children}
+  </svg>
+);
+
 const Icons = {
-  Send: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>,
-  Brain: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
-  Loader: () => <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>,
-  Check: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>,
-  CheckCircle: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-  Circle: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth={2}/></svg>,
-  Play: () => <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>,
-  Zap: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
-  Database: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" /></svg>,
-  Flask: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>,
-  Box: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>,
-  Activity: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>,
-  Refresh: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>,
-  ChevronRight: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>,
-  Plus: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
-  Clock: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-  TrendingUp: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
-  Settings: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
-  Folder: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>,
-  Terminal: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
-  Cloud: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>,
-  GitBranch: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 3v12m0 0a3 3 0 103 3 3 3 0 00-3-3zm12-3a3 3 0 11-6 0 3 3 0 016 0zm-3 0v-6a3 3 0 00-3-3H9" /></svg>,
-  BarChart: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
-  Sparkles: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>,
-  Server: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg>,
-  Cpu: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" /></svg>,
-  HardDrive: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" /></svg>,
-  AlertCircle: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-  Info: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-  Wifi: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" /></svg>,
-  WifiOff: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  Activity: (props) => (
+    <Icon {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M22 12h-4l-3 8L9 4l-3 8H2" />
+    </Icon>
+  ),
+  Alert: (props) => (
+    <Icon {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    </Icon>
+  ),
+  Check: (props) => (
+    <Icon {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m5 13 4 4L19 7" />
+    </Icon>
+  ),
+  Clock: (props) => (
+    <Icon {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+    </Icon>
+  ),
+  Database: (props) => (
+    <Icon {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7c0 2.21 3.58 4 8 4s8-1.79 8-4M4 7c0-2.21 3.58-4 8-4s8 1.79 8 4m-16 0v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7" />
+    </Icon>
+  ),
+  File: (props) => (
+    <Icon {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l5 5v11a2 2 0 0 1-2 2z" />
+    </Icon>
+  ),
+  Gate: (props) => (
+    <Icon {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 21V9m16 12V9M4 9h16M7 9V5a5 5 0 0 1 10 0v4" />
+    </Icon>
+  ),
+  Git: (props) => (
+    <Icon {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 3v12m0 0a3 3 0 1 0 3 3 3 3 0 0 0-3-3zm12-3a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm-3 0V6a3 3 0 0 0-3-3H9" />
+    </Icon>
+  ),
+  Play: (props) => (
+    <Icon {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5v14l11-7-11-7z" />
+    </Icon>
+  ),
+  Refresh: (props) => (
+    <Icon {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M5 15a7 7 0 0 0 11.9 3.9M19 9A7 7 0 0 0 7.1 5.1" />
+    </Icon>
+  ),
+  Server: (props) => (
+    <Icon {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2M5 12a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2" />
+    </Icon>
+  ),
+  Terminal: (props) => (
+    <Icon {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m8 9 3 3-3 3m5 0h3M5 20h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" />
+    </Icon>
+  ),
 };
 
-// Mock data
-const mockMetricsHistory = [
-  { epoch: 1, accuracy: 0.45, loss: 1.2, val_accuracy: 0.42 },
-  { epoch: 2, accuracy: 0.58, loss: 0.9, val_accuracy: 0.55 },
-  { epoch: 3, accuracy: 0.65, loss: 0.7, val_accuracy: 0.62 },
-  { epoch: 4, accuracy: 0.72, loss: 0.5, val_accuracy: 0.68 },
-  { epoch: 5, accuracy: 0.78, loss: 0.4, val_accuracy: 0.74 },
-  { epoch: 6, accuracy: 0.82, loss: 0.3, val_accuracy: 0.79 },
-  { epoch: 7, accuracy: 0.85, loss: 0.25, val_accuracy: 0.82 },
-  { epoch: 8, accuracy: 0.87, loss: 0.2, val_accuracy: 0.84 },
+const WORKFLOWS = [
+  { id: 'setup', name: 'Setup', phase: '0', status: 'succeeded', count: 18 },
+  { id: 'data', name: 'Data', phase: '1', status: 'blocked', count: 9 },
+  { id: 'train', name: 'Train', phase: '2', status: 'succeeded', count: 14 },
+  { id: 'deploy', name: 'Deploy', phase: '3', status: 'deferred', count: 7 },
+  { id: 'container-ci', name: 'Container/CI', phase: '4', status: 'failed', count: 5 },
+  { id: 'capstone', name: 'Capstone', phase: '5', status: 'succeeded', count: 3 },
 ];
 
-const PIPELINE_STAGES = [
-  { id: 'setup', name: 'Setup', icon: Icons.Settings },
-  { id: 'data', name: 'Data', icon: Icons.Database },
-  { id: 'config', name: 'Config', icon: Icons.Flask },
-  { id: 'training', name: 'Training', icon: Icons.Activity },
-  { id: 'eval', name: 'Eval', icon: Icons.BarChart },
-  { id: 'deploy', name: 'Deploy', icon: Icons.Cloud },
-];
-
-const QUICK_ACTIONS = [
+const RUNS = [
   {
-    icon: Icons.Zap,
-    title: 'Quick Deploy',
-    desc: 'Deploy a model with default settings',
-    gradient: 'from-orange-500 to-amber-500',
-    query: 'Deploy my model with production-ready defaults'
+    id: 'run-1842',
+    workflow: 'Capstone',
+    command: 'Phase 5 readiness audit with data, container, CI, and endpoint evidence',
+    status: 'succeeded',
+    time: '12 min ago',
+    artifacts: 12,
+    gates: '2/2 approved',
   },
   {
-    icon: Icons.Database,
-    title: 'Data Pipeline',
-    desc: 'Set up DVC for data versioning',
-    gradient: 'from-blue-500 to-cyan-500',
-    query: 'Set up DVC with S3 remote for my dataset'
+    id: 'run-1839',
+    workflow: 'Data',
+    command: 'Validate data-stage lineage, DVC remote, schema drift, and quality report',
+    status: 'blocked',
+    time: '44 min ago',
+    artifacts: 8,
+    gates: '1 approval pending',
   },
   {
-    icon: Icons.Activity,
-    title: 'Train & Track',
-    desc: 'Train with MLflow tracking',
-    gradient: 'from-purple-500 to-pink-500',
-    query: 'Train ResNet model and track with MLflow'
+    id: 'run-1835',
+    workflow: 'Container/CI',
+    command: 'Build image, run smoke tests, and publish CI evidence',
+    status: 'failed',
+    time: '2h ago',
+    artifacts: 6,
+    gates: 'blocked by CI',
   },
   {
-    icon: Icons.GitBranch,
-    title: 'CI/CD Setup',
-    desc: 'GitHub Actions workflow',
-    gradient: 'from-green-500 to-emerald-500',
-    query: 'Create CI/CD pipeline with GitHub Actions'
+    id: 'run-1828',
+    workflow: 'Deploy',
+    command: 'Prepare endpoint rollout and defer Kubernetes scaling extension',
+    status: 'deferred',
+    time: 'Yesterday',
+    artifacts: 5,
+    gates: 'extension deferred',
   },
 ];
 
-const RECENT_RUNS = [
-  { id: 1, name: 'ResNet-50 Training', status: 'completed', accuracy: 0.87, time: '2h ago', icon: '🎯' },
-  { id: 2, name: 'Data Augmentation', status: 'completed', accuracy: 0.85, time: '5h ago', icon: '📊' },
-  { id: 3, name: 'Hyperparameter Tune', status: 'running', accuracy: 0.82, time: 'Running', icon: '⚡' },
-  { id: 4, name: 'Baseline Model', status: 'completed', accuracy: 0.72, time: '1d ago', icon: '🔬' },
+const TIMELINE = [
+  {
+    phase: 'Phase 0',
+    label: 'Command normalized',
+    status: 'succeeded',
+    detail: 'Workflow intent mapped to capstone readiness contract.',
+    evidence: 'intent.json',
+  },
+  {
+    phase: 'Phase 1',
+    label: 'Data-stage evidence collected',
+    status: 'succeeded',
+    detail: 'Lineage, schema, and quality reports available for review.',
+    evidence: 'data_manifest.yaml',
+  },
+  {
+    phase: 'Phase 2',
+    label: 'Training artifacts resolved',
+    status: 'succeeded',
+    detail: 'MLflow run, metrics summary, and model card are linked.',
+    evidence: 'mlflow_run.json',
+  },
+  {
+    phase: 'Phase 3',
+    label: 'Approval gate evaluated',
+    status: 'blocked',
+    detail: 'Endpoint promotion requires operator approval before deploy.',
+    evidence: 'approval_gate.md',
+  },
+  {
+    phase: 'Phase 4',
+    label: 'Container and CI checked',
+    status: 'failed',
+    detail: 'Smoke test is red on missing model checksum environment variable.',
+    evidence: 'ci_smoke_test.log',
+  },
+  {
+    phase: 'Phase 5',
+    label: 'Capstone readiness scored',
+    status: 'deferred',
+    detail: 'Kubernetes autoscaling evidence is deferred, not implemented here.',
+    evidence: 'readiness_report.md',
+  },
 ];
+
+const ARTIFACTS = [
+  { name: 'workflow_evidence_manifest.json', type: 'manifest', owner: 'phase-5', status: 'signed' },
+  { name: 'data_quality_report.html', type: 'data', owner: 'phase-1', status: 'ready' },
+  { name: 'mlflow_metrics_summary.json', type: 'training', owner: 'phase-2', status: 'ready' },
+  { name: 'container_sbom.spdx', type: 'container', owner: 'phase-4', status: 'ready' },
+  { name: 'github_actions_smoke.log', type: 'ci', owner: 'phase-4', status: 'failed' },
+  { name: 'endpoint_contract_check.json', type: 'deploy', owner: 'phase-3', status: 'blocked' },
+];
+
+const APPROVAL_GATES = [
+  { name: 'Data acceptance', status: 'approved', by: 'operator', updated: '10:18 UTC' },
+  { name: 'Endpoint promotion', status: 'blocked', by: 'pending', updated: 'awaiting approval' },
+  { name: 'Phase 6 extension', status: 'deferred', by: 'roadmap', updated: 'out of scope' },
+];
+
+const DATA_EVIDENCE = [
+  ['Lineage', 'data/raw -> features/train.parquet', 'succeeded'],
+  ['Schema', '42 columns validated, 0 breaking changes', 'succeeded'],
+  ['Quality', '2 warnings under threshold', 'blocked'],
+  ['Versioning', 'DVC remote configured', 'succeeded'],
+];
+
+const CONTAINER_EVIDENCE = [
+  ['Image build', 'ghcr.io/auto-mlops/capstone:1842', 'succeeded'],
+  ['SBOM', 'SPDX document attached', 'succeeded'],
+  ['Smoke test', 'MODEL_CHECKSUM missing in CI environment', 'failed'],
+  ['Workflow run', 'GitHub Actions evidence linked', 'blocked'],
+];
+
+const CONTRACT_CHECKS = [
+  ['API compatibility', 'Current backend endpoints only', 'succeeded'],
+  ['Workflow contracts', 'No contract edits detected', 'succeeded'],
+  ['Phase 6', 'Deferred capability remains unimplemented', 'deferred'],
+  ['Approval semantics', 'Blocked states require operator action', 'blocked'],
+];
+
+const READINESS_DATA = [
+  { label: 'P0', score: 82 },
+  { label: 'P1', score: 88 },
+  { label: 'P2', score: 91 },
+  { label: 'P3', score: 78 },
+  { label: 'P4', score: 64 },
+  { label: 'P5', score: 84 },
+];
+
+const statusStyles = {
+  approved: 'border-emerald-700 bg-emerald-950/40 text-emerald-300',
+  blocked: 'border-amber-700 bg-amber-950/40 text-amber-300',
+  deferred: 'border-sky-700 bg-sky-950/40 text-sky-300',
+  failed: 'border-rose-700 bg-rose-950/40 text-rose-300',
+  ready: 'border-emerald-700 bg-emerald-950/40 text-emerald-300',
+  signed: 'border-emerald-700 bg-emerald-950/40 text-emerald-300',
+  succeeded: 'border-emerald-700 bg-emerald-950/40 text-emerald-300',
+};
+
+const statusIcon = {
+  approved: Icons.Check,
+  blocked: Icons.Clock,
+  deferred: Icons.Refresh,
+  failed: Icons.Alert,
+  ready: Icons.File,
+  signed: Icons.File,
+  succeeded: Icons.Check,
+};
+
+function StatusBadge({ status }) {
+  const StatusIcon = statusIcon[status] || Icons.Activity;
+
+  return (
+    <span className={`inline-flex min-w-0 items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${statusStyles[status] || 'border-slate-700 bg-slate-900 text-slate-300'}`}>
+      <StatusIcon className="h-3.5 w-3.5 flex-none" />
+      <span className="truncate capitalize">{status}</span>
+    </span>
+  );
+}
+
+function Section({ title, icon: SectionIcon, children, action }) {
+  return (
+    <section className="rounded-lg border border-slate-800 bg-slate-950">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          {SectionIcon ? <SectionIcon className="h-4 w-4 flex-none text-slate-400" /> : null}
+          <h2 className="truncate text-sm font-semibold text-slate-100">{title}</h2>
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function EvidenceTable({ rows }) {
+  return (
+    <div className="divide-y divide-slate-800">
+      {rows.map(([name, detail, status]) => (
+        <div key={name} className="grid grid-cols-[96px_minmax(0,1fr)_92px] items-start gap-3 px-4 py-3 text-sm max-sm:grid-cols-1">
+          <div className="font-medium text-slate-200">{name}</div>
+          <div className="min-w-0 break-words text-slate-400">{detail}</div>
+          <div className="justify-self-end max-sm:justify-self-start">
+            <StatusBadge status={status} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MetricCard({ label, value, status }) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="truncate text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
+        {status ? <StatusBadge status={status} /> : null}
+      </div>
+      <div className="truncate text-2xl font-semibold text-slate-100">{value}</div>
+    </div>
+  );
+}
 
 export default function MLOpsAgent() {
-  const [input, setInput] = useState('');
-  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('Run Phase 5 capstone readiness audit with data, container, CI, and endpoint evidence');
+  const [selectedWorkflow, setSelectedWorkflow] = useState('capstone');
+  const [selectedRunId, setSelectedRunId] = useState(RUNS[0].id);
+  const [currentRun, setCurrentRun] = useState(RUNS[0]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentPhase, setCurrentPhase] = useState('idle');
-  const [pipelineStage, setPipelineStage] = useState(null);
-  const [completedStages, setCompletedStages] = useState([]);
-  const [showWelcome, setShowWelcome] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [executionSteps, setExecutionSteps] = useState([]);
-  const [metricsData, setMetricsData] = useState([]);
-  const [currentAccuracy, setCurrentAccuracy] = useState(0);
-  const [targetAccuracy] = useState(0.85);
-  const [agentThinking, setAgentThinking] = useState('');
-  const [selectedRun, setSelectedRun] = useState(null);
-  const messagesEndRef = useRef(null);
-
-  // Backend metrics state
   const [backendMetrics, setBackendMetrics] = useState(null);
   const [logs, setLogs] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
-  const [rightSidebarTab, setRightSidebarTab] = useState('Metrics');
   const wsRef = useRef(null);
 
-  // Fetch metrics from backend
+  const selectedRun = useMemo(
+    () => (selectedRunId === currentRun.id ? currentRun : RUNS.find((run) => run.id === selectedRunId) || currentRun),
+    [currentRun, selectedRunId]
+  );
+
   const fetchMetrics = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/metrics`);
@@ -137,7 +322,6 @@ export default function MLOpsAgent() {
     }
   }, []);
 
-  // Fetch logs from backend
   const fetchLogs = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/logs?page_size=50`);
@@ -150,7 +334,6 @@ export default function MLOpsAgent() {
     }
   }, []);
 
-  // Initialize demo data on backend
   const initDemoData = useCallback(async () => {
     try {
       await fetch(`${API_BASE_URL}/metrics/demo`);
@@ -161,49 +344,37 @@ export default function MLOpsAgent() {
     }
   }, [fetchMetrics, fetchLogs]);
 
-  // WebSocket connection for real-time updates
   useEffect(() => {
+    let shouldReconnect = true;
+
     const connectWebSocket = () => {
-      const wsUrl = API_BASE_URL.replace('http', 'ws') + '/ws/metrics';
+      const wsUrl = `${API_BASE_URL.replace('http', 'ws')}/ws/metrics`;
       wsRef.current = new WebSocket(wsUrl);
 
-      wsRef.current.onopen = () => {
-        console.log('WebSocket connected');
-        setIsConnected(true);
-      };
-
+      wsRef.current.onopen = () => setIsConnected(true);
       wsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'metrics_update') {
             setBackendMetrics(data.data);
           }
-        } catch (e) {
-          console.error('WebSocket message error:', e);
+        } catch (error) {
+          console.error('WebSocket message error:', error);
         }
       };
-
+      wsRef.current.onerror = () => setIsConnected(false);
       wsRef.current.onclose = () => {
-        console.log('WebSocket disconnected');
         setIsConnected(false);
-        // Reconnect after 5 seconds
-        setTimeout(connectWebSocket, 5000);
-      };
-
-      wsRef.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setIsConnected(false);
+        if (shouldReconnect) {
+          setTimeout(connectWebSocket, 5000);
+        }
       };
     };
 
-    // Initial fetch
     fetchMetrics();
     fetchLogs();
-
-    // Try WebSocket connection
     connectWebSocket();
 
-    // Fallback polling every 10 seconds if WebSocket fails
     const pollInterval = setInterval(() => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         fetchMetrics();
@@ -212,6 +383,7 @@ export default function MLOpsAgent() {
     }, 10000);
 
     return () => {
+      shouldReconnect = false;
       clearInterval(pollInterval);
       if (wsRef.current) {
         wsRef.current.close();
@@ -219,775 +391,343 @@ export default function MLOpsAgent() {
     };
   }, [fetchMetrics, fetchLogs]);
 
-  useEffect(() => {
-    if (isProcessing && pipelineStage === 'training') {
-      const interval = setInterval(() => {
-        setMetricsData(prev => {
-          if (prev.length >= mockMetricsHistory.length) {
-            clearInterval(interval);
-            return prev;
-          }
-          const newData = [...prev, mockMetricsHistory[prev.length]];
-          setCurrentAccuracy(mockMetricsHistory[prev.length].accuracy);
-          return newData;
-        });
-      }, 1200);
-      return () => clearInterval(interval);
-    }
-  }, [isProcessing, pipelineStage]);
+  const runCommand = () => {
+    const command = input.trim();
+    if (!command || isProcessing) return;
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-  const simulateExecution = async (query) => {
-    setShowWelcome(false);
     setIsProcessing(true);
-    setMetricsData([]);
-    setCurrentAccuracy(0);
-    setExecutionSteps([]);
-    setCompletedStages([]);
+    const nextRun = {
+      id: `run-${Math.floor(1900 + Math.random() * 90)}`,
+      workflow: WORKFLOWS.find((workflow) => workflow.id === selectedWorkflow)?.name || 'Workflow',
+      command,
+      status: 'blocked',
+      time: 'Running',
+      artifacts: 0,
+      gates: 'evaluating',
+    };
+    setCurrentRun(nextRun);
+    setSelectedRunId(nextRun.id);
 
-    setMessages(prev => [...prev, { id: Date.now(), role: 'user', content: query }]);
+    setTimeout(() => {
+      const normalized = command.toLowerCase();
+      const status = normalized.includes('fail')
+        ? 'failed'
+        : normalized.includes('defer') || normalized.includes('phase 6')
+          ? 'deferred'
+          : normalized.includes('approve')
+            ? 'succeeded'
+            : 'blocked';
 
-    // Perception
-    setCurrentPhase('perception');
-    setAgentThinking('Analyzing your request with AI...');
-    await sleep(1500);
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      role: 'assistant',
-      content: '🔍 **Understanding Request**\n\nI\'ve analyzed your query and identified:\n- **Task Type:** ML Pipeline Deployment\n- **Model:** ResNet/CNN Architecture\n- **Target:** 85% accuracy threshold\n- **Tools:** Hydra, MLflow, DVC, Docker',
-      phase: 'perception'
-    }]);
-
-    // Decision
-    setCurrentPhase('decision');
-    setAgentThinking('Creating optimized execution plan...');
-    await sleep(1500);
-
-    const steps = [
-      { id: '0', description: 'Initialize Hydra configuration', tool: 'Hydra', status: 'pending' },
-      { id: '1', description: 'Set up MLflow experiment tracking', tool: 'MLflow', status: 'pending' },
-      { id: '2', description: 'Configure DVC data pipeline', tool: 'DVC', status: 'pending' },
-      { id: '3', description: 'Build training Docker image', tool: 'Docker', status: 'pending' },
-      { id: '4', description: 'Execute model training', tool: 'PyTorch', status: 'pending' },
-      { id: '5', description: 'Run evaluation & metrics', tool: 'MLflow', status: 'pending' },
-      { id: '6', description: 'Deploy CI/CD pipeline', tool: 'GitHub', status: 'pending' },
-    ];
-    setExecutionSteps(steps);
-
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      role: 'assistant',
-      content: `📋 **Execution Plan Ready**\n\nI'll execute ${steps.length} steps to build your complete MLOps pipeline. Each step is optimized for production use.`,
-      phase: 'decision'
-    }]);
-
-    // Execute
-    setCurrentPhase('execution');
-    const stageMap = { 0: 'config', 1: 'setup', 2: 'data', 3: 'setup', 4: 'training', 5: 'eval', 6: 'deploy' };
-
-    for (let i = 0; i < steps.length; i++) {
-      setAgentThinking(`Executing: ${steps[i].description}`);
-      setExecutionSteps(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'running' } : s));
-
-      if (stageMap[i]) {
-        setPipelineStage(stageMap[i]);
-      }
-
-      await sleep(i === 4 ? 10000 : 2000);
-
-      setExecutionSteps(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'completed' } : s));
-      if (stageMap[i] && !completedStages.includes(stageMap[i])) {
-        setCompletedStages(prev => [...prev, stageMap[i]]);
-      }
-    }
-
-    // Summary
-    setCurrentPhase('summary');
-    const finalAccuracy = 0.87;
-    setCurrentAccuracy(finalAccuracy);
-    setCompletedStages(['setup', 'data', 'config', 'training', 'eval', 'deploy']);
-
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      role: 'assistant',
-      content: `## ✅ Pipeline Deployed Successfully!\n\n**Performance:** ${(finalAccuracy * 100).toFixed(1)}% accuracy (Target: 85%) ✓\n\n**Artifacts Created:**\n\`\`\`\n📁 configs/config.yaml      - Hydra configuration\n📊 mlruns/                   - MLflow experiment data\n📦 .dvc/                     - Data versioning setup\n🐳 Dockerfile               - Training container\n⚡ .github/workflows/       - CI/CD pipeline\n\`\`\`\n\n**Next Steps:**\n1. Push to GitHub to trigger CI/CD\n2. Monitor training in MLflow UI\n3. Scale with Kubernetes (optional)`,
-      phase: 'summary'
-    }]);
-
-    setIsProcessing(false);
-    setCurrentPhase('idle');
-    setAgentThinking('');
-  };
-
-  const handleSubmit = () => {
-    if (!input.trim() || isProcessing) return;
-    simulateExecution(input.trim());
-    setInput('');
-  };
-
-  const handleQuickAction = (query) => {
-    setInput(query);
-    simulateExecution(query);
-  };
-
-  const getStageStatus = (stageId) => {
-    if (completedStages.includes(stageId)) return 'completed';
-    if (pipelineStage === stageId) return 'active';
-    return 'pending';
+      setCurrentRun({
+        ...nextRun,
+        status,
+        time: 'Just now',
+        artifacts: status === 'failed' ? 7 : 12,
+        gates: status === 'succeeded' ? '2/2 approved' : status === 'deferred' ? 'extension deferred' : 'operator action required',
+      });
+      setIsProcessing(false);
+    }, 900);
   };
 
   return (
-    <div className="h-screen flex bg-[#0a0a0a] text-gray-100 overflow-hidden">
-      {/* Left Sidebar */}
-      <div className="w-72 bg-[#111] border-r border-white/5 flex flex-col">
-        {/* Logo */}
-        <div className="p-5 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
-              <Icons.Sparkles />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg">MLOps Agent</h1>
-              <p className="text-xs text-gray-500">AI-Powered Automation</p>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_340px]">
+        <aside className="border-b border-slate-800 bg-slate-950 lg:border-b-0 lg:border-r">
+          <div className="border-b border-slate-800 px-4 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-sm font-semibold text-cyan-300">
+                AM
+              </div>
+              <div className="min-w-0">
+                <h1 className="truncate text-sm font-semibold">Auto-mlops</h1>
+                <p className="truncate text-xs text-slate-500">Workflow evidence console</p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* New Run Button */}
-        <div className="p-4">
-          <button
-            onClick={() => { setShowWelcome(true); setMessages([]); setExecutionSteps([]); }}
-            className="w-full py-3 px-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl font-medium flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30"
-          >
-            <Icons.Plus /> New Pipeline
-          </button>
-        </div>
-
-        {/* Navigation */}
-        <div className="px-4 mb-4">
-          <div className="flex gap-1 p-1 bg-white/5 rounded-lg">
-            {['overview', 'history'].map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-2 text-sm rounded-md transition-all ${
-                  activeTab === tab ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
+          <div className="px-3 py-4">
+            <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Workflows</div>
+            <nav className="space-y-1">
+              {WORKFLOWS.map((workflow) => (
+                <button
+                  key={workflow.id}
+                  onClick={() => setSelectedWorkflow(workflow.id)}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition ${
+                    selectedWorkflow === workflow.id
+                      ? 'border border-slate-700 bg-slate-900 text-white'
+                      : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
+                  }`}
+                >
+                  <span className="flex h-7 w-7 flex-none items-center justify-center rounded-md border border-slate-800 bg-slate-950 text-xs text-slate-400">
+                    P{workflow.phase}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{workflow.name}</span>
+                    <span className="block truncate text-xs text-slate-500">{workflow.count} runs tracked</span>
+                  </span>
+                  <span className={`h-2 w-2 flex-none rounded-full ${
+                    workflow.status === 'succeeded' ? 'bg-emerald-400' :
+                    workflow.status === 'blocked' ? 'bg-amber-400' :
+                    workflow.status === 'failed' ? 'bg-rose-400' :
+                    'bg-sky-400'
+                  }`} />
+                </button>
+              ))}
+            </nav>
           </div>
-        </div>
 
-        {/* Recent Runs */}
-        <div className="flex-1 overflow-y-auto px-4">
-          <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Icons.Clock /> Recent Runs
-          </h3>
-          <div className="space-y-2">
-            {RECENT_RUNS.map((run) => (
-              <div
-                key={run.id}
-                onClick={() => setSelectedRun(run.id)}
-                className={`p-3 rounded-xl cursor-pointer transition-all ${
-                  selectedRun === run.id
-                    ? 'bg-orange-500/10 border border-orange-500/30'
-                    : 'bg-white/5 hover:bg-white/10 border border-transparent'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">{run.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{run.name}</div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        run.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-                        run.status === 'running' ? 'bg-blue-500/20 text-blue-400' :
-                        'bg-gray-500/20 text-gray-400'
-                      }`}>
-                        {run.status === 'running' && <span className="inline-block w-1.5 h-1.5 bg-blue-400 rounded-full mr-1 animate-pulse" />}
-                        {run.accuracy ? `${(run.accuracy * 100).toFixed(0)}%` : run.status}
-                      </span>
-                      <span className="text-xs text-gray-500">{run.time}</span>
+          <div className="border-t border-slate-800 px-3 py-4">
+            <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Recent Runs</div>
+            <div className="space-y-2">
+              {[currentRun, ...RUNS.filter((run) => run.id !== currentRun.id)].slice(0, 5).map((run) => (
+                <button
+                  key={run.id}
+                  onClick={() => setSelectedRunId(run.id)}
+                  className={`w-full rounded-lg border p-3 text-left transition ${
+                    selectedRun.id === run.id
+                      ? 'border-slate-600 bg-slate-900'
+                      : 'border-slate-800 bg-transparent hover:bg-slate-900'
+                  }`}
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="truncate text-xs font-medium text-slate-300">{run.id}</span>
+                    <StatusBadge status={run.status} />
+                  </div>
+                  <div className="line-clamp-2 break-words text-xs leading-5 text-slate-500">{run.command}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        <main className="min-w-0 bg-slate-950">
+          <div className="border-b border-slate-800 px-4 py-4 sm:px-6">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span className="rounded-md border border-slate-800 px-2 py-1">Phases 0-5</span>
+              <span className="rounded-md border border-slate-800 px-2 py-1">Backend-compatible API calls</span>
+              <span className="rounded-md border border-slate-800 px-2 py-1">No Phase 6 execution</span>
+            </div>
+            <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+              <label htmlFor="workflow-command" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Workflow Command Composer
+              </label>
+              <div className="flex gap-2 max-sm:flex-col">
+                <textarea
+                  id="workflow-command"
+                  rows={2}
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      runCommand();
+                    }
+                  }}
+                  className="min-h-[72px] flex-1 resize-none rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm leading-6 text-slate-100 placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                  placeholder="Describe a Phase 0-5 workflow command..."
+                />
+                <button
+                  onClick={runCommand}
+                  disabled={!input.trim() || isProcessing}
+                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+                >
+                  {isProcessing ? <Icons.Refresh className="h-4 w-4 animate-spin" /> : <Icons.Play className="h-4 w-4" />}
+                  <span>{isProcessing ? 'Running' : 'Run'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 p-4 sm:p-6">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              <MetricCard label="Current status" value={selectedRun.status} status={selectedRun.status} />
+              <MetricCard label="Artifacts" value={selectedRun.artifacts} />
+              <MetricCard label="Approval gates" value={selectedRun.gates} />
+              <MetricCard label="Backend sessions" value={backendMetrics?.agent?.total_sessions || 0} />
+            </div>
+
+            <Section title="Current Workflow Run" icon={Icons.Terminal}>
+              <div className="space-y-4 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs text-slate-500">{selectedRun.id}</span>
+                      <StatusBadge status={selectedRun.status} />
+                    </div>
+                    <h2 className="break-words text-lg font-semibold text-slate-100">{selectedRun.workflow}</h2>
+                    <p className="mt-1 break-words text-sm leading-6 text-slate-400">{selectedRun.command}</p>
+                  </div>
+                  <div className="rounded-md border border-slate-800 px-3 py-2 text-right text-xs text-slate-500">
+                    Updated<br />
+                    <span className="text-slate-300">{selectedRun.time}</span>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                    <div className="text-xs text-slate-500">Data-stage evidence</div>
+                    <div className="mt-1 text-sm font-medium text-slate-100">Lineage and quality present</div>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                    <div className="text-xs text-slate-500">Container/CI evidence</div>
+                    <div className="mt-1 text-sm font-medium text-amber-300">Smoke test needs operator review</div>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                    <div className="text-xs text-slate-500">Capstone readiness</div>
+                    <div className="mt-1 text-sm font-medium text-slate-100">84% ready across P0-P5</div>
+                  </div>
+                </div>
+              </div>
+            </Section>
+
+            <Section title="Evidence Timeline" icon={Icons.Activity}>
+              <div className="divide-y divide-slate-800">
+                {TIMELINE.map((item) => (
+                  <div key={`${item.phase}-${item.label}`} className="grid grid-cols-[78px_minmax(0,1fr)_124px] gap-3 px-4 py-3 text-sm max-sm:grid-cols-1">
+                    <div className="font-mono text-xs text-slate-500">{item.phase}</div>
+                    <div className="min-w-0">
+                      <div className="break-words font-medium text-slate-100">{item.label}</div>
+                      <div className="mt-1 break-words text-slate-400">{item.detail}</div>
+                      <div className="mt-1 truncate font-mono text-xs text-slate-500">{item.evidence}</div>
+                    </div>
+                    <div className="justify-self-end max-sm:justify-self-start">
+                      <StatusBadge status={item.status} />
                     </div>
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+            </Section>
 
-        {/* Status Footer */}
-        <div className="p-4 border-t border-white/5">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-gray-400">
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              All systems operational
-            </div>
-            <button className="text-gray-500 hover:text-white transition-colors">
-              <Icons.Settings />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Pipeline Progress Header */}
-        <div className="h-16 border-b border-white/5 bg-[#111]/50 backdrop-blur-xl flex items-center px-6">
-          <div className="flex items-center gap-1">
-            {PIPELINE_STAGES.map((stage, idx) => {
-              const status = getStageStatus(stage.id);
-              const StageIcon = stage.icon;
-              return (
-                <React.Fragment key={stage.id}>
-                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
-                    status === 'completed' ? 'bg-green-500/10 text-green-400' :
-                    status === 'active' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
-                    'text-gray-600'
-                  }`}>
-                    {status === 'completed' ? <Icons.CheckCircle /> : <StageIcon />}
-                    <span className="text-sm font-medium">{stage.name}</span>
-                  </div>
-                  {idx < PIPELINE_STAGES.length - 1 && (
-                    <div className={`w-8 h-0.5 ${
-                      status === 'completed' ? 'bg-green-500/50' : 'bg-white/10'
-                    }`} />
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-
-          {/* Live Accuracy Badge */}
-          {currentAccuracy > 0 && (
-            <div className="ml-auto flex items-center gap-4">
-              <div className={`flex items-center gap-3 px-4 py-2 rounded-xl ${
-                currentAccuracy >= targetAccuracy
-                  ? 'bg-green-500/10 border border-green-500/30'
-                  : 'bg-orange-500/10 border border-orange-500/30'
-              }`}>
-                <Icons.TrendingUp />
-                <div>
-                  <div className="text-xs text-gray-400">Accuracy</div>
-                  <div className={`text-lg font-bold ${
-                    currentAccuracy >= targetAccuracy ? 'text-green-400' : 'text-orange-400'
-                  }`}>
-                    {(currentAccuracy * 100).toFixed(1)}%
-                  </div>
-                </div>
-                {currentAccuracy >= targetAccuracy && (
-                  <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center">
-                    <Icons.Check />
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Chat Area */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto p-6">
-            {showWelcome ? (
-              /* Welcome Screen */
-              <div className="py-12">
-                {/* Hero */}
-                <div className="text-center mb-12">
-                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-sm mb-6">
-                    <Icons.Zap /> Powered by AI
-                  </div>
-                  <h1 className="text-4xl font-bold mb-4">
-                    What would you like to{' '}
-                    <span className="bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
-                      build today?
-                    </span>
-                  </h1>
-                  <p className="text-gray-400 text-lg max-w-xl mx-auto">
-                    Describe your ML pipeline in natural language. I'll handle Hydra configs,
-                    MLflow tracking, DVC versioning, Docker containers, and CI/CD setup.
-                  </p>
-                </div>
-
-                {/* Quick Actions */}
-                <div className="grid grid-cols-2 gap-4 mb-12">
-                  {QUICK_ACTIONS.map((action, i) => {
-                    const ActionIcon = action.icon;
-                    return (
-                      <button
-                        key={i}
-                        onClick={() => handleQuickAction(action.query)}
-                        className="group p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 text-left transition-all hover:bg-white/[0.07]"
-                      >
-                        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${action.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg`}>
-                          <ActionIcon />
-                        </div>
-                        <h3 className="font-semibold text-lg mb-1">{action.title}</h3>
-                        <p className="text-gray-400 text-sm">{action.desc}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Tool Stack */}
-                <div className="flex items-center justify-center gap-8 py-6 border-y border-white/5">
-                  {[
-                    { name: 'Hydra', icon: '⚙️' },
-                    { name: 'MLflow', icon: '📊' },
-                    { name: 'DVC', icon: '📦' },
-                    { name: 'Docker', icon: '🐳' },
-                    { name: 'GitHub Actions', icon: '⚡' },
-                  ].map((tool) => (
-                    <div key={tool.name} className="flex items-center gap-2 text-gray-500">
-                      <span>{tool.icon}</span>
-                      <span className="text-sm">{tool.name}</span>
+            <div className="grid gap-4 xl:grid-cols-2">
+              <Section title="Approval Gates" icon={Icons.Gate}>
+                <div className="divide-y divide-slate-800">
+                  {APPROVAL_GATES.map((gate) => (
+                    <div key={gate.name} className="flex items-start justify-between gap-3 px-4 py-3">
+                      <div className="min-w-0">
+                        <div className="break-words text-sm font-medium text-slate-100">{gate.name}</div>
+                        <div className="mt-1 truncate text-xs text-slate-500">{gate.by} / {gate.updated}</div>
+                      </div>
+                      <StatusBadge status={gate.status} />
                     </div>
                   ))}
                 </div>
-              </div>
-            ) : (
-              /* Chat Messages */
-              <div className="space-y-6 py-6">
-                {messages.map((msg) => (
-                  <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-2xl ${
-                      msg.role === 'user'
-                        ? 'bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl rounded-tr-sm px-5 py-3'
-                        : 'bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm px-5 py-4'
-                    }`}>
-                      <div className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</div>
-                    </div>
-                  </div>
-                ))}
+              </Section>
 
-                {/* Execution Steps */}
-                {executionSteps.length > 0 && (
-                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-semibold flex items-center gap-2">
-                        <Icons.Terminal /> Pipeline Execution
-                      </h3>
-                      <span className="text-sm text-gray-400">
-                        {executionSteps.filter(s => s.status === 'completed').length}/{executionSteps.length} completed
-                      </span>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="h-2 bg-white/10 rounded-full overflow-hidden mb-6">
-                      <div
-                        className="h-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all duration-500"
-                        style={{ width: `${(executionSteps.filter(s => s.status === 'completed').length / executionSteps.length) * 100}%` }}
+              <Section title="Capstone Pipeline Readiness" icon={Icons.Activity}>
+                <div className="h-56 p-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={READINESS_DATA} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
+                      <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
+                      <XAxis dataKey="label" stroke="#64748b" fontSize={11} />
+                      <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} />
+                      <Tooltip
+                        contentStyle={{ background: '#020617', border: '1px solid #334155', borderRadius: 8 }}
+                        labelStyle={{ color: '#cbd5e1' }}
                       />
-                    </div>
-
-                    <div className="space-y-3">
-                      {executionSteps.map((step, idx) => (
-                        <div
-                          key={step.id}
-                          className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
-                            step.status === 'running' ? 'bg-orange-500/10 border border-orange-500/30' :
-                            step.status === 'completed' ? 'bg-green-500/5' : 'bg-white/5'
-                          }`}
-                        >
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                            step.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-                            step.status === 'running' ? 'bg-orange-500/20 text-orange-400' :
-                            'bg-white/10 text-gray-500'
-                          }`}>
-                            {step.status === 'completed' ? <Icons.Check /> :
-                             step.status === 'running' ? <Icons.Loader /> :
-                             <span className="text-sm">{idx + 1}</span>}
-                          </div>
-                          <div className="flex-1">
-                            <div className="text-sm font-medium">{step.description}</div>
-                            <div className="text-xs text-gray-500">{step.tool}</div>
-                          </div>
-                          {step.status === 'running' && (
-                            <div className="text-xs text-orange-400 animate-pulse">Running...</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Thinking Indicator */}
-                {agentThinking && (
-                  <div className="flex items-center gap-3 text-gray-400 px-2">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}} />
-                      <div className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}} />
-                    </div>
-                    <span className="text-sm">{agentThinking}</span>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Input Area */}
-        <div className="border-t border-white/5 bg-[#111]/50 backdrop-blur-xl p-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="relative">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSubmit())}
-                placeholder="Describe your ML pipeline... (e.g., 'Train a ResNet model on ImageNet with 90% accuracy')"
-                disabled={isProcessing}
-                rows={1}
-                className="w-full bg-white/5 border border-white/10 focus:border-orange-500/50 rounded-2xl px-5 py-4 pr-14 text-white placeholder-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all"
-              />
-              <button
-                onClick={handleSubmit}
-                disabled={!input.trim() || isProcessing}
-                className={`absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-xl transition-all ${
-                  input.trim() && !isProcessing
-                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40'
-                    : 'bg-white/10 text-gray-500'
-                }`}
-              >
-                {isProcessing ? <Icons.Loader /> : <Icons.Send />}
-              </button>
+                      <Area dataKey="score" type="monotone" stroke="#06b6d4" strokeWidth={2} fill="#0891b2" fillOpacity={0.18} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </Section>
             </div>
 
-            <div className="flex items-center justify-between mt-3 px-2">
-              <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span>Press Enter to send</span>
-                <span>•</span>
-                <span>Shift + Enter for new line</span>
-              </div>
-              <div className="text-xs text-gray-500">
-                Powered by GPT-4 & Gemini
-              </div>
+            <div className="grid gap-4 xl:grid-cols-2">
+              <Section title="Data-Stage Evidence" icon={Icons.Database}>
+                <EvidenceTable rows={DATA_EVIDENCE} />
+              </Section>
+              <Section title="Container/CI Evidence" icon={Icons.Git}>
+                <EvidenceTable rows={CONTAINER_EVIDENCE} />
+              </Section>
             </div>
           </div>
-        </div>
-      </div>
+        </main>
 
-      {/* Right Sidebar - Metrics */}
-      <div className="w-80 bg-[#111] border-l border-white/5 flex flex-col">
-        {/* Connection Status */}
-        <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs">
-            {isConnected ? (
-              <>
-                <Icons.Wifi />
-                <span className="text-green-400">Connected</span>
-              </>
-            ) : (
-              <>
-                <Icons.WifiOff />
-                <span className="text-red-400">Disconnected</span>
-              </>
-            )}
-          </div>
-          <button
-            onClick={initDemoData}
-            className="text-xs text-gray-500 hover:text-orange-400 transition-colors"
-          >
-            Load Demo Data
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex border-b border-white/5">
-          {['Metrics', 'System', 'Logs'].map(tab => (
+        <aside className="border-t border-slate-800 bg-slate-950 lg:border-l lg:border-t-0">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-2 text-xs">
+              <span className={`h-2 w-2 rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+              <span className="truncate text-slate-400">{isConnected ? 'Backend connected' : 'Backend disconnected'}</span>
+            </div>
             <button
-              key={tab}
-              onClick={() => setRightSidebarTab(tab)}
-              className={`flex-1 py-4 text-sm font-medium transition-all ${
-                rightSidebarTab === tab ? 'text-orange-400 border-b-2 border-orange-400' : 'text-gray-500 hover:text-gray-300'
-              }`}
+              onClick={initDemoData}
+              className="rounded-md border border-slate-700 px-2 py-1 text-xs font-medium text-slate-300 hover:bg-slate-900"
             >
-              {tab}
+              Load demo
             </button>
-          ))}
-        </div>
+          </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-6">
-          {rightSidebarTab === 'Metrics' && (
-            <>
-              {/* Agent Stats Grid */}
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  {
-                    label: 'Sessions',
-                    value: backendMetrics?.agent?.total_sessions || 0,
-                    color: 'text-blue-400',
-                    bg: 'bg-blue-500/10'
-                  },
-                  {
-                    label: 'Success Rate',
-                    value: `${backendMetrics?.agent?.success_rate?.toFixed(1) || 0}%`,
-                    color: 'text-green-400',
-                    bg: 'bg-green-500/10'
-                  },
-                  {
-                    label: 'Pipelines',
-                    value: backendMetrics?.pipeline?.total_pipelines_run || 0,
-                    color: 'text-purple-400',
-                    bg: 'bg-purple-500/10'
-                  },
-                  {
-                    label: 'Tools',
-                    value: backendMetrics?.pipeline?.tools_available || 28,
-                    color: 'text-orange-400',
-                    bg: 'bg-orange-500/10'
-                  },
-                ].map((stat, i) => (
-                  <div key={i} className={`p-4 rounded-xl ${stat.bg}`}>
-                    <div className="text-xs text-gray-400 mb-1">{stat.label}</div>
-                    <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+          <div className="space-y-4 p-4">
+            <Section title="Artifact Manifest" icon={Icons.File}>
+              <div className="divide-y divide-slate-800">
+                {ARTIFACTS.map((artifact) => (
+                  <div key={artifact.name} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="break-words font-mono text-xs text-slate-200">{artifact.name}</div>
+                        <div className="mt-1 truncate text-xs text-slate-500">{artifact.owner} / {artifact.type}</div>
+                      </div>
+                      <StatusBadge status={artifact.status} />
+                    </div>
                   </div>
                 ))}
               </div>
+            </Section>
 
-              {/* Training Chart */}
-              {metricsData.length > 0 && (
-                <div className="bg-white/5 rounded-xl p-4">
-                  <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
-                    <Icons.TrendingUp /> Training Progress
-                  </h4>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={metricsData}>
-                        <defs>
-                          <linearGradient id="colorAcc" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                        <XAxis dataKey="epoch" stroke="#4b5563" fontSize={10} />
-                        <YAxis stroke="#4b5563" fontSize={10} domain={[0, 1]} />
-                        <Tooltip
-                          contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '12px' }}
-                          labelStyle={{ color: '#9ca3af' }}
-                        />
-                        <Area type="monotone" dataKey="accuracy" stroke="#f97316" strokeWidth={2} fillOpacity={1} fill="url(#colorAcc)" />
-                        <Line type="monotone" dataKey="val_accuracy" stroke="#06b6d4" strokeDasharray="5 5" strokeWidth={2} dot={false} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
+            <Section title="Contract Checks" icon={Icons.Check}>
+              <EvidenceTable rows={CONTRACT_CHECKS} />
+            </Section>
+
+            <Section title="Deferred Capabilities" icon={Icons.Refresh}>
+              <div className="space-y-2 p-4 text-sm text-slate-400">
+                <div className="rounded-lg border border-sky-800 bg-sky-950/30 p-3">
+                  <div className="mb-1 font-medium text-sky-200">Phase 6 automation</div>
+                  <p className="break-words text-xs leading-5">Recorded as deferred evidence only. The console does not execute roadmap capabilities.</p>
                 </div>
-              )}
+                <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                  <div className="mb-1 font-medium text-slate-200">Kubernetes autoscaling</div>
+                  <p className="break-words text-xs leading-5">Tracked in readiness output without changing workflow contracts.</p>
+                </div>
+              </div>
+            </Section>
 
-              {/* Tool Usage */}
-              {backendMetrics?.pipeline?.most_used_tools?.length > 0 && (
-                <div className="bg-white/5 rounded-xl p-4">
-                  <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
-                    <Icons.Activity /> Most Used Tools
-                  </h4>
-                  <div className="space-y-3">
-                    {backendMetrics.pipeline.most_used_tools.slice(0, 5).map((tool, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <div className="flex-1">
-                          <div className="text-sm font-medium truncate">{tool.tool_name}</div>
-                          <div className="text-xs text-gray-500">{tool.invocations} calls</div>
+            <Section title="Endpoint/Evidence Summary" icon={Icons.Server}>
+              <div className="space-y-3 p-4 text-sm">
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">API base</span>
+                  <span className="min-w-0 truncate font-mono text-xs text-slate-300">{API_BASE_URL}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Success rate</span>
+                  <span className="text-slate-200">{backendMetrics?.agent?.success_rate?.toFixed(1) || '0.0'}%</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Tools available</span>
+                  <span className="text-slate-200">{backendMetrics?.pipeline?.tools_available || 28}</span>
+                </div>
+              </div>
+            </Section>
+
+            <Section title="Recent Evidence Logs" icon={Icons.Terminal}>
+              <div className="max-h-72 overflow-y-auto p-3">
+                {logs.length === 0 ? (
+                  <div className="rounded-lg border border-slate-800 p-3 text-sm text-slate-500">No backend logs loaded yet.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {logs.slice(0, 8).map((log, index) => (
+                      <div key={log.id || index} className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <span className="truncate text-xs font-medium uppercase text-slate-400">{log.level || 'info'}</span>
+                          <span className="truncate text-xs text-slate-600">{log.source || 'backend'}</span>
                         </div>
-                        <div className="w-20 h-2 bg-white/10 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-orange-500 to-amber-500"
-                            style={{ width: `${(tool.success_count / tool.invocations) * 100}%` }}
-                          />
-                        </div>
+                        <p className="break-words text-xs leading-5 text-slate-300">{log.message}</p>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* Threshold Progress */}
-              <div className="bg-white/5 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium">Accuracy Target</span>
-                  <span className={`text-sm font-medium ${
-                    currentAccuracy >= targetAccuracy ? 'text-green-400' : 'text-orange-400'
-                  }`}>
-                    {currentAccuracy >= targetAccuracy ? '✓ Achieved' : 'In Progress'}
-                  </span>
-                </div>
-                <div className="h-3 bg-white/10 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-500 ${
-                      currentAccuracy >= targetAccuracy
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                        : 'bg-gradient-to-r from-orange-500 to-amber-500'
-                    }`}
-                    style={{ width: `${Math.min((currentAccuracy / targetAccuracy) * 100, 100)}%` }}
-                  />
-                </div>
-                <div className="flex justify-between mt-2 text-xs text-gray-500">
-                  <span>{(currentAccuracy * 100).toFixed(1)}%</span>
-                  <span>{(targetAccuracy * 100).toFixed(0)}% target</span>
-                </div>
-              </div>
-            </>
-          )}
-
-          {rightSidebarTab === 'System' && (
-            <>
-              {/* System Metrics */}
-              <div className="space-y-4">
-                {/* CPU */}
-                <div className="bg-white/5 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Icons.Cpu />
-                      <span className="text-sm font-medium">CPU Usage</span>
-                    </div>
-                    <span className="text-lg font-bold text-cyan-400">
-                      {backendMetrics?.system?.cpu_percent?.toFixed(1) || 0}%
-                    </span>
-                  </div>
-                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-500"
-                      style={{ width: `${backendMetrics?.system?.cpu_percent || 0}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Memory */}
-                <div className="bg-white/5 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Icons.Server />
-                      <span className="text-sm font-medium">Memory</span>
-                    </div>
-                    <span className="text-lg font-bold text-purple-400">
-                      {backendMetrics?.system?.memory_percent?.toFixed(1) || 0}%
-                    </span>
-                  </div>
-                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
-                      style={{ width: `${backendMetrics?.system?.memory_percent || 0}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between mt-2 text-xs text-gray-500">
-                    <span>{backendMetrics?.system?.memory_used_gb?.toFixed(1) || 0} GB used</span>
-                    <span>{backendMetrics?.system?.memory_total_gb?.toFixed(1) || 0} GB total</span>
-                  </div>
-                </div>
-
-                {/* Disk */}
-                <div className="bg-white/5 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Icons.HardDrive />
-                      <span className="text-sm font-medium">Disk</span>
-                    </div>
-                    <span className="text-lg font-bold text-green-400">
-                      {backendMetrics?.system?.disk_percent?.toFixed(1) || 0}%
-                    </span>
-                  </div>
-                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-500"
-                      style={{ width: `${backendMetrics?.system?.disk_percent || 0}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between mt-2 text-xs text-gray-500">
-                    <span>{backendMetrics?.system?.disk_used_gb?.toFixed(0) || 0} GB used</span>
-                    <span>{backendMetrics?.system?.disk_total_gb?.toFixed(0) || 0} GB total</span>
-                  </div>
-                </div>
-
-                {/* System Info */}
-                <div className="bg-white/5 rounded-xl p-4 space-y-3">
-                  <h4 className="text-sm font-medium flex items-center gap-2">
-                    <Icons.Info /> System Info
-                  </h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Platform</span>
-                      <span>{backendMetrics?.system?.platform || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Python</span>
-                      <span>{backendMetrics?.system?.python_version || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Uptime</span>
-                      <span>{backendMetrics?.system?.uptime_seconds
-                        ? `${Math.floor(backendMetrics.system.uptime_seconds / 60)}m`
-                        : 'N/A'}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {rightSidebarTab === 'Logs' && (
-            <>
-              {/* Logs List */}
-              <div className="space-y-2">
-                {logs.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Icons.Terminal />
-                    <p className="mt-2 text-sm">No logs yet</p>
-                    <button
-                      onClick={initDemoData}
-                      className="mt-2 text-xs text-orange-400 hover:underline"
-                    >
-                      Load demo data
-                    </button>
-                  </div>
-                ) : (
-                  logs.map((log, i) => (
-                    <div
-                      key={log.id || i}
-                      className={`p-3 rounded-lg text-sm ${
-                        log.level === 'error' ? 'bg-red-500/10 border border-red-500/20' :
-                        log.level === 'warning' ? 'bg-yellow-500/10 border border-yellow-500/20' :
-                        'bg-white/5'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-xs px-2 py-0.5 rounded ${
-                          log.level === 'error' ? 'bg-red-500/20 text-red-400' :
-                          log.level === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
-                          log.level === 'info' ? 'bg-blue-500/20 text-blue-400' :
-                          'bg-gray-500/20 text-gray-400'
-                        }`}>
-                          {log.level}
-                        </span>
-                        <span className="text-xs text-gray-500">{log.source}</span>
-                        <span className="text-xs text-gray-600 ml-auto">
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <p className="text-gray-300 text-xs leading-relaxed">{log.message}</p>
-                    </div>
-                  ))
                 )}
               </div>
-            </>
-          )}
-
-          {/* Self-Improvement Info (always visible at bottom) */}
-          <div className="bg-gradient-to-br from-orange-500/10 to-amber-500/10 border border-orange-500/20 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-orange-400 mb-2">
-              <Icons.Sparkles />
-              <span className="text-sm font-medium">Self-Improvement Active</span>
-            </div>
-            <p className="text-xs text-gray-400 leading-relaxed">
-              The agent automatically analyzes results and suggests optimizations to reach your target accuracy.
-            </p>
+            </Section>
           </div>
-        </div>
+        </aside>
       </div>
     </div>
   );
