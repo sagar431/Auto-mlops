@@ -2831,7 +2831,7 @@ def test_litserve_prediction_endpoint_uses_artifact_feature_count_for_default_pa
     assert captured["payload"] == {"input": [0.0] * 8}
 
 
-def test_litserve_health_endpoint_retries_until_ready(monkeypatch):
+def test_litserve_health_endpoint_retries_until_ready(tmp_path, monkeypatch):
     attempts = {"count": 0}
 
     class FakeResponse:
@@ -2856,7 +2856,7 @@ def test_litserve_health_endpoint_retries_until_ready(monkeypatch):
     monkeypatch.setattr("time.sleep", lambda seconds: None)
 
     result = mcp_mlops_tools.test_litserve_health_endpoint(
-        "/home/ubuntu/Auto-mlops",
+        str(tmp_path),
         endpoint_url="http://127.0.0.1:8001",
         timeout_seconds=3.0,
     )
@@ -4171,6 +4171,17 @@ class TestAgentLoopRun:
                 side_effect=AssertionError("registry container CI prep must skip perception"),
             ) as mock_perception,
             patch.object(mock_agent.decision, "run", new_callable=AsyncMock) as mock_decision,
+            patch(
+                "mcp_mlops_tools._detect_container_docker_availability",
+                return_value={
+                    "available": False,
+                    "docker_path": None,
+                    "version": None,
+                    "context": None,
+                    "return_code": None,
+                    "reason": "docker_cli_not_found",
+                },
+            ),
         ):
             result = await mock_agent.run(
                 "prepare capstone container CI completion_mode=container_local_ready "

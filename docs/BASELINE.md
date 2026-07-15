@@ -90,3 +90,17 @@ The code-owned Workflow Registry currently exposes:
 - `deploy_kserve_production` — Deploy KServe Production
 
 This list comes from `workflow.registry.get_workflow_registry()` rather than older tool-count or phase-status prose.
+
+## Automatic Pull Request Quality Gate
+
+The workflow at `.github/workflows/quality-gate.yml` runs for pull requests targeting
+`main`, pushes to `main`, and manual dispatches. Its locked Python 3.10 quality job checks
+the lockfile, installs the `dev` environment, runs Ruff, exercises the Phase 0 registry,
+agent-loop, step-execution, and E2E suites, and verifies the complete image-classification
+example plus the local golden-slice command.
+
+A dependent Linux Docker job runs the bounded golden verifier with `--docker`. It builds
+and smoke-tests only the local CPU image, observes `/health` and `/predict`, and cleans up
+its container without logging in to a registry or pushing an image. The workflow uses no
+repository secrets, grants only `contents: read`, cancels superseded branch or pull-request
+runs, and bounds both jobs with explicit timeouts.
