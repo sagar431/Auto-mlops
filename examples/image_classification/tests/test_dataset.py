@@ -270,6 +270,26 @@ class TestCIFAR10Transforms:
 class TestCIFAR10DataLoaders:
     """Tests for CIFAR-10 data loader creation."""
 
+    @pytest.fixture(autouse=True)
+    def _offline_cifar10(self, monkeypatch):
+        """Exercise loader behavior without downloading the external dataset."""
+
+        class OfflineCIFAR10(torch.utils.data.Dataset):
+            def __init__(self, root, train, download, transform):
+                self.root = root
+                self.train = train
+                self.download = download
+                self.transform = transform
+                self.sample_count = 50_000 if train else 10_000
+
+            def __len__(self):
+                return self.sample_count
+
+            def __getitem__(self, index):
+                return torch.zeros(3, 32, 32), index % len(CIFAR10_CLASSES)
+
+        monkeypatch.setattr("dataset.datasets.CIFAR10", OfflineCIFAR10)
+
     def test_create_cifar10_loaders(self, tmp_path):
         """Test CIFAR-10 data loader creation."""
         data_dir = str(tmp_path / "cifar10_data")

@@ -52,6 +52,7 @@ graphify-out/cache/
 dist/
 build/
 *.egg-info/
+examples/image_classification/project/artifacts/
 
 # Frontend
 frontend/node_modules/

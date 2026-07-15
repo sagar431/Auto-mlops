@@ -246,7 +246,8 @@ def train(
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=3)
 
     # Training loop
-    best_acc = 0.0
+    # Always persist the first completed epoch, even when its measured accuracy is zero.
+    best_acc = -1.0
     history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
 
     for epoch in range(epochs):

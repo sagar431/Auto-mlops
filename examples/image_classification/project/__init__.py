@@ -12,10 +12,26 @@ from .dataset import (
     get_transforms,
 )
 from .inference import ImageClassifier
-from .model import SimpleCNN, create_model, load_model
+from .model import (
+    GOLDEN_ARCHITECTURE,
+    GOLDEN_SCHEMA_VERSION,
+    CheckpointError,
+    ResNet18,
+    TinyColorCNN,
+    create_golden_model,
+    create_model,
+    load_golden_checkpoint,
+    load_model,
+)
 
 __all__ = [
-    "SimpleCNN",
+    "ResNet18",
+    "TinyColorCNN",
+    "CheckpointError",
+    "GOLDEN_ARCHITECTURE",
+    "GOLDEN_SCHEMA_VERSION",
+    "create_golden_model",
+    "load_golden_checkpoint",
     "create_model",
     "load_model",
     "ImageClassificationDataset",
