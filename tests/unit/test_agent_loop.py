@@ -7,6 +7,7 @@ Run with: pytest tests/unit/test_agent_loop.py -v
 
 import json
 import pickle
+import sys
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -3024,7 +3025,7 @@ def test_run_bounded_training_captures_metrics_logs_duration_and_artifacts(tmp_p
     assert result["exit_code"] == 0
     assert result["metrics"]["accuracy"] == 0.91
     assert result["duration_seconds"] >= 0
-    assert result["command"][0].endswith("python")
+    assert result["command"][0] == sys.executable
     assert "trainer.max_epochs=1" in result["effective_overrides"]
     assert "device=cpu" in result["effective_overrides"]
     assert "data.subset=4" in result["effective_overrides"]

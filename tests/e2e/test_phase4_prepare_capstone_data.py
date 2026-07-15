@@ -124,7 +124,9 @@ async def test_prepare_capstone_data_blocks_for_split_manifest_write_approval(tm
 
 
 @pytest.mark.asyncio
-async def test_prepare_capstone_data_approved_run_generates_split_manifests_only(tmp_path):
+async def test_prepare_capstone_data_approved_run_generates_split_manifests_only(
+    tmp_path, monkeypatch
+):
     prompts_dir = tmp_path / "prompts"
     prompts_dir.mkdir()
     (prompts_dir / "perception_prompt.txt").write_text("Perception")
@@ -141,6 +143,7 @@ async def test_prepare_capstone_data_approved_run_generates_split_manifests_only
             for index in range(3):
                 _write_tiny_image(dataset / class_name / f"{class_name}-{index}.jpg")
 
+    monkeypatch.setattr(mcp_mlops_tools, "check_tool_installed", lambda tool: False)
     agent = AgentLoop(prompts_dir=str(prompts_dir), auto_approve=True)
 
     with (

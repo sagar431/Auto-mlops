@@ -10,27 +10,27 @@ Auto-MLOps is an AI-powered agent that automates ML pipeline setup using natural
 
 ### Installation
 ```bash
-uv sync                    # Recommended: install with uv
+uv sync --extra dev --locked # Recommended: install locked runtime and dev dependencies
 pip install -e .           # Alternative: install with pip
 cp .env.example .env       # Set up environment variables
 ```
 
 ### Testing
 ```bash
-python -m tests.root_migrated.test_mlops_tools                  # Run all MCP tool tests
-python -m tests.root_migrated.test_mlops_tools --tool hydra     # Test specific category: hydra, mlflow, dvc, docker, github, training, deployment
-pytest                                       # Run pytest suite
+uv run python -m tests.root_migrated.test_mlops_tools              # Run all MCP tool tests
+uv run python -m tests.root_migrated.test_mlops_tools --tool hydra # Test specific category: hydra, mlflow, dvc, docker, github, training, deployment
+uv run pytest                                                       # Run pytest suite
 ```
 
 ### Running the MCP Server
 ```bash
-python mcp_mlops_tools.py   # Runs the MCP server with 39 MLOps tools (28 core + 11 deployment)
+uv run python mcp_mlops_tools.py # Run the MCP server in the locked environment
 ```
 
 ### Linting
 ```bash
-black .                     # Format code (line-length=100)
-ruff check .                # Lint with ruff
+uv run black .              # Format code (line-length=100)
+uv run ruff check .         # Lint with ruff
 ```
 
 ## Architecture
@@ -148,24 +148,24 @@ When `pipeline_stage == "deploy"`:
 ### CLI Mode
 ```bash
 # Single command
-python cli.py "Set up MLOps pipeline for my cat-dog classifier"
-python cli.py --project ./my_project --threshold 0.90 "Train until accuracy target"
+uv run python cli.py "Set up MLOps pipeline for my cat-dog classifier"
+uv run python cli.py --project ./my_project --threshold 0.90 "Train until accuracy target"
 
 # Interactive REPL
-python cli.py --interactive
-python cli.py -i --project ./my_project
+uv run python cli.py --interactive
+uv run python cli.py -i --project ./my_project
 
 # Using installed command
-mlops-agent "Set up MLOps pipeline"
-mlops-agent -i --project ./my_project
+uv run mlops-agent "Set up MLOps pipeline"
+uv run mlops-agent -i --project ./my_project
 ```
 
 ### API Server
 ```bash
 # Start server
-python api_server.py
+uv run python api_server.py
 # Or with uvicorn
-uvicorn api_server:app --reload --port 8000
+uv run uvicorn api_server:app --reload --port 8000
 
 # Endpoints:
 # POST /run           - Start agent with query
