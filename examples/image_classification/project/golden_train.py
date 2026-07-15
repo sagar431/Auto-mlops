@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import random
 import time
@@ -12,11 +13,13 @@ from pathlib import Path
 import torch
 from PIL import Image
 from torch import nn
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 try:
+    from .golden_data import load_and_verify_manifest
     from .model import GOLDEN_ARCHITECTURE, GOLDEN_SCHEMA_VERSION, create_golden_model
 except ImportError:  # Support direct execution from the project directory.
+    from golden_data import load_and_verify_manifest
     from model import GOLDEN_ARCHITECTURE, GOLDEN_SCHEMA_VERSION, create_golden_model
 
 CLASS_NAMES = ("red", "blue")
@@ -82,6 +85,45 @@ def create_synthetic_dataset(sample_count: int, seed: int) -> TensorDataset:
     return TensorDataset((images - mean) / std, labels)
 
 
+class ManifestImageDataset(Dataset):
+    """Load only the image files declared by the verified dataset manifest."""
+
+    def __init__(self, dataset_dir: Path, entries: list[dict[str, object]]):
+        self.dataset_dir = dataset_dir
+        self.entries = entries
+
+    def __len__(self) -> int:
+        return len(self.entries)
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
+        entry = self.entries[index]
+        with Image.open(self.dataset_dir / str(entry["path"])) as image:
+            rgb_image = image.convert("RGB")
+            if rgb_image.size != (IMAGE_SIZE, IMAGE_SIZE):
+                raise ValueError("Golden dataset contains an image with invalid dimensions")
+            byte_values = bytearray(rgb_image.tobytes())
+        tensor = torch.frombuffer(byte_values, dtype=torch.uint8).clone()
+        tensor = tensor.view(IMAGE_SIZE, IMAGE_SIZE, 3).permute(2, 0, 1)
+        tensor = tensor.to(dtype=torch.float32).div_(255.0)
+        mean = torch.tensor(NORMALIZATION["mean"], dtype=torch.float32).view(3, 1, 1)
+        std = torch.tensor(NORMALIZATION["std"], dtype=torch.float32).view(3, 1, 1)
+        return (tensor - mean) / std, int(entry["class_index"])
+
+
+def _synthetic_lineage(config: TrainingConfig) -> dict[str, object]:
+    payload = {
+        "source": "deterministic-synthetic-tensors",
+        "seed": config.seed,
+        "train_samples": config.train_samples,
+        "validation_samples": config.validation_samples,
+        "image_size": config.image_size,
+    }
+    checksum = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {"schema_version": "golden-synthetic-tensors.v1", **payload, "dataset_checksum": checksum}
+
+
 def _evaluate(model: nn.Module, loader: DataLoader) -> tuple[float, float]:
     criterion = nn.CrossEntropyLoss()
     total_loss = 0.0
@@ -100,6 +142,8 @@ def _evaluate(model: nn.Module, loader: DataLoader) -> tuple[float, float]:
 def train_golden(
     output_dir: str | Path = DEFAULT_ARTIFACT_DIR,
     config: TrainingConfig | None = None,
+    dataset_dir: str | Path | None = None,
+    manifest_path: str | Path | None = None,
 ) -> dict[str, object]:
     """Train, evaluate, and persist one canonical golden checkpoint."""
     effective = config or TrainingConfig()
@@ -107,10 +151,31 @@ def train_golden(
     set_deterministic_seed(effective.seed)
     started = time.monotonic()
 
-    train_dataset = create_synthetic_dataset(effective.train_samples, effective.seed)
-    validation_dataset = create_synthetic_dataset(
-        effective.validation_samples, effective.seed + 1
-    )
+    if dataset_dir is None:
+        if manifest_path is not None:
+            raise ValueError("manifest_path requires dataset_dir")
+        train_dataset = create_synthetic_dataset(effective.train_samples, effective.seed)
+        validation_dataset = create_synthetic_dataset(
+            effective.validation_samples, effective.seed + 1
+        )
+        dataset_lineage = _synthetic_lineage(effective)
+    else:
+        dataset_root = Path(dataset_dir).resolve()
+        manifest, dataset_lineage = load_and_verify_manifest(dataset_root, manifest_path)
+        generation_config = manifest.get("generation_config", {})
+        sample_counts = manifest.get("sample_counts", {})
+        if generation_config.get("seed") != effective.seed:
+            raise ValueError("Training seed does not match the dataset manifest")
+        if sample_counts.get("train") != effective.train_samples:
+            raise ValueError("Training sample count does not match the dataset manifest")
+        if sample_counts.get("validation") != effective.validation_samples:
+            raise ValueError("Validation sample count does not match the dataset manifest")
+        train_entries = [entry for entry in manifest["files"] if entry["split"] == "train"]
+        validation_entries = [
+            entry for entry in manifest["files"] if entry["split"] == "validation"
+        ]
+        train_dataset = ManifestImageDataset(dataset_root, train_entries)
+        validation_dataset = ManifestImageDataset(dataset_root, validation_entries)
     train_loader = DataLoader(
         train_dataset,
         batch_size=effective.batch_size,
@@ -160,6 +225,7 @@ def train_golden(
     checkpoint_path = artifact_dir / "model.pt"
     config_path = artifact_dir / "training_config.json"
     metrics_path = artifact_dir / "metrics.json"
+    lineage_path = artifact_dir / "lineage.json"
     sample_image_path = artifact_dir / "sample-red.png"
     checkpoint = {
         "schema_version": GOLDEN_SCHEMA_VERSION,
@@ -171,11 +237,13 @@ def train_golden(
         "normalization": NORMALIZATION,
         "training_config": asdict(effective),
         "metrics": final_metrics,
+        "dataset_lineage": dataset_lineage,
     }
     torch.save(checkpoint, checkpoint_path)
     config_path.write_text(json.dumps(asdict(effective), indent=2, sort_keys=True) + "\n")
     metrics_payload = {"history": history, "final": final_metrics}
     metrics_path.write_text(json.dumps(metrics_payload, indent=2, sort_keys=True) + "\n")
+    lineage_path.write_text(json.dumps(dataset_lineage, indent=2, sort_keys=True) + "\n")
     Image.new("RGB", (IMAGE_SIZE, IMAGE_SIZE), color="red").save(sample_image_path)
 
     result: dict[str, object] = {
@@ -184,6 +252,7 @@ def train_golden(
         "checkpoint_path": str(checkpoint_path),
         "training_config_path": str(config_path),
         "metrics_path": str(metrics_path),
+        "lineage_path": str(lineage_path),
         "sample_image_path": str(sample_image_path),
         "schema_version": GOLDEN_SCHEMA_VERSION,
         "architecture": GOLDEN_ARCHITECTURE,
@@ -191,6 +260,9 @@ def train_golden(
         "image_size": IMAGE_SIZE,
         "training_config": asdict(effective),
         "metrics": final_metrics,
+        "dataset_lineage": {
+            key: value for key, value in dataset_lineage.items() if key != "file_checksums"
+        },
     }
     return result
 
@@ -198,6 +270,8 @@ def train_golden(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
+    parser.add_argument("--dataset-dir", type=Path)
+    parser.add_argument("--manifest", type=Path)
     parser.add_argument("--seed", type=int, default=TrainingConfig.seed)
     parser.add_argument("--epochs", type=int, default=TrainingConfig.epochs)
     parser.add_argument("--train-samples", type=int, default=TrainingConfig.train_samples)
@@ -214,6 +288,8 @@ def main() -> int:
     try:
         result = train_golden(
             output_dir=args.output_dir,
+            dataset_dir=args.dataset_dir,
+            manifest_path=args.manifest,
             config=TrainingConfig(
                 seed=args.seed,
                 epochs=args.epochs,

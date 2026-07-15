@@ -10,13 +10,25 @@ uv sync --extra dev --locked
 
 No `.env` file or API key is required.
 
-## 2. Train a Real Bounded Model
+## 2. Reproduce the File-Backed Dataset and Model
+
+```bash
+cd examples/image_classification/project
+uv run dvc repro
+uv run dvc status
+uv run dvc metrics show
+cd ../../..
+```
+
+DVC first materializes 64 training and 16 validation PNG files across the `red` and `blue` class folders. The manifest records every SHA-256 checksum and one aggregate dataset checksum. Training verifies that manifest, reads the real image files, and writes a checkpoint whose `dataset_lineage` links back to those exact bytes. The generated dataset, checkpoint, and DVC cache are ignored by Git; the pipeline, parameters, and `dvc.lock` are versioned.
+
+## 3. Train a Fast In-Memory Smoke-Test Model
 
 ```bash
 uv run python -m examples.image_classification.project.golden_train
 ```
 
-The trainer creates deterministic red/blue tensors in memory. It never downloads a dataset. Its fixed defaults are CPU, seed 17, three epochs, 64 training samples, 16 validation samples, and batches of eight. The structured result names:
+This backward-compatible command creates deterministic red/blue tensors in memory for the fastest API and Docker smoke tests. It never downloads a dataset. Its fixed defaults are CPU, seed 17, three epochs, 64 training samples, 16 validation samples, and batches of eight. The structured result names:
 
 - `project/artifacts/golden/model.pt`
 - `project/artifacts/golden/training_config.json`
@@ -25,13 +37,13 @@ The trainer creates deterministic red/blue tensors in memory. It never downloads
 
 The entire artifact directory is ignored by Git.
 
-## 3. Verify Training, Loading, Inference, and FastAPI
+## 4. Verify Training, Loading, Inference, and FastAPI
 
 ```bash
-uv run pytest examples/image_classification/tests/test_golden_training.py examples/image_classification/tests/test_inference.py examples/image_classification/tests/test_serve.py -q
+uv run pytest examples/image_classification/tests/test_golden_dvc_lineage.py examples/image_classification/tests/test_golden_training.py examples/image_classification/tests/test_inference.py examples/image_classification/tests/test_serve.py -q
 ```
 
-These tests verify deterministic weights, checkpoint metadata and failure modes, real red/blue inference, probability normalization, model startup, health, prediction, content-type validation, malformed images, upload limits, and the not-loaded state.
+These tests verify deterministic file preparation, manifest tamper detection, embedded dataset lineage, deterministic weights, checkpoint metadata and failure modes, real red/blue inference, probability normalization, model startup, health, prediction, content-type validation, malformed images, upload limits, and the not-loaded state.
 
 The combined local command is:
 
@@ -39,22 +51,22 @@ The combined local command is:
 uv run python examples/image_classification/verify_golden.py
 ```
 
-## 4. Run the API Directly
+## 5. Run the DVC-Trained Model in the API
 
 ```bash
-GOLDEN_MODEL_PATH=examples/image_classification/project/artifacts/golden/model.pt uv run uvicorn examples.image_classification.project.serve:app --host 127.0.0.1 --port 8000
+GOLDEN_MODEL_PATH=examples/image_classification/project/artifacts/dvc-golden/model.pt uv run uvicorn examples.image_classification.project.serve:app --host 127.0.0.1 --port 8000
 ```
 
 Probe it from another terminal:
 
 ```bash
 curl --fail http://127.0.0.1:8000/health
-curl --fail --form "file=@examples/image_classification/project/artifacts/golden/sample-red.png;type=image/png" http://127.0.0.1:8000/predict
+curl --fail --form "file=@examples/image_classification/project/artifacts/dvc-golden/sample-red.png;type=image/png" http://127.0.0.1:8000/predict
 ```
 
 The application loads the model once during startup. `/health` is successful only when that load completed. `/predict` performs the preprocessing recorded in the checkpoint and executes the loaded model.
 
-## 5. Run the Real Docker Verification
+## 6. Run the Real Docker Verification
 
 ```bash
 docker info || sudo -n docker info
@@ -63,6 +75,6 @@ uv run python examples/image_classification/verify_golden.py --docker
 
 Docker is opt-in because it builds an image and starts a local container. The verifier uses bounded timeouts and a unique name, mounts the model read-only, records the actual responses and recent logs, and stops and removes its own container in `finally` cleanup.
 
-## 6. Interpret the Boundary
+## 7. Interpret the Boundary
 
-Passing this walkthrough proves a local synthetic CPU train-to-serve path. It does not prove external dataset handling, DVC/S3 lineage, MLflow/HPO, GPU use, Kubernetes/KServe, Helm, ArgoCD, Lambda, Hugging Face Spaces, registry push, self-healing, or complete capstone readiness. Those remain future milestones.
+Passing this walkthrough proves deterministic local DVC dataset preparation, file-backed CPU training with checksum lineage, and the existing train-to-serve path. It does not prove external dataset handling, an S3 DVC remote, MLflow/HPO, GPU use, Kubernetes/KServe, Helm, ArgoCD, Lambda, Hugging Face Spaces, registry push, self-healing, or complete capstone readiness. Those remain future milestones.

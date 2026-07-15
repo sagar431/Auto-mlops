@@ -176,7 +176,7 @@ class TestEvaluate:
 
 
 class TestDVCPipelineConfig:
-    """Tests for the DVC pipeline configuration file."""
+    """Tests for the local golden dataset-lineage DVC pipeline."""
 
     @pytest.fixture
     def dvc_yaml_path(self):
@@ -200,72 +200,61 @@ class TestDVCPipelineConfig:
         assert "stages" in config
 
     def test_dvc_yaml_prepare_data_stage(self, dvc_yaml_path):
-        """Test prepare_data stage configuration."""
+        """The preparation stage must produce the deterministic file dataset."""
         with open(dvc_yaml_path) as f:
             config = yaml.safe_load(f)
 
-        assert "prepare_data" in config["stages"]
-        stage = config["stages"]["prepare_data"]
-        assert "cmd" in stage
-        assert "deps" in stage
-        assert "outs" in stage
-        assert "prepare_data.py" in stage["deps"]
+        assert "prepare_golden_data" in config["stages"]
+        stage = config["stages"]["prepare_golden_data"]
+        assert "golden_data.py" in stage["deps"]
+        assert "data/golden" in stage["outs"]
+        assert "--seed ${prepare.seed}" in stage["cmd"]
+        assert "prepare.train_samples" in stage["params"]
+        assert "prepare.validation_samples" in stage["params"]
 
     def test_dvc_yaml_train_stage(self, dvc_yaml_path):
-        """Test train stage configuration."""
+        """The training stage must consume files and produce the canonical checkpoint."""
         with open(dvc_yaml_path) as f:
             config = yaml.safe_load(f)
 
-        assert "train" in config["stages"]
-        stage = config["stages"]["train"]
-        assert "cmd" in stage
-        assert "deps" in stage
-        assert "outs" in stage
-        assert "params" in stage
-        assert "train.py" in stage["deps"]
-
-    def test_dvc_yaml_evaluate_stage(self, dvc_yaml_path):
-        """Test evaluate stage configuration."""
-        with open(dvc_yaml_path) as f:
-            config = yaml.safe_load(f)
-
-        assert "evaluate" in config["stages"]
-        stage = config["stages"]["evaluate"]
-        assert "cmd" in stage
-        assert "deps" in stage
-        assert "metrics" in stage
-        assert "evaluate.py" in stage["deps"]
-        assert "models/best_model.pt" in stage["deps"]
+        assert "train_golden" in config["stages"]
+        stage = config["stages"]["train_golden"]
+        assert "data/golden" in stage["deps"]
+        assert "golden_train.py" in stage["deps"]
+        assert "model.py" in stage["deps"]
+        assert "--dataset-dir data/golden" in stage["cmd"]
+        assert "--manifest data/golden/manifest.json" in stage["cmd"]
+        assert "artifacts/dvc-golden/model.pt" in stage["outs"]
+        assert "artifacts/dvc-golden/lineage.json" in stage["outs"]
 
     def test_dvc_yaml_stage_dependencies(self, dvc_yaml_path):
         """Test that stage dependencies are properly defined."""
         with open(dvc_yaml_path) as f:
             config = yaml.safe_load(f)
 
-        # train should depend on data from prepare_data
-        train_deps = config["stages"]["train"]["deps"]
-        assert "data/cifar-10-batches-py" in train_deps
-
-        # evaluate should depend on model from train
-        evaluate_deps = config["stages"]["evaluate"]["deps"]
-        assert "models/best_model.pt" in evaluate_deps
+        prepare_outs = config["stages"]["prepare_golden_data"]["outs"]
+        train_deps = config["stages"]["train_golden"]["deps"]
+        assert "data/golden" in prepare_outs
+        assert "data/golden" in train_deps
 
     def test_dvc_yaml_train_params(self, dvc_yaml_path):
         """Test that train stage has proper parameter tracking."""
         with open(dvc_yaml_path) as f:
             config = yaml.safe_load(f)
 
-        params = config["stages"]["train"]["params"]
-        # Should track Hydra config parameters
-        assert len(params) > 0
+        params = config["stages"]["train_golden"]["params"]
+        assert "train.seed" in params
+        assert "train.epochs" in params
+        assert "train.batch_size" in params
+        assert "train.learning_rate" in params
 
     def test_dvc_yaml_metrics_config(self, dvc_yaml_path):
         """Test that metrics are configured correctly."""
         with open(dvc_yaml_path) as f:
             config = yaml.safe_load(f)
 
-        evaluate_metrics = config["stages"]["evaluate"]["metrics"]
-        assert any("metrics.json" in str(m) for m in evaluate_metrics)
+        train_metrics = config["stages"]["train_golden"]["metrics"]
+        assert any("artifacts/dvc-golden/metrics.json" in str(metric) for metric in train_metrics)
 
 
 class TestDVCIgnore:

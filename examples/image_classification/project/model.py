@@ -15,6 +15,16 @@ class CheckpointError(ValueError):
     """Raised when a model checkpoint violates the golden-slice contract."""
 
 
+def _is_sha256(value: object) -> bool:
+    if not isinstance(value, str) or len(value) != 64:
+        return False
+    try:
+        int(value, 16)
+    except ValueError:
+        return False
+    return True
+
+
 class TinyColorCNN(nn.Module):
     """Small CPU-friendly CNN used by the golden synthetic slice."""
 
@@ -44,6 +54,7 @@ class LoadedCheckpoint:
     normalization: dict[str, list[float]]
     training_config: dict[str, Any]
     metrics: dict[str, float]
+    dataset_lineage: dict[str, Any]
 
 
 def create_golden_model(num_classes: int) -> TinyColorCNN:
@@ -94,6 +105,31 @@ def _validate_checkpoint(checkpoint: Any) -> dict[str, Any]:
         raise CheckpointError("Checkpoint training configuration is missing")
     if not isinstance(checkpoint.get("metrics"), dict):
         raise CheckpointError("Checkpoint metrics are missing")
+    dataset_lineage = checkpoint.get("dataset_lineage")
+    if (
+        not isinstance(dataset_lineage, dict)
+        or not isinstance(dataset_lineage.get("schema_version"), str)
+        or not isinstance(dataset_lineage.get("source"), str)
+        or not _is_sha256(dataset_lineage.get("dataset_checksum"))
+    ):
+        raise CheckpointError("Checkpoint dataset lineage is missing or invalid")
+    if dataset_lineage["source"] == "dvc-materialized-image-files":
+        if (
+            not _is_sha256(dataset_lineage.get("manifest_checksum"))
+            or not isinstance(dataset_lineage.get("file_checksums"), dict)
+            or not dataset_lineage["file_checksums"]
+            or any(
+                not isinstance(path, str) or not path or not _is_sha256(checksum)
+                for path, checksum in dataset_lineage.get("file_checksums", {}).items()
+            )
+            or not isinstance(dataset_lineage.get("sample_counts"), dict)
+            or set(dataset_lineage.get("sample_counts", {})) != {"train", "validation"}
+            or any(
+                not isinstance(count, int) or count < 1
+                for count in dataset_lineage.get("sample_counts", {}).values()
+            )
+        ):
+            raise CheckpointError("Checkpoint file-backed dataset lineage is invalid")
     return checkpoint
 
 
@@ -126,6 +162,7 @@ def load_golden_checkpoint(path: str | Path, device: str = "cpu") -> LoadedCheck
         },
         training_config=dict(checkpoint["training_config"]),
         metrics={key: float(value) for key, value in checkpoint["metrics"].items()},
+        dataset_lineage=dict(checkpoint["dataset_lineage"]),
     )
 
 

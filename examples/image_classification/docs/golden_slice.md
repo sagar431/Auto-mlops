@@ -17,7 +17,7 @@ Before this contract was introduced, the example had no reproducible train-to-se
 
 | Field | Contract |
 | --- | --- |
-| Supported task | Deterministic two-class RGB image classification using synthetic tensors |
+| Supported task | Deterministic two-class RGB image classification using locally generated PNG files |
 | Class names | `red`, `blue`, in that order |
 | Input format | One PNG or JPEG upload; decoded as RGB |
 | Input dimensions | Any positive source dimensions; resized to 16×16 |
@@ -25,18 +25,32 @@ Before this contract was introduced, the example had no reproducible train-to-se
 | Architecture | `tiny_color_cnn_v1`: 3→8 convolution, ReLU, adaptive average pooling, and a two-logit linear classifier |
 | Device | CPU only |
 | Checkpoint schema | `golden-image-classifier.v1` |
-| Checkpoint file | `project/artifacts/golden/model.pt` (generated and ignored) |
-| Other artifacts | `training_config.json`, `metrics.json`, and optional `sample-red.png` under the same ignored directory |
+| Dataset schema | `golden-red-blue-dataset.v1`, with a SHA-256 manifest for every image |
+| DVC stages | `prepare_golden_data` → `train_golden` |
+| Checkpoint file | `project/artifacts/dvc-golden/model.pt` (generated, DVC-cached, and ignored by Git) |
+| Other artifacts | `training_config.json`, `metrics.json`, `lineage.json`, and `sample-red.png` under the same ignored directory |
 | API port | 8000 in the container |
 | Upload limit | 1,000,000 bytes |
 
-The checkpoint is a PyTorch dictionary containing `schema_version`, `architecture`, `state_dict`, `class_names`, `num_classes`, `image_size`, `normalization`, `training_config`, and `metrics`. Loading is strict: missing files, unreadable files, unknown schemas, incompatible architectures, invalid class or preprocessing metadata, and incompatible state dictionaries fail explicitly.
+The checkpoint is a PyTorch dictionary containing `schema_version`, `architecture`, `state_dict`, `class_names`, `num_classes`, `image_size`, `normalization`, `training_config`, `metrics`, and `dataset_lineage`. File-backed lineage records the dataset ID, aggregate dataset checksum, manifest checksum, split sample counts, and every relative image path with its SHA-256 checksum. Loading is strict: missing files, unreadable files, unknown schemas, incompatible architectures, invalid class, preprocessing, or lineage metadata, and incompatible state dictionaries fail explicitly.
 
 ## Exact Commands
 
 Run from the repository root after `uv sync --extra dev --locked`.
 
-Bounded training:
+Canonical file-backed DVC reproduction:
+
+```bash
+cd examples/image_classification/project
+uv run dvc repro
+uv run dvc status
+uv run dvc metrics show
+cd ../../..
+```
+
+This creates 64 training and 16 validation PNG files under ignored `data/golden/`, verifies their checksums before training, and writes the ignored checkpoint under `artifacts/dvc-golden/`. `dvc.lock` records the exact stage dependencies, parameters, and output hashes. Repeating `uv run dvc repro` reports that the pipeline is up to date; forced reproductions produce byte-identical tracked outputs.
+
+The original bounded in-memory command remains available for the fastest serving smoke test:
 
 ```bash
 uv run python -m examples.image_classification.project.golden_train
@@ -45,7 +59,7 @@ uv run python -m examples.image_classification.project.golden_train
 Focused training, checkpoint, inference, and FastAPI tests:
 
 ```bash
-uv run pytest examples/image_classification/tests/test_golden_training.py examples/image_classification/tests/test_inference.py examples/image_classification/tests/test_serve.py -q
+uv run pytest examples/image_classification/tests/test_golden_dvc_lineage.py examples/image_classification/tests/test_golden_training.py examples/image_classification/tests/test_inference.py examples/image_classification/tests/test_serve.py -q
 ```
 
 Single local verifier (training plus focused tests):
@@ -57,7 +71,7 @@ uv run python examples/image_classification/verify_golden.py
 Start the API directly after training:
 
 ```bash
-GOLDEN_MODEL_PATH=examples/image_classification/project/artifacts/golden/model.pt uv run uvicorn examples.image_classification.project.serve:app --host 127.0.0.1 --port 8000
+GOLDEN_MODEL_PATH=examples/image_classification/project/artifacts/dvc-golden/model.pt uv run uvicorn examples.image_classification.project.serve:app --host 127.0.0.1 --port 8000
 ```
 
 `GET /health` returns HTTP 200 only after a checkpoint loads:
@@ -103,7 +117,8 @@ uv run python examples/image_classification/verify_golden.py --docker
 
 ## Expected Verification
 
-- Training exits zero and prints one structured JSON result.
+- `dvc repro` prepares the declared PNG files, trains from them, and exits zero without network access.
+- The dataset manifest, checkpoint, lineage JSON, metrics, and `dvc.lock` have deterministic content hashes.
 - The checkpoint and JSON metadata files exist only under the ignored artifact directory.
 - Validation accuracy is observed from real model execution.
 - Focused tests pass without network, Docker, GPU, an external dataset, or an LLM key.
@@ -112,4 +127,4 @@ uv run python examples/image_classification/verify_golden.py --docker
 
 ## Explicit Non-Goals
 
-This slice does not provide CIFAR-10 or any external dataset download, DVC or S3, MLflow or HPO, GPU/CUDA, Kubernetes or KServe, Helm, ArgoCD or GitOps, Lambda, Hugging Face Spaces, a container registry or image push, self-healing, production authentication, generalized model architecture discovery, or complete capstone readiness.
+This slice does not provide CIFAR-10 or any external dataset download, a DVC remote or S3, MLflow or HPO, GPU/CUDA, Kubernetes or KServe, Helm, ArgoCD or GitOps, Lambda, Hugging Face Spaces, a container registry or image push, self-healing, production authentication, generalized model architecture discovery, or complete capstone readiness.

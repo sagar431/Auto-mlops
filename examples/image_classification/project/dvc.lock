@@ -1,0 +1,73 @@
+schema: '2.0'
+stages:
+  prepare_golden_data:
+    cmd: uv run python golden_data.py --output-dir data/golden --seed 17 
+      --train-samples 64 --validation-samples 16
+    deps:
+    - path: golden_data.py
+      hash: md5
+      md5: 87aa317f8de5abb14c206c8141a67049
+      size: 10612
+    params:
+      params.yaml:
+        prepare.seed: 17
+        prepare.train_samples: 64
+        prepare.validation_samples: 16
+    outs:
+    - path: data/golden
+      hash: md5
+      md5: e576d8c51dfef5114ce26ebf7b5ce72c.dir
+      size: 67927
+      nfiles: 81
+  train_golden:
+    cmd: uv run python golden_train.py --dataset-dir data/golden --manifest 
+      data/golden/manifest.json --output-dir artifacts/dvc-golden --seed 17 
+      --epochs 3 --train-samples 64 --validation-samples 16 --batch-size 8 
+      --learning-rate 0.05
+    deps:
+    - path: data/golden
+      hash: md5
+      md5: e576d8c51dfef5114ce26ebf7b5ce72c.dir
+      size: 67927
+      nfiles: 81
+    - path: golden_data.py
+      hash: md5
+      md5: 87aa317f8de5abb14c206c8141a67049
+      size: 10612
+    - path: golden_train.py
+      hash: md5
+      md5: 63ee122e185015b0e708c104517d1ef0
+      size: 12693
+    - path: model.py
+      hash: md5
+      md5: 0d01c962ce443b1e26bdcb2e86ddf9d8
+      size: 9802
+    params:
+      params.yaml:
+        prepare.train_samples: 64
+        prepare.validation_samples: 16
+        train.batch_size: 8
+        train.epochs: 3
+        train.learning_rate: 0.05
+        train.seed: 17
+    outs:
+    - path: artifacts/dvc-golden/lineage.json
+      hash: md5
+      md5: 45252a99f0cd6103c5e12082ef8067ff
+      size: 8367
+    - path: artifacts/dvc-golden/metrics.json
+      hash: md5
+      md5: 8a6cd0063d183797d8f51a2db48fd593
+      size: 509
+    - path: artifacts/dvc-golden/model.pt
+      hash: md5
+      md5: f4cedfb8030f163de8866cb552e9e3a2
+      size: 12553
+    - path: artifacts/dvc-golden/sample-red.png
+      hash: md5
+      md5: d75a7d6dbd92e73025766fdc19ebf655
+      size: 80
+    - path: artifacts/dvc-golden/training_config.json
+      hash: md5
+      md5: ea8f2e1bc6d992669f039af957457936
+      size: 166

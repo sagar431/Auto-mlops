@@ -58,4 +58,5 @@ examples/image_classification/project/artifacts/
 frontend/node_modules/
 frontend/build/
 *.lock
+!examples/image_classification/project/dvc.lock
 package-lock.json

@@ -1,0 +1,2 @@
+# DVC's YAML serializer emits stable folded command lines with trailing spaces.
+examples/image_classification/project/dvc.lock whitespace=-trailing-space

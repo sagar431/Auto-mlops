@@ -3,6 +3,7 @@
 !requirements.golden.txt
 !model.py
 !inference.py
+!golden_data.py
 !golden_train.py
 !serve.py
 .env

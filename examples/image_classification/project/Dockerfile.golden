@@ -10,7 +10,7 @@ COPY requirements.golden.txt ./
 RUN python -m pip install --no-cache-dir --requirement requirements.golden.txt
 
 RUN useradd --create-home --uid 10001 appuser
-COPY --chown=appuser:appuser model.py inference.py golden_train.py serve.py ./
+COPY --chown=appuser:appuser model.py inference.py golden_data.py golden_train.py serve.py ./
 
 USER appuser
 EXPOSE 8000
