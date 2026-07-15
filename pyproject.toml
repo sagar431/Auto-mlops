@@ -81,7 +81,19 @@ dev = [
     "ruff>=0.3.0",
     "locust>=2.20.0",
     "bandit>=1.7.7",
+    "torch==2.7.0+cpu",
+    "torchvision==0.22.0+cpu",
+    "pillow>=11.0.0",
 ]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [project.scripts]
 mlops-agent = "cli:main"

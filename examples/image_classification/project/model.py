@@ -1,8 +1,132 @@
-"""ResNet18 model for image classification."""
+"""Model definitions and checkpoint loading for image classification."""
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 import torch
 import torch.nn as nn
-from torchvision import models
+
+GOLDEN_SCHEMA_VERSION = "golden-image-classifier.v1"
+GOLDEN_ARCHITECTURE = "tiny_color_cnn_v1"
+
+
+class CheckpointError(ValueError):
+    """Raised when a model checkpoint violates the golden-slice contract."""
+
+
+class TinyColorCNN(nn.Module):
+    """Small CPU-friendly CNN used by the golden synthetic slice."""
+
+    def __init__(self, num_classes: int):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 8, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d((1, 1)),
+        )
+        self.classifier = nn.Linear(8, num_classes)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        features = self.features(inputs)
+        return self.classifier(features.flatten(1))
+
+
+@dataclass(frozen=True)
+class LoadedCheckpoint:
+    """Validated model and metadata loaded from a canonical checkpoint."""
+
+    model: nn.Module
+    schema_version: str
+    architecture: str
+    class_names: tuple[str, ...]
+    image_size: int
+    normalization: dict[str, list[float]]
+    training_config: dict[str, Any]
+    metrics: dict[str, float]
+
+
+def create_golden_model(num_classes: int) -> TinyColorCNN:
+    """Build the only architecture accepted by the golden checkpoint schema."""
+    if num_classes < 2:
+        raise ValueError("Golden model requires at least two classes")
+    return TinyColorCNN(num_classes=num_classes)
+
+
+def _validate_checkpoint(checkpoint: Any) -> dict[str, Any]:
+    if not isinstance(checkpoint, dict):
+        raise CheckpointError("Checkpoint must be a dictionary")
+    if checkpoint.get("schema_version") != GOLDEN_SCHEMA_VERSION:
+        raise CheckpointError("Unsupported checkpoint schema version")
+    if checkpoint.get("architecture") != GOLDEN_ARCHITECTURE:
+        raise CheckpointError("Incompatible checkpoint architecture")
+
+    class_names = checkpoint.get("class_names")
+    num_classes = checkpoint.get("num_classes")
+    if (
+        not isinstance(class_names, list)
+        or len(class_names) < 2
+        or any(not isinstance(name, str) or not name.strip() for name in class_names)
+        or len(set(class_names)) != len(class_names)
+        or num_classes != len(class_names)
+    ):
+        raise CheckpointError("Invalid checkpoint class metadata")
+
+    image_size = checkpoint.get("image_size")
+    normalization = checkpoint.get("normalization")
+    if not isinstance(image_size, int) or image_size <= 0:
+        raise CheckpointError("Invalid checkpoint image size")
+    if not isinstance(normalization, dict):
+        raise CheckpointError("Invalid checkpoint normalization metadata")
+    for key in ("mean", "std"):
+        values = normalization.get(key)
+        if (
+            not isinstance(values, list)
+            or len(values) != 3
+            or any(not isinstance(value, (int, float)) for value in values)
+        ):
+            raise CheckpointError("Invalid checkpoint normalization metadata")
+    if any(float(value) <= 0 for value in normalization["std"]):
+        raise CheckpointError("Invalid checkpoint normalization standard deviation")
+    if not isinstance(checkpoint.get("state_dict"), dict):
+        raise CheckpointError("Checkpoint state dictionary is missing or invalid")
+    if not isinstance(checkpoint.get("training_config"), dict):
+        raise CheckpointError("Checkpoint training configuration is missing")
+    if not isinstance(checkpoint.get("metrics"), dict):
+        raise CheckpointError("Checkpoint metrics are missing")
+    return checkpoint
+
+
+def load_golden_checkpoint(path: str | Path, device: str = "cpu") -> LoadedCheckpoint:
+    """Load and strictly validate a golden-slice checkpoint."""
+    checkpoint_path = Path(path)
+    if not checkpoint_path.is_file():
+        raise FileNotFoundError("Golden model checkpoint was not found")
+    try:
+        raw_checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
+    except Exception as exc:
+        raise CheckpointError("Unable to read golden model checkpoint") from exc
+    checkpoint = _validate_checkpoint(raw_checkpoint)
+    model = create_golden_model(checkpoint["num_classes"])
+    try:
+        model.load_state_dict(checkpoint["state_dict"], strict=True)
+    except (RuntimeError, TypeError, ValueError) as exc:
+        raise CheckpointError("Checkpoint state dictionary is incompatible") from exc
+    model.to(torch.device(device))
+    model.eval()
+    return LoadedCheckpoint(
+        model=model,
+        schema_version=checkpoint["schema_version"],
+        architecture=checkpoint["architecture"],
+        class_names=tuple(checkpoint["class_names"]),
+        image_size=checkpoint["image_size"],
+        normalization={
+            "mean": [float(value) for value in checkpoint["normalization"]["mean"]],
+            "std": [float(value) for value in checkpoint["normalization"]["std"]],
+        },
+        training_config=dict(checkpoint["training_config"]),
+        metrics={key: float(value) for key, value in checkpoint["metrics"].items()},
+    )
 
 
 class ResNet18(nn.Module):
@@ -24,6 +148,8 @@ class ResNet18(nn.Module):
         input_size: int = 32,
     ):
         super().__init__()
+        from torchvision import models
+
         self.num_classes = num_classes
         self.input_size = input_size
 

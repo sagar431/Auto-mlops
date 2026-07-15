@@ -81,7 +81,7 @@ class TestTrainingFunctions:
         ]
         # Create a mock loader with dataset attribute
         loader = MagicMock()
-        loader.__iter__ = MagicMock(return_value=iter(data))
+        loader.__iter__ = MagicMock(side_effect=lambda: iter(data))
         loader.__len__ = MagicMock(return_value=num_batches)
         loader.dataset = MagicMock()
         loader.dataset.__len__ = MagicMock(return_value=batch_size * num_batches)
@@ -176,7 +176,7 @@ class TestFullTraining:
                 for _ in range(num_batches)
             ]
             loader = MagicMock()
-            loader.__iter__ = MagicMock(return_value=iter(data))
+            loader.__iter__ = MagicMock(side_effect=lambda: iter(data))
             loader.__len__ = MagicMock(return_value=num_batches)
             loader.dataset = MagicMock()
             loader.dataset.__len__ = MagicMock(return_value=batch_size * num_batches)

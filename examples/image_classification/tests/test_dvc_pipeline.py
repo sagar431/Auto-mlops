@@ -20,6 +20,21 @@ from train import CIFAR10CNN
 class TestPrepareData:
     """Tests for prepare_data.py script."""
 
+    @pytest.fixture(autouse=True)
+    def _offline_cifar10(self, monkeypatch):
+        """Preserve CIFAR metadata checks without network access."""
+
+        class OfflineCIFAR10:
+            def __init__(self, root, train, download):
+                self.root = root
+                self.train = train
+                self.download = download
+
+            def __len__(self):
+                return 50_000 if self.train else 10_000
+
+        monkeypatch.setattr("prepare_data.datasets.CIFAR10", OfflineCIFAR10)
+
     def test_prepare_cifar10_downloads_data(self, tmp_path):
         """Test that prepare_cifar10 downloads and prepares data correctly."""
         data_dir = tmp_path / "data"
@@ -115,7 +130,7 @@ class TestEvaluate:
             for _ in range(num_batches)
         ]
         loader = MagicMock()
-        loader.__iter__ = MagicMock(return_value=iter(data))
+        loader.__iter__ = MagicMock(side_effect=lambda: iter(data))
         loader.__len__ = MagicMock(return_value=num_batches)
         loader.dataset = MagicMock()
         loader.dataset.__len__ = MagicMock(return_value=batch_size * num_batches)
