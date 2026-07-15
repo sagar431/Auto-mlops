@@ -55,6 +55,7 @@ from mcp_servers.mlops.schemas import hydra as hydra_schemas
 from mcp_servers.mlops.server import build_tool_registry
 
 HydraDependencies = hydra_domain.HydraDependencies
+LocalHydraFilesystem = hydra_domain.LocalHydraFilesystem
 configure_hydra_dependencies = hydra_domain.configure_dependencies
 analyze_project_config = hydra_domain.analyze_project_config
 create_hydra_config = hydra_domain.create_hydra_config
@@ -14579,9 +14580,11 @@ app = Server("mlops-agent-server")
 
 configure_hydra_dependencies(
     HydraDependencies(
-        ensure_directory=lambda path: ensure_directory(path),
-        relative_to_project=lambda project_path, artifact_path: relative_to_project(
-            project_path, artifact_path
+        filesystem=LocalHydraFilesystem(
+            directory_creator=lambda path: ensure_directory(path),
+            project_relativizer=lambda project_path, artifact_path: relative_to_project(
+                project_path, artifact_path
+            ),
         ),
     )
 )

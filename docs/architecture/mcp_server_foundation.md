@@ -74,17 +74,35 @@ existing monkeypatches on `mcp_mlops_tools` still affect MCP dispatch.
 - `ValidateHydraConfigInput`
 
 `mcp_servers.mlops.domains.hydra` owns project analysis, configuration
-creation, recursive update, validation, and `HydraDependencies`. The latter
-injects directory creation and project-relative path handling. The root facade
-configures these through dynamic wrappers, so patching the corresponding root
-helpers remains observable. `mcp_mlops_tools.py` imports and therefore
-re-exports the extracted models and functions under their historical names.
+creation, recursive update, validation, and the immutable `HydraDependencies`.
+`HydraDependencies` contains one `HydraFilesystem` implementation. The
+production `LocalHydraFilesystem` adapter covers exactly the operations Hydra
+uses: existence checks, directory creation, glob discovery, text reads, YAML
+reads and writes, and project-relative paths.
+
+Each historical public handler keeps its original signature and delegates to a
+private implementation that receives the filesystem explicitly. Tests inject a
+recording or failing implementation with the scoped `use_dependencies()`
+context manager. The override is stored in a `ContextVar` and reset by token, so
+nested or concurrent tests do not mutate the root facade's configured baseline
+or leak state into later tests. Constructing the adapter, dependencies,
+ToolSpecs, or registry performs no filesystem operation.
+
+The root facade installs a `LocalHydraFilesystem` whose directory-creation and
+project-relative callbacks resolve the root helpers dynamically. Patching
+`mcp_mlops_tools.ensure_directory` or
+`mcp_mlops_tools.relative_to_project` therefore remains observable until those
+legacy seams are deliberately retired. `mcp_mlops_tools.py` also re-exports the
+extracted models and functions under their historical names.
 
 ## Dependency boundaries for later domains
 
-Extracted domains must not capture mutable root globals implicitly. Define a
-small immutable dependency object whose defaults perform the current behavior,
-and configure root-facing wrappers during facade initialization:
+Extracted domains must not capture mutable root globals implicitly. Follow the
+Hydra pattern: define a narrow protocol from operations the domain actually
+uses, provide an immutable real adapter, pass the protocol explicitly to
+private implementations, and keep any compatibility override scoped and
+automatically reset. Configure dynamic root-facing callbacks only for proven
+legacy patch seams:
 
 - subprocess: command runner, executable lookup, timeout, and result adapter;
 - filesystem: path existence, directory creation, reads/writes, and templates;
@@ -93,9 +111,10 @@ and configure root-facing wrappers during facade initialization:
 - DVC and MLflow: CLI or SDK adapters and environment/config lookup;
 - AWS: session/client factories, credential checks, and service calls.
 
-Tests should inject fakes at the domain boundary and retain root adapters until
-all established root monkeypatch callers migrate. No remote or privileged
-operation should happen merely by importing or constructing the registry.
+Tests should inject recording and failing adapters at the domain boundary and
+retain root callbacks until all established root monkeypatch callers migrate.
+Importing modules or constructing dependencies and registries must be free of
+filesystem mutation, network access, subprocesses, and privileged operations.
 
 ## Deliberate scope and extraction order
 
@@ -107,14 +126,13 @@ were not created before a real domain needs them.
 
 The recommended next order is:
 
-1. remaining Hydra cleanup;
-2. basic MLflow tools;
-3. basic DVC tools;
-4. Docker and GitHub Actions tools;
-5. data quality and monitoring;
-6. training and capstone data;
-7. LitServe and other serving targets;
-8. Kubernetes, KServe, Helm, and AWS.
+1. basic MLflow tools;
+2. basic DVC tools;
+3. Docker and GitHub Actions tools;
+4. data quality and monitoring;
+5. training and capstone data;
+6. LitServe and other serving targets;
+7. Kubernetes, KServe, Helm, and AWS.
 
 This foundation does not add tools, HPO, learning-rate finding, cloud or
 deployment behavior, or alter agent/workflow routing.
