@@ -124,6 +124,11 @@ uv run python -m tests.root_migrated.test_mlops_tools --tool hydra
 uv run python -m tests.root_migrated.test_mlops_tools --tool deployment
 ```
 
+Pull requests targeting `main` automatically run the Phase 0 baseline and the verified
+golden image-classification checks. The quality gate also builds and smoke-tests the
+local CPU Docker image without publishing it; see
+[`docs/BASELINE.md`](docs/BASELINE.md#automatic-pull-request-quality-gate).
+
 ---
 
 ## 🏭 Production Setup
