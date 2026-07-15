@@ -1,0 +1,5316 @@
+{
+  "mcp_mlops_tools_line_count": 16302,
+  "registered_tool_count": 98,
+  "duplicate_tool_names": [],
+  "registration_entries_without_callable_handlers": [],
+  "implemented_tool_handlers_not_registered": [],
+  "orphan_input_models": [
+    "CheckWorkflowRunInput",
+    "TriggerGitHubWorkflowInput"
+  ],
+  "public_root_imports_elsewhere": [
+    "AnalyzeProjectConfigInput",
+    "_find_available_port",
+    "add_data_to_dvc",
+    "add_workflow_step",
+    "analyze_project_config",
+    "build_ml_docker_image",
+    "check_data_quality",
+    "check_tool_installed",
+    "compare_distributions",
+    "configure_dvc_remote",
+    "create_dvc_pipeline",
+    "create_expectation_suite",
+    "create_github_workflow",
+    "create_hydra_config",
+    "create_litserve_api",
+    "create_ml_dockerfile",
+    "detect_anomalies",
+    "detect_data_drift",
+    "end_mlflow_run",
+    "get_best_mlflow_run",
+    "init_dvc_repo",
+    "init_mlflow_experiment",
+    "log_mlflow_metrics",
+    "log_mlflow_params",
+    "monitor_model_performance",
+    "profile_dataset",
+    "select_best_model_artifact",
+    "setup_alerting",
+    "start_mlflow_run",
+    "suggest_improvements",
+    "test_litserve_prediction_endpoint",
+    "update_hydra_config",
+    "validate_dataset",
+    "validate_hydra_config",
+    "validate_schema"
+  ],
+  "root_module_test_patch_seams": [
+    "_detect_container_registry_auth_capability",
+    "_inspect_pushed_container_digest",
+    "_is_port_available",
+    "_validate_s3_credential_capability",
+    "analyze_project_config",
+    "check_tool_installed",
+    "run_command",
+    "shutil.which",
+    "subprocess.run",
+    "urllib.request.urlopen"
+  ],
+  "tools": [
+    {
+      "description": "Analyze ML project structure for configuration needs (Hydra, requirements, scripts)",
+      "handler": "analyze_project_config",
+      "input_model": "AnalyzeProjectConfigInput",
+      "input_schema": {
+        "description": "Analyze project for configuration needs.",
+        "properties": {
+          "project_path": {
+            "description": "Path to the ML project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "AnalyzeProjectConfigInput",
+        "type": "object"
+      },
+      "name": "analyze_project_config"
+    },
+    {
+      "description": "Create Hydra configuration structure with model, training, and data configs",
+      "handler": "create_hydra_config",
+      "input_model": "CreateHydraConfigInput",
+      "input_schema": {
+        "description": "Create Hydra configuration structure.",
+        "properties": {
+          "config_name": {
+            "default": "config",
+            "description": "Name of main config file",
+            "title": "Config Name",
+            "type": "string"
+          },
+          "data_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Data configuration",
+            "title": "Data Config"
+          },
+          "ml_model_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Model configuration",
+            "title": "Ml Model Config"
+          },
+          "project_path": {
+            "description": "Path to the ML project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "training_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Training configuration",
+            "title": "Training Config"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "CreateHydraConfigInput",
+        "type": "object"
+      },
+      "name": "create_hydra_config"
+    },
+    {
+      "description": "Update existing Hydra configuration with new values",
+      "handler": "update_hydra_config",
+      "input_model": "UpdateHydraConfigInput",
+      "input_schema": {
+        "description": "Update existing Hydra configuration.",
+        "properties": {
+          "config_path": {
+            "default": "configs/config.yaml",
+            "description": "Relative path to config file",
+            "title": "Config Path",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the ML project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "updates": {
+            "additionalProperties": true,
+            "description": "Dictionary of updates to apply",
+            "title": "Updates",
+            "type": "object"
+          }
+        },
+        "required": [
+          "project_path",
+          "updates"
+        ],
+        "title": "UpdateHydraConfigInput",
+        "type": "object"
+      },
+      "name": "update_hydra_config"
+    },
+    {
+      "description": "Validate Hydra configuration for errors and missing files",
+      "handler": "validate_hydra_config",
+      "input_model": "ValidateHydraConfigInput",
+      "input_schema": {
+        "description": "Validate Hydra configuration.",
+        "properties": {
+          "config_path": {
+            "default": "configs/config.yaml",
+            "description": "Relative path to config file",
+            "title": "Config Path",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the ML project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "ValidateHydraConfigInput",
+        "type": "object"
+      },
+      "name": "validate_hydra_config"
+    },
+    {
+      "description": "Initialize MLflow experiment with tracking URI and tags",
+      "handler": "init_mlflow_experiment",
+      "input_model": "InitMLflowExperimentInput",
+      "input_schema": {
+        "description": "Initialize MLflow experiment.",
+        "properties": {
+          "artifact_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Artifact storage location",
+            "title": "Artifact Location"
+          },
+          "experiment_name": {
+            "description": "Name of the experiment",
+            "title": "Experiment Name",
+            "type": "string"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Experiment tags",
+            "title": "Tags"
+          },
+          "tracking_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "MLflow tracking URI",
+            "title": "Tracking Uri"
+          }
+        },
+        "required": [
+          "experiment_name"
+        ],
+        "title": "InitMLflowExperimentInput",
+        "type": "object"
+      },
+      "name": "init_mlflow_experiment"
+    },
+    {
+      "description": "Start a new MLflow run in an experiment",
+      "handler": "start_mlflow_run",
+      "input_model": "StartMLflowRunInput",
+      "input_schema": {
+        "description": "Start a new MLflow run.",
+        "properties": {
+          "experiment_name": {
+            "description": "Name of the experiment",
+            "title": "Experiment Name",
+            "type": "string"
+          },
+          "run_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Name for the run",
+            "title": "Run Name"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Run tags",
+            "title": "Tags"
+          }
+        },
+        "required": [
+          "experiment_name"
+        ],
+        "title": "StartMLflowRunInput",
+        "type": "object"
+      },
+      "name": "start_mlflow_run"
+    },
+    {
+      "description": "Log parameters to MLflow run",
+      "handler": "log_mlflow_params",
+      "input_model": "LogMLflowParamsInput",
+      "input_schema": {
+        "description": "Log parameters to MLflow.",
+        "properties": {
+          "params": {
+            "additionalProperties": true,
+            "description": "Parameters to log",
+            "title": "Params",
+            "type": "object"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Run ID (uses active run if not specified)",
+            "title": "Run Id"
+          }
+        },
+        "required": [
+          "params"
+        ],
+        "title": "LogMLflowParamsInput",
+        "type": "object"
+      },
+      "name": "log_mlflow_params"
+    },
+    {
+      "description": "Log metrics to MLflow run with optional step",
+      "handler": "log_mlflow_metrics",
+      "input_model": "LogMLflowMetricsInput",
+      "input_schema": {
+        "description": "Log metrics to MLflow.",
+        "properties": {
+          "metrics": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Metrics to log",
+            "title": "Metrics",
+            "type": "object"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Run ID (uses active run if not specified)",
+            "title": "Run Id"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Step number for the metrics",
+            "title": "Step"
+          }
+        },
+        "required": [
+          "metrics"
+        ],
+        "title": "LogMLflowMetricsInput",
+        "type": "object"
+      },
+      "name": "log_mlflow_metrics"
+    },
+    {
+      "description": "Log artifact file or directory to MLflow",
+      "handler": "log_mlflow_artifact",
+      "input_model": "LogMLflowArtifactInput",
+      "input_schema": {
+        "description": "Log artifact to MLflow.",
+        "properties": {
+          "artifact_dest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Destination path in artifact store",
+            "title": "Artifact Dest"
+          },
+          "artifact_path": {
+            "description": "Local path to artifact file or directory",
+            "title": "Artifact Path",
+            "type": "string"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Run ID (uses active run if not specified)",
+            "title": "Run Id"
+          }
+        },
+        "required": [
+          "artifact_path"
+        ],
+        "title": "LogMLflowArtifactInput",
+        "type": "object"
+      },
+      "name": "log_mlflow_artifact"
+    },
+    {
+      "description": "Register model in MLflow Model Registry",
+      "handler": "register_mlflow_model",
+      "input_model": "RegisterMLflowModelInput",
+      "input_schema": {
+        "description": "Register model in MLflow Model Registry.",
+        "properties": {
+          "model_name": {
+            "description": "Name for the registered model",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "model_path": {
+            "description": "Path to the model artifact",
+            "title": "Model Path",
+            "type": "string"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Run ID containing the model",
+            "title": "Run Id"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Model tags",
+            "title": "Tags"
+          }
+        },
+        "required": [
+          "model_path",
+          "model_name"
+        ],
+        "title": "RegisterMLflowModelInput",
+        "type": "object"
+      },
+      "name": "register_mlflow_model"
+    },
+    {
+      "description": "Get best run from experiment based on metric",
+      "handler": "get_best_mlflow_run",
+      "input_model": "GetBestMLflowRunInput",
+      "input_schema": {
+        "description": "Get best run from experiment based on metric.",
+        "properties": {
+          "experiment_name": {
+            "description": "Name of the experiment",
+            "title": "Experiment Name",
+            "type": "string"
+          },
+          "maximize": {
+            "default": true,
+            "description": "Whether to maximize the metric",
+            "title": "Maximize",
+            "type": "boolean"
+          },
+          "metric_name": {
+            "default": "accuracy",
+            "description": "Metric to optimize",
+            "title": "Metric Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "experiment_name"
+        ],
+        "title": "GetBestMLflowRunInput",
+        "type": "object"
+      },
+      "name": "get_best_mlflow_run"
+    },
+    {
+      "description": "End an MLflow run with status",
+      "handler": "end_mlflow_run",
+      "input_model": "EndMLflowRunInput",
+      "input_schema": {
+        "description": "End an MLflow run.",
+        "properties": {
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Run ID to end",
+            "title": "Run Id"
+          },
+          "status": {
+            "default": "FINISHED",
+            "description": "Run status: FINISHED, FAILED, KILLED",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "EndMLflowRunInput",
+        "type": "object"
+      },
+      "name": "end_mlflow_run"
+    },
+    {
+      "description": "Initialize DVC in a repository",
+      "handler": "init_dvc_repo",
+      "input_model": "InitDVCRepoInput",
+      "input_schema": {
+        "description": "Initialize DVC in a repository.",
+        "properties": {
+          "no_scm": {
+            "default": false,
+            "description": "Initialize without Git integration",
+            "title": "No Scm",
+            "type": "boolean"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "InitDVCRepoInput",
+        "type": "object"
+      },
+      "name": "init_dvc_repo"
+    },
+    {
+      "description": "Configure DVC remote storage (S3, GCS, Azure, etc.)",
+      "handler": "configure_dvc_remote",
+      "input_model": "ConfigureDVCRemoteInput",
+      "input_schema": {
+        "description": "Configure DVC remote storage.",
+        "properties": {
+          "default": {
+            "default": true,
+            "description": "Set as default remote",
+            "title": "Default",
+            "type": "boolean"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "remote_name": {
+            "default": "storage",
+            "description": "Name for the remote",
+            "title": "Remote Name",
+            "type": "string"
+          },
+          "remote_url": {
+            "description": "Remote URL (s3://, gs://, azure://, etc.)",
+            "title": "Remote Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "remote_url"
+        ],
+        "title": "ConfigureDVCRemoteInput",
+        "type": "object"
+      },
+      "name": "configure_dvc_remote"
+    },
+    {
+      "description": "Add data file or directory to DVC tracking",
+      "handler": "add_data_to_dvc",
+      "input_model": "AddDataToDVCInput",
+      "input_schema": {
+        "description": "Add data to DVC tracking.",
+        "properties": {
+          "data_path": {
+            "description": "Path to data file or directory (relative to project)",
+            "title": "Data Path",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "data_path"
+        ],
+        "title": "AddDataToDVCInput",
+        "type": "object"
+      },
+      "name": "add_data_to_dvc"
+    },
+    {
+      "description": "Create DVC pipeline with stages (dvc.yaml)",
+      "handler": "create_dvc_pipeline",
+      "input_model": "CreateDVCPipelineInput",
+      "input_schema": {
+        "description": "Create DVC pipeline.",
+        "properties": {
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "stages": {
+            "description": "List of pipeline stages",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Stages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "project_path",
+          "stages"
+        ],
+        "title": "CreateDVCPipelineInput",
+        "type": "object"
+      },
+      "name": "create_dvc_pipeline"
+    },
+    {
+      "description": "Push data to DVC remote storage",
+      "handler": "dvc_push",
+      "input_model": "DVCPushInput",
+      "input_schema": {
+        "description": "Push data to DVC remote.",
+        "properties": {
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "remote_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Remote name (uses default if not specified)",
+            "title": "Remote Name"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "DVCPushInput",
+        "type": "object"
+      },
+      "name": "dvc_push"
+    },
+    {
+      "description": "Pull data from DVC remote storage",
+      "handler": "dvc_pull",
+      "input_model": "DVCPullInput",
+      "input_schema": {
+        "description": "Pull data from DVC remote.",
+        "properties": {
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "remote_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Remote name (uses default if not specified)",
+            "title": "Remote Name"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "DVCPullInput",
+        "type": "object"
+      },
+      "name": "dvc_pull"
+    },
+    {
+      "description": "Reproduce DVC pipeline (run stages)",
+      "handler": "dvc_reproduce",
+      "input_model": "DVCReproduceInput",
+      "input_schema": {
+        "description": "Reproduce DVC pipeline.",
+        "properties": {
+          "force": {
+            "default": false,
+            "description": "Force reproduction even if up-to-date",
+            "title": "Force",
+            "type": "boolean"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "stages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Specific stages to reproduce",
+            "title": "Stages"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "DVCReproduceInput",
+        "type": "object"
+      },
+      "name": "dvc_reproduce"
+    },
+    {
+      "description": "Create Dockerfile for ML project with GPU support option",
+      "handler": "create_ml_dockerfile",
+      "input_model": "CreateMLDockerfileInput",
+      "input_schema": {
+        "description": "Create Dockerfile for ML project.",
+        "properties": {
+          "base_image": {
+            "default": "python:3.11-slim",
+            "description": "Base Docker image",
+            "title": "Base Image",
+            "type": "string"
+          },
+          "cuda_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "CUDA version if GPU support needed",
+            "title": "Cuda Version"
+          },
+          "entry_point": {
+            "default": "train.py",
+            "description": "Training script entry point",
+            "title": "Entry Point",
+            "type": "string"
+          },
+          "expose_port": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Port to expose",
+            "title": "Expose Port"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "requirements_file": {
+            "default": "requirements.txt",
+            "description": "Requirements file path",
+            "title": "Requirements File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "CreateMLDockerfileInput",
+        "type": "object"
+      },
+      "name": "create_ml_dockerfile"
+    },
+    {
+      "description": "Build Docker image for ML project",
+      "handler": "build_ml_docker_image",
+      "input_model": "BuildMLDockerImageInput",
+      "input_schema": {
+        "description": "Build Docker image for ML project.",
+        "properties": {
+          "dockerfile": {
+            "default": "Dockerfile",
+            "description": "Dockerfile path",
+            "title": "Dockerfile",
+            "type": "string"
+          },
+          "image_name": {
+            "description": "Name for the Docker image",
+            "title": "Image Name",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "tag": {
+            "default": "latest",
+            "description": "Image tag",
+            "title": "Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "image_name"
+        ],
+        "title": "BuildMLDockerImageInput",
+        "type": "object"
+      },
+      "name": "build_ml_docker_image"
+    },
+    {
+      "description": "Run training in Docker container with GPU and volume support",
+      "handler": "run_training_container",
+      "input_model": "RunTrainingContainerInput",
+      "input_schema": {
+        "description": "Run training in Docker container.",
+        "properties": {
+          "command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Override command",
+            "title": "Command"
+          },
+          "env_vars": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Environment variables",
+            "title": "Env Vars"
+          },
+          "gpu": {
+            "default": false,
+            "description": "Enable GPU support",
+            "title": "Gpu",
+            "type": "boolean"
+          },
+          "image_name": {
+            "description": "Docker image name",
+            "title": "Image Name",
+            "type": "string"
+          },
+          "tag": {
+            "default": "latest",
+            "description": "Image tag",
+            "title": "Tag",
+            "type": "string"
+          },
+          "volumes": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Volume mappings",
+            "title": "Volumes"
+          }
+        },
+        "required": [
+          "image_name"
+        ],
+        "title": "RunTrainingContainerInput",
+        "type": "object"
+      },
+      "name": "run_training_container"
+    },
+    {
+      "description": "Push Docker image to registry",
+      "handler": "push_docker_image",
+      "input_model": "PushDockerImageInput",
+      "input_schema": {
+        "description": "Push Docker image to registry.",
+        "properties": {
+          "image_name": {
+            "description": "Docker image name",
+            "title": "Image Name",
+            "type": "string"
+          },
+          "registry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Registry URL",
+            "title": "Registry"
+          },
+          "tag": {
+            "default": "latest",
+            "description": "Image tag",
+            "title": "Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "image_name"
+        ],
+        "title": "PushDockerImageInput",
+        "type": "object"
+      },
+      "name": "push_docker_image"
+    },
+    {
+      "description": "Create GitHub Actions workflow for ML pipeline with DVC, MLflow, and accuracy checks",
+      "handler": "create_github_workflow",
+      "input_model": "CreateGitHubWorkflowInput",
+      "input_schema": {
+        "description": "Create GitHub Actions workflow for ML pipeline.",
+        "properties": {
+          "accuracy_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Accuracy threshold for CI",
+            "title": "Accuracy Threshold"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "python_version": {
+            "default": "3.11",
+            "description": "Python version",
+            "title": "Python Version",
+            "type": "string"
+          },
+          "trigger_on": {
+            "default": [
+              "push",
+              "workflow_dispatch"
+            ],
+            "description": "Trigger events",
+            "items": {
+              "type": "string"
+            },
+            "title": "Trigger On",
+            "type": "array"
+          },
+          "use_dvc": {
+            "default": true,
+            "description": "Include DVC steps",
+            "title": "Use Dvc",
+            "type": "boolean"
+          },
+          "use_mlflow": {
+            "default": true,
+            "description": "Include MLflow tracking",
+            "title": "Use Mlflow",
+            "type": "boolean"
+          },
+          "workflow_name": {
+            "default": "ml-pipeline",
+            "description": "Workflow name",
+            "title": "Workflow Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "CreateGitHubWorkflowInput",
+        "type": "object"
+      },
+      "name": "create_github_workflow"
+    },
+    {
+      "description": "Add step to existing GitHub Actions workflow",
+      "handler": "add_workflow_step",
+      "input_model": "AddWorkflowStepInput",
+      "input_schema": {
+        "description": "Add step to existing GitHub workflow.",
+        "properties": {
+          "job_name": {
+            "default": "train",
+            "description": "Job to add step to",
+            "title": "Job Name",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "step": {
+            "additionalProperties": true,
+            "description": "Step configuration",
+            "title": "Step",
+            "type": "object"
+          },
+          "workflow_file": {
+            "default": ".github/workflows/ml-pipeline.yml",
+            "description": "Workflow file path",
+            "title": "Workflow File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "step"
+        ],
+        "title": "AddWorkflowStepInput",
+        "type": "object"
+      },
+      "name": "add_workflow_step"
+    },
+    {
+      "description": "Detect supported Hydra/PyTorch/TIMM training project shape without running training",
+      "handler": "detect_training_project",
+      "input_model": "DetectTrainingProjectInput",
+      "input_schema": {
+        "description": "Detect a supported Hydra/PyTorch/TIMM training project without running training.",
+        "properties": {
+          "project_path": {
+            "description": "Path to the training project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "DetectTrainingProjectInput",
+        "type": "object"
+      },
+      "name": "detect_training_project"
+    },
+    {
+      "description": "Detect two user-provided canonical image-folder datasets without mutating files or DVC state",
+      "handler": "detect_capstone_data_layouts",
+      "input_model": "DetectCapstoneDataLayoutsInput",
+      "input_schema": {
+        "description": "Detect two user-provided canonical image-folder datasets read-only.",
+        "properties": {
+          "completion_mode": {
+            "default": "local_ready",
+            "description": "Phase 4 completion mode",
+            "title": "Completion Mode",
+            "type": "string"
+          },
+          "dataset_1_path": {
+            "description": "First user-provided dataset path",
+            "title": "Dataset 1 Path",
+            "type": "string"
+          },
+          "dataset_2_path": {
+            "description": "Second user-provided dataset path",
+            "title": "Dataset 2 Path",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "split_seed": {
+            "default": 42,
+            "description": "Declared deterministic split seed",
+            "title": "Split Seed",
+            "type": "integer"
+          },
+          "test_size": {
+            "default": 0.2,
+            "description": "Declared test split ratio",
+            "title": "Test Size",
+            "type": "number"
+          }
+        },
+        "required": [
+          "project_path",
+          "dataset_1_path",
+          "dataset_2_path"
+        ],
+        "title": "DetectCapstoneDataLayoutsInput",
+        "type": "object"
+      },
+      "name": "detect_capstone_data_layouts"
+    },
+    {
+      "description": "Generate deterministic capstone split manifests after approval",
+      "handler": "generate_capstone_split_manifests",
+      "input_model": "GenerateCapstoneSplitManifestsInput",
+      "input_schema": {
+        "description": "Generate deterministic split manifests under the project capstone data path.",
+        "properties": {
+          "capstone_data_detection": {
+            "additionalProperties": true,
+            "description": "Output from detect_capstone_data_layouts",
+            "title": "Capstone Data Detection",
+            "type": "object"
+          },
+          "materialize_splits": {
+            "default": false,
+            "description": "Reserved for future approval-gated copied folder materialization.",
+            "title": "Materialize Splits",
+            "type": "boolean"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "split_seed": {
+            "default": 42,
+            "description": "Deterministic split seed",
+            "title": "Split Seed",
+            "type": "integer"
+          },
+          "test_size": {
+            "default": 0.2,
+            "description": "Test split ratio",
+            "title": "Test Size",
+            "type": "number"
+          }
+        },
+        "required": [
+          "project_path",
+          "capstone_data_detection"
+        ],
+        "title": "GenerateCapstoneSplitManifestsInput",
+        "type": "object"
+      },
+      "name": "generate_capstone_split_manifests"
+    },
+    {
+      "description": "Validate/init local DVC and track generated capstone package paths",
+      "handler": "track_capstone_data_package",
+      "input_model": "TrackCapstoneDataPackageInput",
+      "input_schema": {
+        "description": "Validate/init local DVC and track generated capstone package paths.",
+        "properties": {
+          "capstone_split_manifest_result": {
+            "additionalProperties": true,
+            "description": "Output from generate_capstone_split_manifests",
+            "title": "Capstone Split Manifest Result",
+            "type": "object"
+          },
+          "initialize_if_missing": {
+            "default": true,
+            "description": "Initialize local DVC metadata when .dvc/config is missing.",
+            "title": "Initialize If Missing",
+            "type": "boolean"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "capstone_split_manifest_result"
+        ],
+        "title": "TrackCapstoneDataPackageInput",
+        "type": "object"
+      },
+      "name": "track_capstone_data_package"
+    },
+    {
+      "description": "Configure or validate local/S3 capstone DVC remote evidence without pushing or pulling data",
+      "handler": "configure_validate_capstone_dvc_remote",
+      "input_model": "ConfigureValidateCapstoneDVCRemoteInput",
+      "input_schema": {
+        "description": "Configure or validate local/S3 DVC remote evidence without data transfer.",
+        "properties": {
+          "completion_mode": {
+            "default": "local_ready",
+            "description": "Phase 4 completion mode",
+            "title": "Completion Mode",
+            "type": "string"
+          },
+          "default": {
+            "default": true,
+            "description": "Set configured remote as DVC default",
+            "title": "Default",
+            "type": "boolean"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "remote_name": {
+            "default": "capstone",
+            "description": "DVC remote name",
+            "title": "Remote Name",
+            "type": "string"
+          },
+          "remote_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional local or s3:// DVC remote URL to configure and validate.",
+            "title": "Remote Url"
+          },
+          "source_step": {
+            "default": "configure_validate_dvc_remote",
+            "description": "Workflow step that owns emitted remote evidence.",
+            "title": "Source Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "ConfigureValidateCapstoneDVCRemoteInput",
+        "type": "object"
+      },
+      "name": "configure_validate_capstone_dvc_remote"
+    },
+    {
+      "description": "Run approval-gated DVC push and record capstone transfer evidence",
+      "handler": "push_capstone_data",
+      "input_model": "PushCapstoneDataInput",
+      "input_schema": {
+        "description": "Run approval-gated DVC push for capstone data package evidence.",
+        "properties": {
+          "approval_record": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Approved ApprovalRecord payload for push_capstone_data",
+            "title": "Approval Record"
+          },
+          "capstone_dvc_remote_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from configure_validate_capstone_dvc_remote",
+            "title": "Capstone Dvc Remote Result"
+          },
+          "completion_mode": {
+            "default": "capstone_complete",
+            "description": "Phase 4 completion mode",
+            "title": "Completion Mode",
+            "type": "string"
+          },
+          "paths": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional DVC paths to push",
+            "title": "Paths"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "remote_name": {
+            "default": "capstone",
+            "description": "DVC remote name",
+            "title": "Remote Name",
+            "type": "string"
+          },
+          "source_step": {
+            "default": "push_capstone_data",
+            "description": "Workflow step that owns emitted transfer evidence.",
+            "title": "Source Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "PushCapstoneDataInput",
+        "type": "object"
+      },
+      "name": "push_capstone_data"
+    },
+    {
+      "description": "Run approval-gated DVC pull and record capstone transfer evidence",
+      "handler": "pull_capstone_data",
+      "input_model": "PullCapstoneDataInput",
+      "input_schema": {
+        "description": "Run approval-gated DVC pull for capstone data package evidence.",
+        "properties": {
+          "approval_record": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Approved ApprovalRecord payload for pull_capstone_data",
+            "title": "Approval Record"
+          },
+          "capstone_dvc_remote_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from configure_validate_capstone_dvc_remote",
+            "title": "Capstone Dvc Remote Result"
+          },
+          "completion_mode": {
+            "default": "capstone_complete",
+            "description": "Phase 4 completion mode",
+            "title": "Completion Mode",
+            "type": "string"
+          },
+          "paths": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional DVC paths to pull",
+            "title": "Paths"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "remote_name": {
+            "default": "capstone",
+            "description": "DVC remote name",
+            "title": "Remote Name",
+            "type": "string"
+          },
+          "source_step": {
+            "default": "pull_capstone_data",
+            "description": "Workflow step that owns emitted transfer evidence.",
+            "title": "Source Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "PullCapstoneDataInput",
+        "type": "object"
+      },
+      "name": "pull_capstone_data"
+    },
+    {
+      "description": "Write durable Phase 4 data-stage evidence for capstone handoff",
+      "handler": "record_capstone_data_stage_evidence",
+      "input_model": "RecordCapstoneDataStageEvidenceInput",
+      "input_schema": {
+        "description": "Write the durable Phase 4 data-stage evidence handoff artifact.",
+        "properties": {
+          "artifact_manifest": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Artifact manifest captured before writing data-stage evidence",
+            "title": "Artifact Manifest"
+          },
+          "capstone_data_detection": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from detect_capstone_data_layouts",
+            "title": "Capstone Data Detection"
+          },
+          "capstone_data_package_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from track_capstone_data_package",
+            "title": "Capstone Data Package Result"
+          },
+          "capstone_data_pull_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from pull_capstone_data",
+            "title": "Capstone Data Pull Result"
+          },
+          "capstone_data_push_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from push_capstone_data",
+            "title": "Capstone Data Push Result"
+          },
+          "capstone_data_remote_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from configure_validate_capstone_dvc_remote",
+            "title": "Capstone Data Remote Result"
+          },
+          "capstone_split_manifest_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from generate_capstone_split_manifests",
+            "title": "Capstone Split Manifest Result"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "verification_results": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Verification results captured before writing data-stage evidence",
+            "title": "Verification Results"
+          },
+          "workflow_inputs": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Resolved prepare_capstone_data workflow inputs",
+            "title": "Workflow Inputs"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "RecordCapstoneDataStageEvidenceInput",
+        "type": "object"
+      },
+      "name": "record_capstone_data_stage_evidence"
+    },
+    {
+      "description": "Validate Phase 5 container/CI workflow inputs and record blocked deferred evidence without running Docker, registry, CI, or secret behavior",
+      "handler": "prepare_capstone_container_ci_contract",
+      "input_model": "PrepareCapstoneContainerCIContractInput",
+      "input_schema": {
+        "description": "Validate Phase 5 Issue 1 container/CI inputs without later behavior.",
+        "properties": {
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "workflow_inputs": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Resolved prepare_capstone_container_ci workflow inputs",
+            "title": "Workflow Inputs"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "PrepareCapstoneContainerCIContractInput",
+        "type": "object"
+      },
+      "name": "prepare_capstone_container_ci_contract"
+    },
+    {
+      "description": "Resolve Phase 5 upstream data-stage, training, MLflow, and model artifact evidence without running Docker, registry, CI, or secret behavior",
+      "handler": "resolve_capstone_container_upstream_evidence",
+      "input_model": "ResolveCapstoneContainerUpstreamEvidenceInput",
+      "input_schema": {
+        "description": "Resolve Phase 5 Issue 2 upstream evidence without mutating project state.",
+        "properties": {
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "workflow_inputs": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Resolved prepare_capstone_container_ci workflow inputs",
+            "title": "Workflow Inputs"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "ResolveCapstoneContainerUpstreamEvidenceInput",
+        "type": "object"
+      },
+      "name": "resolve_capstone_container_upstream_evidence"
+    },
+    {
+      "description": "Generate or validate Phase 5 Capstone Runtime Image build-spec evidence without running Docker, registry, CI, or secret behavior",
+      "handler": "generate_validate_capstone_runtime_image_spec",
+      "input_model": "GenerateValidateCapstoneRuntimeImageSpecInput",
+      "input_schema": {
+        "description": "Generate or validate Phase 5 Issue 3 runtime image build-spec evidence.",
+        "properties": {
+          "approval_record": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Approval record required before writing Dockerfile or .dockerignore",
+            "title": "Approval Record"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "workflow_inputs": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Resolved prepare_capstone_container_ci workflow inputs",
+            "title": "Workflow Inputs"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "GenerateValidateCapstoneRuntimeImageSpecInput",
+        "type": "object"
+      },
+      "name": "generate_validate_capstone_runtime_image_spec"
+    },
+    {
+      "description": "Detect Docker availability and run approval-gated Phase 5 image build and bounded smoke evidence without registry, CI, deployment, or secret behavior",
+      "handler": "build_smoke_check_capstone_container_image",
+      "input_model": "BuildSmokeCheckCapstoneContainerImageInput",
+      "input_schema": {
+        "description": "Build and smoke-check Phase 5 runtime image when Docker is available and approved.",
+        "properties": {
+          "approval_record": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Approval record required before running docker build",
+            "title": "Approval Record"
+          },
+          "build_timeout_seconds": {
+            "default": 300,
+            "description": "Bounded timeout for docker build",
+            "title": "Build Timeout Seconds",
+            "type": "integer"
+          },
+          "capstone_runtime_image_spec_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from generate_validate_capstone_runtime_image_spec",
+            "title": "Capstone Runtime Image Spec Result"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "smoke_approval_record": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Approval record required before running container smoke command",
+            "title": "Smoke Approval Record"
+          },
+          "smoke_timeout_seconds": {
+            "default": 60,
+            "description": "Bounded timeout for container smoke check",
+            "title": "Smoke Timeout Seconds",
+            "type": "integer"
+          },
+          "workflow_inputs": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Resolved prepare_capstone_container_ci workflow inputs",
+            "title": "Workflow Inputs"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "BuildSmokeCheckCapstoneContainerImageInput",
+        "type": "object"
+      },
+      "name": "build_smoke_check_capstone_container_image"
+    },
+    {
+      "description": "Configure and validate Phase 5 registry target evidence without login, push, CI generation, deployment, or secret mutation",
+      "handler": "configure_validate_capstone_registry_target",
+      "input_model": "ConfigureValidateCapstoneRegistryTargetInput",
+      "input_schema": {
+        "description": "Configure and validate Phase 5 Issue 5 registry target evidence.",
+        "properties": {
+          "capstone_container_build_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from build_smoke_check_capstone_container_image",
+            "title": "Capstone Container Build Result"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "workflow_inputs": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Resolved prepare_capstone_container_ci workflow inputs",
+            "title": "Workflow Inputs"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "ConfigureValidateCapstoneRegistryTargetInput",
+        "type": "object"
+      },
+      "name": "configure_validate_capstone_registry_target"
+    },
+    {
+      "description": "Run approval-gated Phase 5 registry login and image push while recording secret-safe observed push evidence",
+      "handler": "approval_gated_capstone_registry_login_push",
+      "input_model": "ApprovalGatedCapstoneRegistryLoginPushInput",
+      "input_schema": {
+        "description": "Run Phase 5 Issue 6 approval-gated registry login and image push.",
+        "properties": {
+          "approval_record": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Approval record required before registry login and push",
+            "title": "Approval Record"
+          },
+          "capstone_container_build_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from build_smoke_check_capstone_container_image",
+            "title": "Capstone Container Build Result"
+          },
+          "capstone_registry_target_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from configure_validate_capstone_registry_target",
+            "title": "Capstone Registry Target Result"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "push_timeout_seconds": {
+            "default": 600,
+            "description": "Bounded timeout for docker push",
+            "title": "Push Timeout Seconds",
+            "type": "integer"
+          },
+          "workflow_inputs": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Resolved prepare_capstone_container_ci workflow inputs",
+            "title": "Workflow Inputs"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "ApprovalGatedCapstoneRegistryLoginPushInput",
+        "type": "object"
+      },
+      "name": "approval_gated_capstone_registry_login_push"
+    },
+    {
+      "description": "Generate or validate Phase 5 Capstone CI evidence and write durable container_ci_evidence.json for orchestrator handoff",
+      "handler": "record_capstone_container_ci_evidence_handoff",
+      "input_model": "RecordCapstoneContainerCIEvidenceInput",
+      "input_schema": {
+        "description": "Write Phase 5 Issue 7 CI workflow and durable container/CI evidence.",
+        "properties": {
+          "approval_record": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Approval record required before writing capstone CI workflow/evidence",
+            "title": "Approval Record"
+          },
+          "artifact_manifest": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Artifact manifest captured before writing container/CI evidence",
+            "title": "Artifact Manifest"
+          },
+          "capstone_container_build_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from build_smoke_check_capstone_container_image",
+            "title": "Capstone Container Build Result"
+          },
+          "capstone_container_upstream_evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from resolve_capstone_container_upstream_evidence",
+            "title": "Capstone Container Upstream Evidence"
+          },
+          "capstone_registry_push_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from approval_gated_capstone_registry_login_push",
+            "title": "Capstone Registry Push Result"
+          },
+          "capstone_registry_target_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from configure_validate_capstone_registry_target",
+            "title": "Capstone Registry Target Result"
+          },
+          "capstone_runtime_image_spec_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output from generate_validate_capstone_runtime_image_spec",
+            "title": "Capstone Runtime Image Spec Result"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "remote_ci_evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional remote GitHub Actions evidence when authenticated inspection is available",
+            "title": "Remote Ci Evidence"
+          },
+          "verification_results": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Verification results captured before writing container/CI evidence",
+            "title": "Verification Results"
+          },
+          "workflow_inputs": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Resolved prepare_capstone_container_ci workflow inputs",
+            "title": "Workflow Inputs"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "RecordCapstoneContainerCIEvidenceInput",
+        "type": "object"
+      },
+      "name": "record_capstone_container_ci_evidence_handoff"
+    },
+    {
+      "description": "Run a detected training entrypoint with explicit bounded controls and capture metrics/artifacts",
+      "handler": "run_bounded_training",
+      "input_model": "RunBoundedTrainingInput",
+      "input_schema": {
+        "description": "Run a detected training entrypoint with explicit bounded controls.",
+        "properties": {
+          "data_subset": {
+            "description": "Dataset subset or size control",
+            "title": "Data Subset",
+            "type": "integer"
+          },
+          "device": {
+            "description": "Training device control",
+            "title": "Device",
+            "type": "string"
+          },
+          "hydra_config_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Hydra config name",
+            "title": "Hydra Config Name"
+          },
+          "hydra_config_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Hydra config root path",
+            "title": "Hydra Config Path"
+          },
+          "hydra_overrides": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Additional explicit Hydra overrides",
+            "title": "Hydra Overrides"
+          },
+          "max_epochs": {
+            "description": "Maximum epochs or equivalent control",
+            "title": "Max Epochs",
+            "type": "integer"
+          },
+          "project_path": {
+            "description": "Path to the detected training project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "target_metric": {
+            "default": "accuracy",
+            "description": "Required metric for success",
+            "title": "Target Metric",
+            "type": "string"
+          },
+          "timeout_seconds": {
+            "description": "Maximum training command duration",
+            "title": "Timeout Seconds",
+            "type": "integer"
+          },
+          "training_entrypoint": {
+            "description": "Detected training script path",
+            "title": "Training Entrypoint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "training_entrypoint",
+          "timeout_seconds",
+          "max_epochs",
+          "device",
+          "data_subset"
+        ],
+        "title": "RunBoundedTrainingInput",
+        "type": "object"
+      },
+      "name": "run_bounded_training"
+    },
+    {
+      "description": "Track bounded training evidence in a verified local MLflow run",
+      "handler": "track_training_in_mlflow",
+      "input_model": "TrackTrainingInMLflowInput",
+      "input_schema": {
+        "description": "Track a bounded training result in a verified local MLflow run.",
+        "properties": {
+          "experiment_name": {
+            "default": "mlops-training",
+            "description": "MLflow experiment name",
+            "title": "Experiment Name",
+            "type": "string"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Additional bounded controls and detected params to log",
+            "title": "Params"
+          },
+          "project_path": {
+            "description": "Path to the training project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "run_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional MLflow run name",
+            "title": "Run Name"
+          },
+          "tracking_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Local or file MLflow tracking URI",
+            "title": "Tracking Uri"
+          },
+          "training_result": {
+            "additionalProperties": true,
+            "description": "Bounded training result payload",
+            "title": "Training Result",
+            "type": "object"
+          }
+        },
+        "required": [
+          "project_path",
+          "training_result"
+        ],
+        "title": "TrackTrainingInMLflowInput",
+        "type": "object"
+      },
+      "name": "track_training_in_mlflow"
+    },
+    {
+      "description": "Record the Capstone Orchestrator skeleton with blocked/deferred evidence",
+      "handler": "record_capstone_orchestrator_skeleton",
+      "input_model": "RecordCapstoneOrchestratorSkeletonInput",
+      "input_schema": {
+        "description": "Record the first Capstone Orchestrator skeleton and deferred evidence.",
+        "properties": {
+          "blocked_subworkflows": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Known missing workflow ids that must remain blocked",
+            "title": "Blocked Subworkflows"
+          },
+          "declared_stages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Declared capstone stages owned by the registry template",
+            "title": "Declared Stages"
+          },
+          "endpoint_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional endpoint evidence from a prior deployment workflow",
+            "title": "Endpoint Url"
+          },
+          "implemented_subworkflows": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Implemented workflow ids the skeleton may reference",
+            "title": "Implemented Subworkflows"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "selected_model_artifact_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional selected model artifact evidence from a prior workflow",
+            "title": "Selected Model Artifact Path"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "RecordCapstoneOrchestratorSkeletonInput",
+        "type": "object"
+      },
+      "name": "record_capstone_orchestrator_skeleton"
+    },
+    {
+      "description": "Analyze training results and suggest improvements",
+      "handler": "analyze_training_results",
+      "input_model": "AnalyzeTrainingResultsInput",
+      "input_schema": {
+        "description": "Analyze training results and suggest improvements.",
+        "properties": {
+          "experiment_name": {
+            "description": "MLflow experiment name",
+            "title": "Experiment Name",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "target_metric": {
+            "default": "accuracy",
+            "description": "Target metric",
+            "title": "Target Metric",
+            "type": "string"
+          },
+          "target_value": {
+            "description": "Target value for the metric",
+            "title": "Target Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "project_path",
+          "experiment_name",
+          "target_value"
+        ],
+        "title": "AnalyzeTrainingResultsInput",
+        "type": "object"
+      },
+      "name": "analyze_training_results"
+    },
+    {
+      "description": "Suggest configuration improvements based on current metrics",
+      "handler": "suggest_improvements",
+      "input_model": "SuggestImprovementsInput",
+      "input_schema": {
+        "description": "Suggest improvements based on training results.",
+        "properties": {
+          "attempt_number": {
+            "default": 1,
+            "description": "Current attempt number",
+            "title": "Attempt Number",
+            "type": "integer"
+          },
+          "current_config": {
+            "additionalProperties": true,
+            "description": "Current configuration",
+            "title": "Current Config",
+            "type": "object"
+          },
+          "current_metrics": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Current metrics",
+            "title": "Current Metrics",
+            "type": "object"
+          },
+          "target_accuracy": {
+            "description": "Target accuracy",
+            "title": "Target Accuracy",
+            "type": "number"
+          }
+        },
+        "required": [
+          "current_metrics",
+          "current_config",
+          "target_accuracy"
+        ],
+        "title": "SuggestImprovementsInput",
+        "type": "object"
+      },
+      "name": "suggest_improvements"
+    },
+    {
+      "description": "Check if accuracy threshold is met in experiment",
+      "handler": "check_accuracy_threshold",
+      "input_model": "CheckAccuracyThresholdInput",
+      "input_schema": {
+        "description": "Check if accuracy threshold is met.",
+        "properties": {
+          "experiment_name": {
+            "description": "MLflow experiment name",
+            "title": "Experiment Name",
+            "type": "string"
+          },
+          "metric_name": {
+            "default": "accuracy",
+            "description": "Metric name to check",
+            "title": "Metric Name",
+            "type": "string"
+          },
+          "threshold": {
+            "description": "Accuracy threshold",
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "experiment_name",
+          "threshold"
+        ],
+        "title": "CheckAccuracyThresholdInput",
+        "type": "object"
+      },
+      "name": "check_accuracy_threshold"
+    },
+    {
+      "description": "Validate ML dataset for quality issues (missing values, duplicates, class balance, outliers, image validity)",
+      "handler": "validate_dataset",
+      "input_model": "ValidateDatasetInput",
+      "input_schema": {
+        "description": "Validate ML dataset for quality issues.",
+        "properties": {
+          "checks": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Specific checks to run: missing_values, duplicates, class_balance, data_types, outliers, image_validity. If None, runs all applicable checks.",
+            "title": "Checks"
+          },
+          "dataset_path": {
+            "description": "Path to the dataset file or directory",
+            "title": "Dataset Path",
+            "type": "string"
+          },
+          "dataset_type": {
+            "default": "auto",
+            "description": "Dataset type: csv, parquet, images, json, auto (auto-detect)",
+            "title": "Dataset Type",
+            "type": "string"
+          },
+          "sample_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Number of samples to validate (for large datasets). If None, validates all.",
+            "title": "Sample Size"
+          }
+        },
+        "required": [
+          "dataset_path"
+        ],
+        "title": "ValidateDatasetInput",
+        "type": "object"
+      },
+      "name": "validate_dataset"
+    },
+    {
+      "description": "Create a Great Expectations expectation suite for data validation with customizable expectations",
+      "handler": "create_expectation_suite",
+      "input_model": "CreateExpectationSuiteInput",
+      "input_schema": {
+        "description": "Create a Great Expectations expectation suite for data validation.",
+        "properties": {
+          "expectations": {
+            "description": "List of expectations. Each expectation is a dict with 'expectation_type' (e.g., 'expect_column_values_to_not_be_null'), optional 'column', optional 'kwargs' (expectation-specific parameters), optional 'severity' ('error'/'warning'/'info'), and optional 'description'.",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Expectations",
+            "type": "array"
+          },
+          "output_dir": {
+            "default": "great_expectations/expectations",
+            "description": "Directory to save the suite (relative to project_path)",
+            "title": "Output Dir",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the ML project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "suite_name": {
+            "description": "Name of the expectation suite",
+            "title": "Suite Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "suite_name",
+          "expectations"
+        ],
+        "title": "CreateExpectationSuiteInput",
+        "type": "object"
+      },
+      "name": "create_expectation_suite"
+    },
+    {
+      "description": "Check data quality using Great Expectations-based validation. Validates datasets against expectations or runs basic quality checks (nulls, duplicates, row count). Returns quality score, validation results, and recommendations.",
+      "handler": "check_data_quality",
+      "input_model": "CheckDataQualityInput",
+      "input_schema": {
+        "description": "Check data quality using Great Expectations-based validation.",
+        "properties": {
+          "dataset_path": {
+            "description": "Path to the dataset file (CSV, Parquet, or JSON)",
+            "title": "Dataset Path",
+            "type": "string"
+          },
+          "expectations": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional list of expectations to check. Each expectation is a dict with 'expectation_type', optional 'column', optional 'kwargs'. If not provided, runs basic quality checks (nulls, duplicates, row count).",
+            "title": "Expectations"
+          },
+          "fail_on_error": {
+            "default": false,
+            "description": "If True, returns success=False when any ERROR-severity check fails",
+            "title": "Fail On Error",
+            "type": "boolean"
+          },
+          "include_statistics": {
+            "default": true,
+            "description": "Whether to include detailed dataset statistics in the report",
+            "title": "Include Statistics",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dataset_path"
+        ],
+        "title": "CheckDataQualityInput",
+        "type": "object"
+      },
+      "name": "check_data_quality"
+    },
+    {
+      "description": "Profile a dataset to get comprehensive statistics including row/column counts, missing values, duplicates, memory usage, and per-column statistics (mean, median, std, quartiles for numeric; top values for categorical).",
+      "handler": "profile_dataset",
+      "input_model": "ProfileDatasetInput",
+      "input_schema": {
+        "description": "Profile a dataset to get comprehensive statistics.",
+        "properties": {
+          "dataset_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Name for the dataset in the report. If not provided, uses filename.",
+            "title": "Dataset Name"
+          },
+          "dataset_path": {
+            "description": "Path to the dataset file (CSV, Parquet, or JSON)",
+            "title": "Dataset Path",
+            "type": "string"
+          },
+          "include_column_stats": {
+            "default": true,
+            "description": "Whether to include detailed column-level statistics",
+            "title": "Include Column Stats",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dataset_path"
+        ],
+        "title": "ProfileDatasetInput",
+        "type": "object"
+      },
+      "name": "profile_dataset"
+    },
+    {
+      "description": "Detect anomalies in a dataset using statistical methods (IQR outliers, Z-score outliers, missing value patterns, duplicate rows). Returns detailed anomaly information with affected rows and severity levels.",
+      "handler": "detect_anomalies",
+      "input_model": "DetectAnomaliesInput",
+      "input_schema": {
+        "description": "Detect anomalies in a dataset using statistical methods.",
+        "properties": {
+          "dataset_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Name for the dataset in the report. If not provided, uses filename.",
+            "title": "Dataset Name"
+          },
+          "dataset_path": {
+            "description": "Path to the dataset file (CSV, Parquet, or JSON)",
+            "title": "Dataset Path",
+            "type": "string"
+          },
+          "methods": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "List of detection methods to use: 'iqr' (interquartile range), 'zscore', 'missing' (missing value patterns), 'duplicates'. If None, uses all methods.",
+            "title": "Methods"
+          },
+          "outlier_threshold": {
+            "default": 1.5,
+            "description": "IQR multiplier for outlier detection (default 1.5)",
+            "title": "Outlier Threshold",
+            "type": "number"
+          },
+          "zscore_threshold": {
+            "default": 3.0,
+            "description": "Z-score threshold for outlier detection (default 3.0)",
+            "title": "Zscore Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "dataset_path"
+        ],
+        "title": "DetectAnomaliesInput",
+        "type": "object"
+      },
+      "name": "detect_anomalies"
+    },
+    {
+      "description": "Validate a dataset against a defined schema. Checks for missing columns, extra columns (in strict mode), type mismatches, and constraint violations (nullability, uniqueness, value ranges, patterns).",
+      "handler": "validate_schema",
+      "input_model": "ValidateSchemaInput",
+      "input_schema": {
+        "description": "Validate a dataset against a defined schema.",
+        "properties": {
+          "dataset_path": {
+            "description": "Path to the dataset file (CSV, Parquet, or JSON)",
+            "title": "Dataset Path",
+            "type": "string"
+          },
+          "schema": {
+            "additionalProperties": true,
+            "description": "Schema definition with 'schema_name', 'version' (optional), 'fields' (list of field definitions with 'name', 'data_type', 'nullable', 'unique', 'min_value', 'max_value', 'allowed_values', 'pattern'), and 'strict' (bool, if true extra columns are not allowed).",
+            "title": "Schema",
+            "type": "object"
+          }
+        },
+        "required": [
+          "dataset_path",
+          "schema"
+        ],
+        "title": "ValidateSchemaInput",
+        "type": "object"
+      },
+      "name": "validate_schema"
+    },
+    {
+      "description": "Compare distributions between a reference dataset and current dataset for drift detection. Uses Kolmogorov-Smirnov test to identify significant distribution shifts in numeric columns.",
+      "handler": "compare_distributions",
+      "input_model": "CompareDistributionsInput",
+      "input_schema": {
+        "description": "Compare distributions between a reference dataset and current dataset for drift detection.",
+        "properties": {
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "List of column names to compare. If None, compares all common numeric columns.",
+            "title": "Columns"
+          },
+          "current_path": {
+            "description": "Path to the current dataset file to compare against reference",
+            "title": "Current Path",
+            "type": "string"
+          },
+          "reference_path": {
+            "description": "Path to the reference dataset file (e.g., training data)",
+            "title": "Reference Path",
+            "type": "string"
+          },
+          "significance_level": {
+            "default": 0.05,
+            "description": "Significance level for statistical tests (default 0.05). Lower values mean stricter detection.",
+            "title": "Significance Level",
+            "type": "number"
+          }
+        },
+        "required": [
+          "reference_path",
+          "current_path"
+        ],
+        "title": "CompareDistributionsInput",
+        "type": "object"
+      },
+      "name": "compare_distributions"
+    },
+    {
+      "description": "Detect data drift between reference and current datasets using Evidently AI. Provides comprehensive drift analysis with per-feature results, severity levels, and recommendations. Supports both numerical and categorical columns with configurable thresholds.",
+      "handler": "detect_data_drift",
+      "input_model": "DetectDataDriftInput",
+      "input_schema": {
+        "description": "Detect data drift between reference and current datasets using Evidently AI.",
+        "properties": {
+          "categorical_columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Explicitly specify which columns are categorical.",
+            "title": "Categorical Columns"
+          },
+          "current_path": {
+            "description": "Path to the current dataset file to compare against reference",
+            "title": "Current Path",
+            "type": "string"
+          },
+          "dataset_name": {
+            "default": "dataset",
+            "description": "Name for the dataset in the report.",
+            "title": "Dataset Name",
+            "type": "string"
+          },
+          "drift_threshold": {
+            "default": 0.1,
+            "description": "Threshold for drift detection (0-1, lower = stricter). Default 0.1.",
+            "title": "Drift Threshold",
+            "type": "number"
+          },
+          "feature_columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "List of column names to check for drift. If None, checks all columns.",
+            "title": "Feature Columns"
+          },
+          "numerical_columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Explicitly specify which columns are numerical.",
+            "title": "Numerical Columns"
+          },
+          "reference_path": {
+            "description": "Path to the reference dataset file (e.g., training data)",
+            "title": "Reference Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference_path",
+          "current_path"
+        ],
+        "title": "DetectDataDriftInput",
+        "type": "object"
+      },
+      "name": "detect_data_drift"
+    },
+    {
+      "description": "Monitor model performance metrics and detect degradation. Calculates classification metrics (accuracy, precision, recall, F1, AUC-ROC) or regression metrics (MSE, RMSE, MAE, R²), tracks performance over time, compares to baseline, and provides health status with recommendations.",
+      "handler": "monitor_model_performance",
+      "input_model": "MonitorModelPerformanceInput",
+      "input_schema": {
+        "description": "Monitor model performance metrics and detect degradation.",
+        "properties": {
+          "baseline_metrics": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Baseline metrics to compare against (e.g., {'accuracy': 0.95, 'f1_score': 0.92})",
+            "title": "Baseline Metrics"
+          },
+          "degradation_threshold": {
+            "default": 0.05,
+            "description": "Threshold for degradation detection (0-1). Default 0.05 (5%)",
+            "title": "Degradation Threshold",
+            "type": "number"
+          },
+          "metrics_to_check": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "List of metrics to evaluate for health status. Default: ['accuracy', 'f1_score', 'precision', 'recall']",
+            "title": "Metrics To Check"
+          },
+          "model_name": {
+            "description": "Name of the model to monitor",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Version of the model",
+            "title": "Model Version"
+          },
+          "record_snapshot": {
+            "default": true,
+            "description": "Whether to record this evaluation as a performance snapshot",
+            "title": "Record Snapshot",
+            "type": "boolean"
+          },
+          "storage_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Path to save/load performance history (JSON file)",
+            "title": "Storage Path"
+          },
+          "task_type": {
+            "default": "classification",
+            "description": "Task type: 'classification' or 'regression'",
+            "title": "Task Type",
+            "type": "string"
+          },
+          "y_pred": {
+            "description": "Predicted labels/values",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Y Pred",
+            "type": "array"
+          },
+          "y_prob": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prediction probabilities (for classification, shape: [n_samples, n_classes])",
+            "title": "Y Prob"
+          },
+          "y_true": {
+            "description": "Ground truth labels/values",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Y True",
+            "type": "array"
+          }
+        },
+        "required": [
+          "model_name",
+          "y_true",
+          "y_pred"
+        ],
+        "title": "MonitorModelPerformanceInput",
+        "type": "object"
+      },
+      "name": "monitor_model_performance"
+    },
+    {
+      "description": "Setup alerting configuration for model monitoring. Creates threshold, anomaly, drift, or composite alerts with configurable notification channels (email, Slack, PagerDuty, webhook). Generates alert rules, notification configs, and runner scripts.",
+      "handler": "setup_alerting",
+      "input_model": "SetupAlertingInput",
+      "input_schema": {
+        "description": "Setup alerting configuration for model monitoring.",
+        "properties": {
+          "alert_name": {
+            "description": "Name for the alerting configuration",
+            "title": "Alert Name",
+            "type": "string"
+          },
+          "alert_type": {
+            "default": "threshold",
+            "description": "Type of alert: threshold, anomaly, drift, or composite",
+            "title": "Alert Type",
+            "type": "string"
+          },
+          "cooldown_period": {
+            "default": "15m",
+            "description": "Minimum time between repeated alerts (e.g., '15m', '1h')",
+            "title": "Cooldown Period",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "description": "Whether the alert is enabled",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "evaluation_window": {
+            "default": "5m",
+            "description": "Time window for metric evaluation (e.g., '5m', '1h', '1d')",
+            "title": "Evaluation Window",
+            "type": "string"
+          },
+          "metrics": {
+            "default": [
+              "accuracy",
+              "latency"
+            ],
+            "description": "List of metrics to monitor for alerts",
+            "items": {
+              "type": "string"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "notification_channels": {
+            "default": [
+              "email"
+            ],
+            "description": "Notification channels: email, slack, pagerduty, webhook",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notification Channels",
+            "type": "array"
+          },
+          "notification_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Configuration for notification channels (e.g., {'email': {'recipients': ['team@example.com']}, 'slack': {'webhook_url': '...'}})",
+            "title": "Notification Config"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "severity": {
+            "default": "warning",
+            "description": "Alert severity: info, warning, critical",
+            "title": "Severity",
+            "type": "string"
+          },
+          "thresholds": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Threshold values for each metric (e.g., {'accuracy': 0.9, 'latency': 100})",
+            "title": "Thresholds"
+          }
+        },
+        "required": [
+          "project_path",
+          "alert_name"
+        ],
+        "title": "SetupAlertingInput",
+        "type": "object"
+      },
+      "name": "setup_alerting"
+    },
+    {
+      "description": "Select or create a local model artifact for LitServe preflight",
+      "handler": "select_or_create_model_artifact",
+      "input_model": "SelectOrCreateModelArtifactInput",
+      "input_schema": {
+        "description": "Select or create a local model artifact for LitServe preflight.",
+        "properties": {
+          "create_placeholder": {
+            "default": true,
+            "description": "Create a local placeholder when no model artifact is found.",
+            "title": "Create Placeholder",
+            "type": "boolean"
+          },
+          "model_name": {
+            "default": "model",
+            "description": "Name to use for a placeholder model",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "model_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional model artifact path relative to the project.",
+            "title": "Model Path"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "SelectOrCreateModelArtifactInput",
+        "type": "object"
+      },
+      "name": "select_or_create_model_artifact"
+    },
+    {
+      "description": "Create LitServe API for high-throughput model serving with batching and GPU support",
+      "handler": "create_litserve_api",
+      "input_model": "CreateLitserveAPIInput",
+      "input_schema": {
+        "description": "Create LitServe API for model serving.",
+        "properties": {
+          "class_labels": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "List of class labels",
+            "title": "Class Labels"
+          },
+          "model_name": {
+            "description": "Name for the model/API",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "model_path": {
+            "description": "Path to the model file (relative to project)",
+            "title": "Model Path",
+            "type": "string"
+          },
+          "model_type": {
+            "default": "image_classifier",
+            "description": "Model type: image_classifier, text_classifier, object_detection",
+            "title": "Model Type",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "source_step": {
+            "default": "generate_litserve_api",
+            "description": "Workflow step that should own emitted evidence.",
+            "title": "Source Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "model_path",
+          "model_name"
+        ],
+        "title": "CreateLitserveAPIInput",
+        "type": "object"
+      },
+      "name": "create_litserve_api"
+    },
+    {
+      "description": "Generate a Dockerfile for local LitServe preflight without building an image",
+      "handler": "generate_litserve_dockerfile",
+      "input_model": "GenerateLitserveDockerfileInput",
+      "input_schema": {
+        "description": "Generate or validate a local Dockerfile for LitServe preflight.",
+        "properties": {
+          "port": {
+            "default": 8000,
+            "description": "Container port to expose",
+            "title": "Port",
+            "type": "integer"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "requirements_file": {
+            "default": "deployment/litserve/requirements.txt",
+            "description": "Requirements file relative to the project.",
+            "title": "Requirements File",
+            "type": "string"
+          },
+          "server_path": {
+            "default": "deployment/litserve/server.py",
+            "description": "LitServe server entry point relative to the project.",
+            "title": "Server Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "GenerateLitserveDockerfileInput",
+        "type": "object"
+      },
+      "name": "generate_litserve_dockerfile"
+    },
+    {
+      "description": "Record the local LitServe launch command without starting the server",
+      "handler": "record_litserve_launch_command",
+      "input_model": "RecordLitserveLaunchCommandInput",
+      "input_schema": {
+        "description": "Record the local LitServe launch command without starting the server.",
+        "properties": {
+          "port": {
+            "default": 8000,
+            "description": "Port the command would bind",
+            "title": "Port",
+            "type": "integer"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "server_path": {
+            "default": "deployment/litserve/server.py",
+            "description": "LitServe server entry point relative to the project.",
+            "title": "Server Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "RecordLitserveLaunchCommandInput",
+        "type": "object"
+      },
+      "name": "record_litserve_launch_command"
+    },
+    {
+      "description": "Record GPU, server, /health, /predict, and endpoint evidence missing from preflight",
+      "handler": "record_litserve_missing_live_evidence",
+      "input_model": "RecordLitserveMissingLiveEvidenceInput",
+      "input_schema": {
+        "description": "Record live deployment evidence intentionally missing from local preflight.",
+        "properties": {
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "RecordLitserveMissingLiveEvidenceInput",
+        "type": "object"
+      },
+      "name": "record_litserve_missing_live_evidence"
+    },
+    {
+      "description": "Record local runtime context for LitServe GPU deployment",
+      "handler": "detect_runtime_environment",
+      "input_model": "DetectRuntimeEnvironmentInput",
+      "input_schema": {
+        "description": "Record local runtime environment for LitServe GPU deployment.",
+        "properties": {
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "DetectRuntimeEnvironmentInput",
+        "type": "object"
+      },
+      "name": "detect_runtime_environment"
+    },
+    {
+      "description": "Detect GPU availability from observed nvidia-smi or PyTorch CUDA evidence",
+      "handler": "detect_gpu_cuda",
+      "input_model": "DetectGpuCudaInput",
+      "input_schema": {
+        "description": "Detect GPU availability from observed runtime checks.",
+        "properties": {
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "DetectGpuCudaInput",
+        "type": "object"
+      },
+      "name": "detect_gpu_cuda"
+    },
+    {
+      "description": "Select an existing model artifact or LitServe preflight artifact",
+      "handler": "select_best_model_artifact",
+      "input_model": "SelectBestModelArtifactInput",
+      "input_schema": {
+        "description": "Select a model artifact for deployment or deterministic training comparison.",
+        "properties": {
+          "baseline": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Baseline metadata with metric value and selected artifact evidence.",
+            "title": "Baseline"
+          },
+          "latest_run": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Latest run metadata with run_id, metrics, and candidate artifact evidence.",
+            "title": "Latest Run"
+          },
+          "metric_direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Metric direction: maximize or minimize",
+            "title": "Metric Direction"
+          },
+          "metric_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Metric used for comparison",
+            "title": "Metric Name"
+          },
+          "model_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional model artifact path relative to the project.",
+            "title": "Model Path"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Required improvement threshold",
+            "title": "Threshold"
+          },
+          "tie_policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Tie policy: keep_baseline or select_latest",
+            "title": "Tie Policy"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "SelectBestModelArtifactInput",
+        "type": "object"
+      },
+      "name": "select_best_model_artifact"
+    },
+    {
+      "description": "Record that Docker image build is optional and skipped by default",
+      "handler": "record_litserve_image_build_skipped",
+      "input_model": "RecordLitserveImageBuildSkippedInput",
+      "input_schema": {
+        "description": "Record that Docker image build is optional and skipped by default.",
+        "properties": {
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "RecordLitserveImageBuildSkippedInput",
+        "type": "object"
+      },
+      "name": "record_litserve_image_build_skipped"
+    },
+    {
+      "description": "Start LitServe server and record observed process evidence",
+      "handler": "start_litserve_server",
+      "input_model": "StartLitserveServerInput",
+      "input_schema": {
+        "description": "Start LitServe server in the current project environment.",
+        "properties": {
+          "host": {
+            "default": "127.0.0.1",
+            "description": "Server host",
+            "title": "Host",
+            "type": "string"
+          },
+          "log_path": {
+            "default": "deployment/litserve/server.log",
+            "description": "Server log path relative to the project.",
+            "title": "Log Path",
+            "type": "string"
+          },
+          "port": {
+            "default": 8000,
+            "description": "Server port",
+            "title": "Port",
+            "type": "integer"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "server_path": {
+            "default": "deployment/litserve/server.py",
+            "description": "LitServe server entry point relative to the project.",
+            "title": "Server Path",
+            "type": "string"
+          },
+          "startup_wait_seconds": {
+            "default": 2.0,
+            "description": "Seconds to wait after start",
+            "title": "Startup Wait Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "StartLitserveServerInput",
+        "type": "object"
+      },
+      "name": "start_litserve_server"
+    },
+    {
+      "description": "Call LitServe /health and record observed HTTP evidence",
+      "handler": "test_litserve_health_endpoint",
+      "input_model": "TestLitserveHealthEndpointInput",
+      "input_schema": {
+        "description": "Call the LitServe health endpoint and record observed evidence.",
+        "properties": {
+          "endpoint_url": {
+            "default": "http://127.0.0.1:8000",
+            "description": "Endpoint URL",
+            "title": "Endpoint Url",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "timeout_seconds": {
+            "default": 20.0,
+            "description": "HTTP readiness timeout in seconds",
+            "title": "Timeout Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "TestLitserveHealthEndpointInput",
+        "type": "object"
+      },
+      "name": "test_litserve_health_endpoint"
+    },
+    {
+      "description": "Call LitServe /predict and record observed HTTP evidence",
+      "handler": "test_litserve_prediction_endpoint",
+      "input_model": "TestLitservePredictionEndpointInput",
+      "input_schema": {
+        "description": "Call the LitServe prediction endpoint and record observed evidence.",
+        "properties": {
+          "endpoint_url": {
+            "default": "http://127.0.0.1:8000",
+            "description": "Endpoint URL",
+            "title": "Endpoint Url",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "sample_input": {
+            "additionalProperties": true,
+            "description": "Sample JSON payload for /predict.",
+            "title": "Sample Input",
+            "type": "object"
+          },
+          "timeout_seconds": {
+            "default": 20.0,
+            "description": "HTTP readiness timeout in seconds",
+            "title": "Timeout Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "TestLitservePredictionEndpointInput",
+        "type": "object"
+      },
+      "name": "test_litserve_prediction_endpoint"
+    },
+    {
+      "description": "Record deployed LitServe endpoint URL and server log location",
+      "handler": "capture_litserve_logs_and_endpoint",
+      "input_model": "CaptureLitserveLogsAndEndpointInput",
+      "input_schema": {
+        "description": "Record LitServe logs and deployed endpoint URL.",
+        "properties": {
+          "endpoint_url": {
+            "default": "http://127.0.0.1:8000",
+            "description": "Endpoint URL",
+            "title": "Endpoint Url",
+            "type": "string"
+          },
+          "log_path": {
+            "default": "deployment/litserve/server.log",
+            "description": "Server log path relative to the project.",
+            "title": "Log Path",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "CaptureLitserveLogsAndEndpointInput",
+        "type": "object"
+      },
+      "name": "capture_litserve_logs_and_endpoint"
+    },
+    {
+      "description": "Record LitServe cleanup command and manual Lambda Cloud stop instruction",
+      "handler": "record_litserve_gpu_rollback_readiness",
+      "input_model": "RecordLitserveGpuRollbackReadinessInput",
+      "input_schema": {
+        "description": "Record process cleanup and manual Lambda Cloud stop instruction.",
+        "properties": {
+          "port": {
+            "default": 8000,
+            "description": "Server port",
+            "title": "Port",
+            "type": "integer"
+          },
+          "process_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "LitServe server process ID",
+            "title": "Process Id"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "RecordLitserveGpuRollbackReadinessInput",
+        "type": "object"
+      },
+      "name": "record_litserve_gpu_rollback_readiness"
+    },
+    {
+      "description": "Configure LitServe server settings (batch size, workers, accelerator)",
+      "handler": "configure_litserver",
+      "input_model": "ConfigureLitserverInput",
+      "input_schema": {
+        "description": "Configure LitServe server settings.",
+        "properties": {
+          "accelerator": {
+            "default": "auto",
+            "description": "Accelerator: cpu, gpu, auto",
+            "title": "Accelerator",
+            "type": "string"
+          },
+          "batch_timeout": {
+            "default": 0.05,
+            "description": "Batch timeout in seconds",
+            "title": "Batch Timeout",
+            "type": "number"
+          },
+          "max_batch_size": {
+            "default": 64,
+            "description": "Maximum batch size for inference",
+            "title": "Max Batch Size",
+            "type": "integer"
+          },
+          "port": {
+            "default": 8000,
+            "description": "Server port",
+            "title": "Port",
+            "type": "integer"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "workers_per_device": {
+            "default": 4,
+            "description": "Number of workers per device",
+            "title": "Workers Per Device",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "ConfigureLitserverInput",
+        "type": "object"
+      },
+      "name": "configure_litserver"
+    },
+    {
+      "description": "Create Gradio interface for quick model demos and prototypes",
+      "handler": "create_gradio_interface",
+      "input_model": "CreateGradioInterfaceInput",
+      "input_schema": {
+        "description": "Create Gradio interface for model demo.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Interface description",
+            "title": "Description"
+          },
+          "examples": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Example inputs",
+            "title": "Examples"
+          },
+          "interface_type": {
+            "default": "image_classifier",
+            "description": "Interface type: image_classifier, text_classifier, audio, custom",
+            "title": "Interface Type",
+            "type": "string"
+          },
+          "model_name": {
+            "description": "Name for the model",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "model_path": {
+            "description": "Path to the model file",
+            "title": "Model Path",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "share": {
+            "default": false,
+            "description": "Create public share link",
+            "title": "Share",
+            "type": "boolean"
+          },
+          "title": {
+            "default": "ML Model Demo",
+            "description": "Interface title",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "model_path",
+          "model_name"
+        ],
+        "title": "CreateGradioInterfaceInput",
+        "type": "object"
+      },
+      "name": "create_gradio_interface"
+    },
+    {
+      "description": "Deploy Gradio app to Hugging Face Spaces",
+      "handler": "deploy_to_huggingface",
+      "input_model": "DeployToHuggingfaceInput",
+      "input_schema": {
+        "description": "Deploy Gradio app to Hugging Face Spaces.",
+        "properties": {
+          "hf_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "HF token (uses env var if not provided)",
+            "title": "Hf Token"
+          },
+          "private": {
+            "default": false,
+            "description": "Create private space",
+            "title": "Private",
+            "type": "boolean"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "space_name": {
+            "description": "Name for the HF Space",
+            "title": "Space Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "space_name"
+        ],
+        "title": "DeployToHuggingfaceInput",
+        "type": "object"
+      },
+      "name": "deploy_to_huggingface"
+    },
+    {
+      "description": "Create FastAPI application for serverless model serving",
+      "handler": "create_fastapi_app",
+      "input_model": "CreateFastAPIAppInput",
+      "input_schema": {
+        "description": "Create FastAPI application for model serving.",
+        "properties": {
+          "endpoint_type": {
+            "default": "image",
+            "description": "Endpoint type: image, text, json",
+            "title": "Endpoint Type",
+            "type": "string"
+          },
+          "model_name": {
+            "description": "Name for the model",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "model_path": {
+            "description": "Path to the model file",
+            "title": "Model Path",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "title": {
+            "default": "ML Inference API",
+            "description": "API title",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "model_path",
+          "model_name"
+        ],
+        "title": "CreateFastAPIAppInput",
+        "type": "object"
+      },
+      "name": "create_fastapi_app"
+    },
+    {
+      "description": "Create Dockerfile for AWS Lambda deployment with Lambda Web Adapter",
+      "handler": "create_lambda_dockerfile",
+      "input_model": "CreateLambdaDockerfileInput",
+      "input_schema": {
+        "description": "Create Dockerfile for AWS Lambda deployment.",
+        "properties": {
+          "model_file": {
+            "default": "model.pt",
+            "description": "Model file name",
+            "title": "Model File",
+            "type": "string"
+          },
+          "port": {
+            "default": 8080,
+            "description": "Container port",
+            "title": "Port",
+            "type": "integer"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "python_version": {
+            "default": "3.11",
+            "description": "Python version",
+            "title": "Python Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path"
+        ],
+        "title": "CreateLambdaDockerfileInput",
+        "type": "object"
+      },
+      "name": "create_lambda_dockerfile"
+    },
+    {
+      "description": "Generate AWS CDK stack for Lambda deployment with API Gateway",
+      "handler": "generate_cdk_stack",
+      "input_model": "GenerateCDKStackInput",
+      "input_schema": {
+        "description": "Generate AWS CDK stack for Lambda deployment.",
+        "properties": {
+          "memory_size": {
+            "default": 1024,
+            "description": "Lambda memory in MB",
+            "title": "Memory Size",
+            "type": "integer"
+          },
+          "model_name": {
+            "description": "Model name",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "stack_name": {
+            "description": "CDK stack name",
+            "title": "Stack Name",
+            "type": "string"
+          },
+          "stage": {
+            "default": "prod",
+            "description": "Deployment stage",
+            "title": "Stage",
+            "type": "string"
+          },
+          "timeout": {
+            "default": 30,
+            "description": "Lambda timeout in seconds",
+            "title": "Timeout",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_path",
+          "stack_name",
+          "model_name"
+        ],
+        "title": "GenerateCDKStackInput",
+        "type": "object"
+      },
+      "name": "generate_cdk_stack"
+    },
+    {
+      "description": "Create TorchServe custom handler for enterprise model serving",
+      "handler": "create_torchserve_handler",
+      "input_model": "CreateTorchserveHandlerInput",
+      "input_schema": {
+        "description": "Create TorchServe custom handler.",
+        "properties": {
+          "handler_type": {
+            "default": "image_classifier",
+            "description": "Handler type: image_classifier, text_classifier, object_detection",
+            "title": "Handler Type",
+            "type": "string"
+          },
+          "model_name": {
+            "description": "Name for the model",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "model_path": {
+            "description": "Path to the model file",
+            "title": "Model Path",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "model_path",
+          "model_name"
+        ],
+        "title": "CreateTorchserveHandlerInput",
+        "type": "object"
+      },
+      "name": "create_torchserve_handler"
+    },
+    {
+      "description": "Create TorchServe MAR (Model Archive) build script",
+      "handler": "create_mar_archive",
+      "input_model": "CreateMARArchiveInput",
+      "input_schema": {
+        "description": "Create TorchServe MAR (Model Archive) file.",
+        "properties": {
+          "extra_files": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Extra files to include",
+            "title": "Extra Files"
+          },
+          "handler_file": {
+            "default": "handler.py",
+            "description": "Handler file path",
+            "title": "Handler File",
+            "type": "string"
+          },
+          "model_file": {
+            "description": "Model file path",
+            "title": "Model File",
+            "type": "string"
+          },
+          "model_name": {
+            "description": "Model name",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "version": {
+            "default": "1.0",
+            "description": "Model version",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "model_name",
+          "model_file"
+        ],
+        "title": "CreateMARArchiveInput",
+        "type": "object"
+      },
+      "name": "create_mar_archive"
+    },
+    {
+      "description": "Generate TorchServe configuration (ports, workers)",
+      "handler": "generate_torchserve_config",
+      "input_model": "GenerateTorchserveConfigInput",
+      "input_schema": {
+        "description": "Generate TorchServe configuration.",
+        "properties": {
+          "inference_port": {
+            "default": 8080,
+            "description": "Inference API port",
+            "title": "Inference Port",
+            "type": "integer"
+          },
+          "management_port": {
+            "default": 8081,
+            "description": "Management API port",
+            "title": "Management Port",
+            "type": "integer"
+          },
+          "metrics_port": {
+            "default": 8082,
+            "description": "Metrics port",
+            "title": "Metrics Port",
+            "type": "integer"
+          },
+          "model_name": {
+            "description": "Model name",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "workers": {
+            "default": 1,
+            "description": "Number of workers per model",
+            "title": "Workers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_path",
+          "model_name"
+        ],
+        "title": "GenerateTorchserveConfigInput",
+        "type": "object"
+      },
+      "name": "generate_torchserve_config"
+    },
+    {
+      "description": "Create KServe InferenceService YAML for Kubernetes deployment",
+      "handler": "create_inference_service_yaml",
+      "input_model": "CreateInferenceServiceYAMLInput",
+      "input_schema": {
+        "description": "Create KServe InferenceService YAML.",
+        "properties": {
+          "max_replicas": {
+            "default": 5,
+            "description": "Maximum replicas",
+            "title": "Max Replicas",
+            "type": "integer"
+          },
+          "min_replicas": {
+            "default": 1,
+            "description": "Minimum replicas",
+            "title": "Min Replicas",
+            "type": "integer"
+          },
+          "model_name": {
+            "description": "Model name",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "namespace": {
+            "default": "default",
+            "description": "Kubernetes namespace",
+            "title": "Namespace",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "runtime": {
+            "default": "pytorch",
+            "description": "Runtime: pytorch, tensorflow, sklearn, custom",
+            "title": "Runtime",
+            "type": "string"
+          },
+          "service_name": {
+            "description": "InferenceService name",
+            "title": "Service Name",
+            "type": "string"
+          },
+          "storage_uri": {
+            "description": "Model storage URI (gs://, s3://, etc.)",
+            "title": "Storage Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "service_name",
+          "model_name",
+          "storage_uri"
+        ],
+        "title": "CreateInferenceServiceYAMLInput",
+        "type": "object"
+      },
+      "name": "create_inference_service_yaml"
+    },
+    {
+      "description": "Generate KServe scaling and resource configuration",
+      "handler": "generate_kserve_config",
+      "input_model": "GenerateKServeConfigInput",
+      "input_schema": {
+        "description": "Generate KServe configuration.",
+        "properties": {
+          "gpu_count": {
+            "default": 1,
+            "description": "Number of GPUs",
+            "title": "Gpu Count",
+            "type": "integer"
+          },
+          "gpu_enabled": {
+            "default": false,
+            "description": "Enable GPU",
+            "title": "Gpu Enabled",
+            "type": "boolean"
+          },
+          "max_replicas": {
+            "default": 5,
+            "description": "Maximum replicas",
+            "title": "Max Replicas",
+            "type": "integer"
+          },
+          "min_replicas": {
+            "default": 1,
+            "description": "Minimum replicas",
+            "title": "Min Replicas",
+            "type": "integer"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "service_name": {
+            "description": "Service name",
+            "title": "Service Name",
+            "type": "string"
+          },
+          "target_utilization": {
+            "default": 80,
+            "description": "Target CPU utilization %",
+            "title": "Target Utilization",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_path",
+          "service_name"
+        ],
+        "title": "GenerateKServeConfigInput",
+        "type": "object"
+      },
+      "name": "generate_kserve_config"
+    },
+    {
+      "description": "Create Kubernetes Deployment YAML",
+      "handler": "create_k8s_deployment_yaml",
+      "input_model": "CreateK8sDeploymentInput",
+      "input_schema": {
+        "description": "Create Kubernetes Deployment YAML.",
+        "properties": {
+          "container_port": {
+            "default": 8000,
+            "description": "Container port",
+            "title": "Container Port",
+            "type": "integer"
+          },
+          "env": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Environment variables",
+            "title": "Env"
+          },
+          "image": {
+            "description": "Container image",
+            "title": "Image",
+            "type": "string"
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Pod labels",
+            "title": "Labels"
+          },
+          "name": {
+            "description": "Deployment name",
+            "title": "Name",
+            "type": "string"
+          },
+          "namespace": {
+            "default": "default",
+            "description": "Kubernetes namespace",
+            "title": "Namespace",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "replicas": {
+            "default": 1,
+            "description": "Number of replicas",
+            "title": "Replicas",
+            "type": "integer"
+          },
+          "resources": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Resource requests/limits",
+            "title": "Resources"
+          }
+        },
+        "required": [
+          "project_path",
+          "name",
+          "image"
+        ],
+        "title": "CreateK8sDeploymentInput",
+        "type": "object"
+      },
+      "name": "create_k8s_deployment_yaml"
+    },
+    {
+      "description": "Create Kubernetes Service YAML",
+      "handler": "create_k8s_service_yaml",
+      "input_model": "CreateK8sServiceInput",
+      "input_schema": {
+        "description": "Create Kubernetes Service YAML.",
+        "properties": {
+          "name": {
+            "description": "Service name",
+            "title": "Name",
+            "type": "string"
+          },
+          "namespace": {
+            "default": "default",
+            "description": "Kubernetes namespace",
+            "title": "Namespace",
+            "type": "string"
+          },
+          "port": {
+            "default": 80,
+            "description": "Service port",
+            "title": "Port",
+            "type": "integer"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "selector": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Selector labels",
+            "title": "Selector"
+          },
+          "service_type": {
+            "default": "ClusterIP",
+            "description": "Service type",
+            "title": "Service Type",
+            "type": "string"
+          },
+          "target_port": {
+            "default": 8000,
+            "description": "Target port",
+            "title": "Target Port",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_path",
+          "name"
+        ],
+        "title": "CreateK8sServiceInput",
+        "type": "object"
+      },
+      "name": "create_k8s_service_yaml"
+    },
+    {
+      "description": "Create Kubernetes Ingress YAML (ALB annotations for EKS)",
+      "handler": "create_k8s_ingress_yaml",
+      "input_model": "CreateK8sIngressInput",
+      "input_schema": {
+        "description": "Create Kubernetes Ingress YAML (ALB for EKS).",
+        "properties": {
+          "alb_scheme": {
+            "default": "internet-facing",
+            "description": "ALB scheme",
+            "title": "Alb Scheme",
+            "type": "string"
+          },
+          "annotations": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Extra annotations",
+            "title": "Annotations"
+          },
+          "certificate_arn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "ACM certificate ARN",
+            "title": "Certificate Arn"
+          },
+          "host": {
+            "description": "Ingress host",
+            "title": "Host",
+            "type": "string"
+          },
+          "ingress_class": {
+            "default": "alb",
+            "description": "Ingress class",
+            "title": "Ingress Class",
+            "type": "string"
+          },
+          "name": {
+            "description": "Ingress name",
+            "title": "Name",
+            "type": "string"
+          },
+          "namespace": {
+            "default": "default",
+            "description": "Kubernetes namespace",
+            "title": "Namespace",
+            "type": "string"
+          },
+          "path": {
+            "default": "/",
+            "description": "Ingress path",
+            "title": "Path",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "service_name": {
+            "description": "Service name",
+            "title": "Service Name",
+            "type": "string"
+          },
+          "service_port": {
+            "default": 80,
+            "description": "Service port",
+            "title": "Service Port",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_path",
+          "name",
+          "host",
+          "service_name"
+        ],
+        "title": "CreateK8sIngressInput",
+        "type": "object"
+      },
+      "name": "create_k8s_ingress_yaml"
+    },
+    {
+      "description": "Create Kubernetes HPA YAML",
+      "handler": "create_k8s_hpa_yaml",
+      "input_model": "CreateK8sHPAInput",
+      "input_schema": {
+        "description": "Create Kubernetes HPA YAML.",
+        "properties": {
+          "deployment_name": {
+            "description": "Target deployment name",
+            "title": "Deployment Name",
+            "type": "string"
+          },
+          "max_replicas": {
+            "default": 3,
+            "description": "Maximum replicas",
+            "title": "Max Replicas",
+            "type": "integer"
+          },
+          "min_replicas": {
+            "default": 1,
+            "description": "Minimum replicas",
+            "title": "Min Replicas",
+            "type": "integer"
+          },
+          "name": {
+            "description": "HPA name",
+            "title": "Name",
+            "type": "string"
+          },
+          "namespace": {
+            "default": "default",
+            "description": "Kubernetes namespace",
+            "title": "Namespace",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "target_cpu_utilization": {
+            "default": 70,
+            "description": "Target CPU utilization %",
+            "title": "Target Cpu Utilization",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_path",
+          "name",
+          "deployment_name"
+        ],
+        "title": "CreateK8sHPAInput",
+        "type": "object"
+      },
+      "name": "create_k8s_hpa_yaml"
+    },
+    {
+      "description": "Create Kubernetes ConfigMap YAML",
+      "handler": "create_k8s_configmap_yaml",
+      "input_model": "CreateK8sConfigMapInput",
+      "input_schema": {
+        "description": "Create Kubernetes ConfigMap YAML.",
+        "properties": {
+          "data": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "ConfigMap data",
+            "title": "Data",
+            "type": "object"
+          },
+          "name": {
+            "description": "ConfigMap name",
+            "title": "Name",
+            "type": "string"
+          },
+          "namespace": {
+            "default": "default",
+            "description": "Kubernetes namespace",
+            "title": "Namespace",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "name",
+          "data"
+        ],
+        "title": "CreateK8sConfigMapInput",
+        "type": "object"
+      },
+      "name": "create_k8s_configmap_yaml"
+    },
+    {
+      "description": "Create Kubernetes Secret YAML",
+      "handler": "create_k8s_secret_yaml",
+      "input_model": "CreateK8sSecretInput",
+      "input_schema": {
+        "description": "Create Kubernetes Secret YAML.",
+        "properties": {
+          "data": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Secret data",
+            "title": "Data",
+            "type": "object"
+          },
+          "encode": {
+            "default": true,
+            "description": "Base64 encode values",
+            "title": "Encode",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Secret name",
+            "title": "Name",
+            "type": "string"
+          },
+          "namespace": {
+            "default": "default",
+            "description": "Kubernetes namespace",
+            "title": "Namespace",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "name",
+          "data"
+        ],
+        "title": "CreateK8sSecretInput",
+        "type": "object"
+      },
+      "name": "create_k8s_secret_yaml"
+    },
+    {
+      "description": "Generate rollback plan for a deployment target",
+      "handler": "generate_rollback_plan",
+      "input_model": "GenerateRollbackPlanInput",
+      "input_schema": {
+        "description": "Generate rollback plan for a deployment target.",
+        "properties": {
+          "deployment_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Deployment name",
+            "title": "Deployment Name"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Failure reason",
+            "title": "Error"
+          },
+          "namespace": {
+            "default": "default",
+            "description": "Kubernetes namespace",
+            "title": "Namespace",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "target": {
+            "description": "Deployment target (kserve, lambda, docker, etc.)",
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "target"
+        ],
+        "title": "GenerateRollbackPlanInput",
+        "type": "object"
+      },
+      "name": "generate_rollback_plan"
+    },
+    {
+      "description": "List EKS clusters in a region",
+      "handler": "list_eks_clusters",
+      "input_model": "ListEKSClustersInput",
+      "input_schema": {
+        "description": "List EKS clusters.",
+        "properties": {
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "AWS region",
+            "title": "Region"
+          }
+        },
+        "title": "ListEKSClustersInput",
+        "type": "object"
+      },
+      "name": "list_eks_clusters"
+    },
+    {
+      "description": "Update kubeconfig for an EKS cluster using AWS CLI",
+      "handler": "update_kubeconfig",
+      "input_model": "UpdateKubeconfigInput",
+      "input_schema": {
+        "description": "Update kubeconfig for an EKS cluster.",
+        "properties": {
+          "cluster_name": {
+            "description": "EKS cluster name",
+            "title": "Cluster Name",
+            "type": "string"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "AWS region",
+            "title": "Region"
+          }
+        },
+        "required": [
+          "cluster_name"
+        ],
+        "title": "UpdateKubeconfigInput",
+        "type": "object"
+      },
+      "name": "update_kubeconfig"
+    },
+    {
+      "description": "Create or get an ECR repository",
+      "handler": "create_ecr_repo",
+      "input_model": "CreateECRRepoInput",
+      "input_schema": {
+        "description": "Create an ECR repository.",
+        "properties": {
+          "mutable_tags": {
+            "default": true,
+            "description": "Allow mutable tags",
+            "title": "Mutable Tags",
+            "type": "boolean"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "AWS region",
+            "title": "Region"
+          },
+          "repo_name": {
+            "description": "ECR repository name",
+            "title": "Repo Name",
+            "type": "string"
+          },
+          "scan_on_push": {
+            "default": true,
+            "description": "Enable image scan on push",
+            "title": "Scan On Push",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "repo_name"
+        ],
+        "title": "CreateECRRepoInput",
+        "type": "object"
+      },
+      "name": "create_ecr_repo"
+    },
+    {
+      "description": "Get ECR docker login command",
+      "handler": "get_ecr_login",
+      "input_model": "GetECRLoginInput",
+      "input_schema": {
+        "description": "Get ECR login command.",
+        "properties": {
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "AWS region",
+            "title": "Region"
+          }
+        },
+        "title": "GetECRLoginInput",
+        "type": "object"
+      },
+      "name": "get_ecr_login"
+    },
+    {
+      "description": "Generate least-privilege IAM policy",
+      "handler": "generate_iam_policy",
+      "input_model": "GenerateIAMPolicyInput",
+      "input_schema": {
+        "description": "Generate IAM policy for deployment operations.",
+        "properties": {
+          "policy_name": {
+            "default": "mlops-agent-policy",
+            "description": "Policy name",
+            "title": "Policy Name",
+            "type": "string"
+          },
+          "services": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "AWS services to include (eks, ecr, lambda)",
+            "title": "Services"
+          }
+        },
+        "title": "GenerateIAMPolicyInput",
+        "type": "object"
+      },
+      "name": "generate_iam_policy"
+    },
+    {
+      "description": "Estimate monthly deployment cost for Lambda/EKS",
+      "handler": "estimate_deployment_cost",
+      "input_model": "EstimateDeploymentCostInput",
+      "input_schema": {
+        "description": "Estimate deployment cost based on basic usage inputs.",
+        "properties": {
+          "avg_duration_ms": {
+            "default": 100,
+            "description": "Average request duration in ms",
+            "title": "Avg Duration Ms",
+            "type": "integer"
+          },
+          "eks_node_hours": {
+            "default": 720,
+            "description": "EKS node hours per month",
+            "title": "Eks Node Hours",
+            "type": "integer"
+          },
+          "memory_mb": {
+            "default": 1024,
+            "description": "Lambda memory size in MB",
+            "title": "Memory Mb",
+            "type": "integer"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "AWS region",
+            "title": "Region"
+          },
+          "requests_per_month": {
+            "default": 1000000,
+            "description": "Monthly request count",
+            "title": "Requests Per Month",
+            "type": "integer"
+          },
+          "service_type": {
+            "default": "lambda",
+            "description": "Service type (lambda, eks)",
+            "title": "Service Type",
+            "type": "string"
+          }
+        },
+        "title": "EstimateDeploymentCostInput",
+        "type": "object"
+      },
+      "name": "estimate_deployment_cost"
+    },
+    {
+      "description": "Create Helm chart for Kubernetes deployment",
+      "handler": "create_helm_chart",
+      "input_model": "CreateHelmChartInput",
+      "input_schema": {
+        "description": "Create a Helm chart for Kubernetes deployment.",
+        "properties": {
+          "app_version": {
+            "default": "1.0.0",
+            "description": "Application version",
+            "title": "App Version",
+            "type": "string"
+          },
+          "chart_name": {
+            "description": "Helm chart name",
+            "title": "Chart Name",
+            "type": "string"
+          },
+          "chart_version": {
+            "default": "0.1.0",
+            "description": "Chart version",
+            "title": "Chart Version",
+            "type": "string"
+          },
+          "container_port": {
+            "default": 8000,
+            "description": "Container port",
+            "title": "Container Port",
+            "type": "integer"
+          },
+          "image": {
+            "description": "Container image",
+            "title": "Image",
+            "type": "string"
+          },
+          "include_configmap": {
+            "default": false,
+            "description": "Include ConfigMap template",
+            "title": "Include Configmap",
+            "type": "boolean"
+          },
+          "include_hpa": {
+            "default": false,
+            "description": "Include HPA template",
+            "title": "Include Hpa",
+            "type": "boolean"
+          },
+          "include_ingress": {
+            "default": false,
+            "description": "Include ingress template",
+            "title": "Include Ingress",
+            "type": "boolean"
+          },
+          "include_secret": {
+            "default": false,
+            "description": "Include Secret template",
+            "title": "Include Secret",
+            "type": "boolean"
+          },
+          "namespace": {
+            "default": "default",
+            "description": "Kubernetes namespace",
+            "title": "Namespace",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "service_port": {
+            "default": 80,
+            "description": "Service port",
+            "title": "Service Port",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_path",
+          "chart_name",
+          "image"
+        ],
+        "title": "CreateHelmChartInput",
+        "type": "object"
+      },
+      "name": "create_helm_chart"
+    },
+    {
+      "description": "Rollback a Kubernetes deployment using kubectl",
+      "handler": "rollback_k8s_deployment",
+      "input_model": "RollbackK8sDeploymentInput",
+      "input_schema": {
+        "description": "Rollback a Kubernetes deployment.",
+        "properties": {
+          "deployment_name": {
+            "description": "Deployment name",
+            "title": "Deployment Name",
+            "type": "string"
+          },
+          "dry_run": {
+            "default": true,
+            "description": "Return command without executing",
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "namespace": {
+            "default": "default",
+            "description": "Kubernetes namespace",
+            "title": "Namespace",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "deployment_name"
+        ],
+        "title": "RollbackK8sDeploymentInput",
+        "type": "object"
+      },
+      "name": "rollback_k8s_deployment"
+    },
+    {
+      "description": "Rollback an AWS Lambda CDK stack",
+      "handler": "rollback_lambda_stack",
+      "input_model": "RollbackLambdaStackInput",
+      "input_schema": {
+        "description": "Rollback an AWS Lambda CDK stack.",
+        "properties": {
+          "dry_run": {
+            "default": true,
+            "description": "Return command without executing",
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "stack_name": {
+            "description": "CDK stack name",
+            "title": "Stack Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "stack_name"
+        ],
+        "title": "RollbackLambdaStackInput",
+        "type": "object"
+      },
+      "name": "rollback_lambda_stack"
+    },
+    {
+      "description": "Rollback a deployment based on target type",
+      "handler": "rollback_deployment",
+      "input_model": "RollbackDeploymentInput",
+      "input_schema": {
+        "description": "Rollback a deployment based on target type.",
+        "properties": {
+          "container_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Docker container ID",
+            "title": "Container Id"
+          },
+          "deployment_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Deployment name",
+            "title": "Deployment Name"
+          },
+          "dry_run": {
+            "default": true,
+            "description": "Return command without executing",
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "namespace": {
+            "default": "default",
+            "description": "Kubernetes namespace",
+            "title": "Namespace",
+            "type": "string"
+          },
+          "project_path": {
+            "description": "Path to the project",
+            "title": "Project Path",
+            "type": "string"
+          },
+          "stack_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "CDK stack name",
+            "title": "Stack Name"
+          },
+          "target": {
+            "description": "Target type (kserve, lambda, docker)",
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_path",
+          "target"
+        ],
+        "title": "RollbackDeploymentInput",
+        "type": "object"
+      },
+      "name": "rollback_deployment"
+    }
+  ]
+}
