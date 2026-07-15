@@ -133,13 +133,22 @@ async def test_root_handler_monkeypatch_remains_effective(monkeypatch):
 @pytest.mark.asyncio
 async def test_extracted_hydra_preserves_root_filesystem_patch_seam(tmp_path, monkeypatch):
     observed: list[Path] = []
+    observed_relative: list[tuple[str, Path]] = []
     original = mcp_mlops_tools.ensure_directory
+    original_relative = mcp_mlops_tools.relative_to_project
 
     def tracking_ensure_directory(path):
         observed.append(Path(path))
         return original(path)
 
+    def tracking_relative_to_project(project_path, artifact_path):
+        observed_relative.append((project_path, Path(artifact_path)))
+        return original_relative(project_path, artifact_path)
+
     monkeypatch.setattr(mcp_mlops_tools, "ensure_directory", tracking_ensure_directory)
+    monkeypatch.setattr(
+        mcp_mlops_tools, "relative_to_project", tracking_relative_to_project
+    )
     result = _text_result(
         await mcp_mlops_tools.call_tool(
             "create_hydra_config",
@@ -160,6 +169,10 @@ async def test_extracted_hydra_preserves_root_filesystem_patch_seam(tmp_path, mo
         tmp_path / "configs" / "model",
         tmp_path / "configs" / "training",
         tmp_path / "configs" / "data",
+    ]
+    assert observed_relative == [
+        (str(tmp_path), tmp_path / "configs" / "config.yaml"),
+        (str(tmp_path), tmp_path / "configs" / "config.yaml"),
     ]
 
 

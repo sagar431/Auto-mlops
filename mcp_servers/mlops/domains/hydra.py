@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 
 import yaml
 
-from ..common.paths import ensure_directory, relative_to_project
 from ..compatibility import RootModuleHandler
 from ..registry import ToolSpec
 from ..schemas.hydra import (
@@ -19,43 +20,63 @@ from ..schemas.hydra import (
     UpdateHydraConfigInput,
     ValidateHydraConfigInput,
 )
+from .hydra_filesystem import HydraFilesystem, LocalHydraFilesystem
 
 
 @dataclass(frozen=True)
 class HydraDependencies:
-    """Injectable filesystem helpers used by extracted Hydra implementations."""
+    """Immutable dependencies used by the extracted Hydra implementations."""
 
-    ensure_directory: Callable[[str | Path], Path] = ensure_directory
-    relative_to_project: Callable[[str, str | Path], str] = relative_to_project
+    filesystem: HydraFilesystem = field(default_factory=LocalHydraFilesystem)
 
 
-_dependencies = HydraDependencies()
+_configured_dependencies = HydraDependencies()
+_dependency_override: ContextVar[HydraDependencies | None] = ContextVar(
+    "hydra_dependency_override", default=None
+)
 
 
 def configure_dependencies(dependencies: HydraDependencies) -> None:
-    """Configure compatibility-aware dependencies during root-facade startup."""
-    global _dependencies
-    _dependencies = dependencies
+    """Configure the immutable dependency baseline used by the root facade."""
+    global _configured_dependencies
+    _configured_dependencies = dependencies
 
 
-def analyze_project_config(project_path: str) -> dict[str, Any]:
-    """Analyze project structure for configuration needs."""
+@contextmanager
+def use_dependencies(dependencies: HydraDependencies) -> Iterator[None]:
+    """Temporarily inject Hydra dependencies and restore prior state afterward."""
+    token = _dependency_override.set(dependencies)
+    try:
+        yield
+    finally:
+        _dependency_override.reset(token)
+
+
+def _current_filesystem() -> HydraFilesystem:
+    dependencies = _dependency_override.get() or _configured_dependencies
+    return dependencies.filesystem
+
+
+def _analyze_project_config(
+    project_path: str, filesystem: HydraFilesystem
+) -> dict[str, Any]:
     path = Path(project_path)
-    if not path.exists():
+    if not filesystem.exists(path):
         return {"success": False, "error": f"Project path {project_path} does not exist"}
     analysis = {
-        "has_hydra": (path / "configs").exists(),
-        "has_config_yaml": (path / "configs" / "config.yaml").exists(),
-        "has_requirements": (path / "requirements.txt").exists(),
-        "has_train_script": (path / "train.py").exists(),
-        "has_model_dir": (path / "model").exists() or (path / "models").exists(),
-        "python_files": [file.name for file in path.glob("*.py")],
-        "config_files": [file.name for file in path.glob("**/*.yaml")]
-        + [file.name for file in path.glob("**/*.yml")],
+        "has_hydra": filesystem.exists(path / "configs"),
+        "has_config_yaml": filesystem.exists(path / "configs" / "config.yaml"),
+        "has_requirements": filesystem.exists(path / "requirements.txt"),
+        "has_train_script": filesystem.exists(path / "train.py"),
+        "has_model_dir": filesystem.exists(path / "model")
+        or filesystem.exists(path / "models"),
+        "python_files": [file.name for file in filesystem.glob(path, "*.py")],
+        "config_files": [file.name for file in filesystem.glob(path, "**/*.yaml")]
+        + [file.name for file in filesystem.glob(path, "**/*.yml")],
     }
     requirements_path = path / "requirements.txt"
-    if requirements_path.exists():
-        content = requirements_path.read_text().lower()
+    if filesystem.exists(requirements_path):
+        content = filesystem.read_text(requirements_path).lower()
         analysis["framework"] = {
             "pytorch": "torch" in content or "pytorch" in content,
             "tensorflow": "tensorflow" in content,
@@ -77,16 +98,21 @@ def analyze_project_config(project_path: str) -> dict[str, Any]:
     return analysis
 
 
-def create_hydra_config(
+def analyze_project_config(project_path: str) -> dict[str, Any]:
+    """Analyze project structure for configuration needs."""
+    return _analyze_project_config(project_path, _current_filesystem())
+
+
+def _create_hydra_config(
     project_path: str,
-    config_name: str = "config",
-    model_config: dict[str, Any] | None = None,
-    training_config: dict[str, Any] | None = None,
-    data_config: dict[str, Any] | None = None,
+    config_name: str,
+    model_config: dict[str, Any] | None,
+    training_config: dict[str, Any] | None,
+    data_config: dict[str, Any] | None,
+    filesystem: HydraFilesystem,
 ) -> dict[str, Any]:
-    """Create Hydra configuration structure."""
     path = Path(project_path)
-    if not path.exists():
+    if not filesystem.exists(path):
         return {"success": False, "error": f"Project path {project_path} does not exist"}
     default_model = model_config or {
         "name": "resnet18",
@@ -109,10 +135,10 @@ def create_hydra_config(
         "num_workers": 4,
         "augmentation": True,
     }
-    configs_dir = _dependencies.ensure_directory(path / "configs")
-    _dependencies.ensure_directory(configs_dir / "model")
-    _dependencies.ensure_directory(configs_dir / "training")
-    _dependencies.ensure_directory(configs_dir / "data")
+    configs_dir = filesystem.ensure_directory(path / "configs")
+    filesystem.ensure_directory(configs_dir / "model")
+    filesystem.ensure_directory(configs_dir / "training")
+    filesystem.ensure_directory(configs_dir / "data")
     created_files = []
     main_config = {
         "defaults": [{"model": "default"}, {"training": "default"}, {"data": "default"}, "_self_"],
@@ -123,20 +149,16 @@ def create_hydra_config(
         "mlflow": {"tracking_uri": "mlruns", "experiment_name": "${experiment_name}"},
     }
     config_path = configs_dir / f"{config_name}.yaml"
-    with config_path.open("w") as stream:
-        yaml.dump(main_config, stream, default_flow_style=False, sort_keys=False)
+    filesystem.write_yaml(config_path, main_config, sort_keys=False)
     created_files.append(str(config_path))
     model_path = configs_dir / "model" / "default.yaml"
-    with model_path.open("w") as stream:
-        yaml.dump(default_model, stream, default_flow_style=False)
+    filesystem.write_yaml(model_path, default_model)
     created_files.append(str(model_path))
     training_path = configs_dir / "training" / "default.yaml"
-    with training_path.open("w") as stream:
-        yaml.dump(default_training, stream, default_flow_style=False)
+    filesystem.write_yaml(training_path, default_training)
     created_files.append(str(training_path))
     data_path = configs_dir / "data" / "default.yaml"
-    with data_path.open("w") as stream:
-        yaml.dump(default_data, stream, default_flow_style=False)
+    filesystem.write_yaml(data_path, default_data)
     created_files.append(str(data_path))
     return {
         "success": True,
@@ -150,7 +172,7 @@ def create_hydra_config(
                 "passed": True,
                 "evidence": (
                     "Hydra config generated at "
-                    f"{_dependencies.relative_to_project(project_path, config_path)}."
+                    f"{filesystem.relative_to_project(project_path, config_path)}."
                 ),
             }
         ],
@@ -160,7 +182,7 @@ def create_hydra_config(
                     "artifact_type": "configuration",
                     "producing_step": "create_or_validate_hydra_config",
                     "state": "generated",
-                    "path": _dependencies.relative_to_project(project_path, config_path),
+                    "path": filesystem.relative_to_project(project_path, config_path),
                 }
             ]
         },
@@ -168,29 +190,45 @@ def create_hydra_config(
     }
 
 
-def update_hydra_config(
+def create_hydra_config(
     project_path: str,
-    config_path: str = "configs/config.yaml",
-    updates: dict[str, Any] = None,
+    config_name: str = "config",
+    model_config: dict[str, Any] | None = None,
+    training_config: dict[str, Any] | None = None,
+    data_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Update existing Hydra configuration."""
+    """Create Hydra configuration structure."""
+    return _create_hydra_config(
+        project_path,
+        config_name,
+        model_config,
+        training_config,
+        data_config,
+        _current_filesystem(),
+    )
+
+
+def _deep_update(destination: dict[str, Any], incoming: dict[str, Any]) -> None:
+    for key, value in incoming.items():
+        if isinstance(value, dict) and isinstance(destination.get(key), dict):
+            _deep_update(destination[key], value)
+        else:
+            destination[key] = value
+
+
+def _update_hydra_config(
+    project_path: str,
+    config_path: str,
+    updates: dict[str, Any] | None,
+    filesystem: HydraFilesystem,
+) -> dict[str, Any]:
     full_path = Path(project_path) / config_path
-    if not full_path.exists():
+    if not filesystem.exists(full_path):
         return {"success": False, "error": f"Config file {full_path} does not exist"}
     try:
-        with full_path.open() as stream:
-            config = yaml.safe_load(stream)
-
-        def deep_update(destination, incoming):
-            for key, value in incoming.items():
-                if isinstance(value, dict) and isinstance(destination.get(key), dict):
-                    deep_update(destination[key], value)
-                else:
-                    destination[key] = value
-
-        deep_update(config, updates or {})
-        with full_path.open("w") as stream:
-            yaml.dump(config, stream, default_flow_style=False, sort_keys=False)
+        config = filesystem.read_yaml(full_path)
+        _deep_update(config, updates or {})
+        filesystem.write_yaml(full_path, config, sort_keys=False)
         return {
             "success": True,
             "config_path": str(full_path),
@@ -201,18 +239,30 @@ def update_hydra_config(
         return {"success": False, "error": str(exc)}
 
 
-def validate_hydra_config(
-    project_path: str, config_path: str = "configs/config.yaml"
+def update_hydra_config(
+    project_path: str,
+    config_path: str = "configs/config.yaml",
+    updates: dict[str, Any] = None,
 ) -> dict[str, Any]:
-    """Validate Hydra configuration."""
+    """Update existing Hydra configuration."""
+    return _update_hydra_config(
+        project_path,
+        config_path,
+        updates,
+        _current_filesystem(),
+    )
+
+
+def _validate_hydra_config(
+    project_path: str, config_path: str, filesystem: HydraFilesystem
+) -> dict[str, Any]:
     full_path = Path(project_path) / config_path
-    if not full_path.exists():
+    if not filesystem.exists(full_path):
         return {"success": False, "error": f"Config file {full_path} does not exist"}
     issues = []
     warnings = []
     try:
-        with full_path.open() as stream:
-            config = yaml.safe_load(stream)
+        config = filesystem.read_yaml(full_path)
         if "defaults" not in config:
             warnings.append("No 'defaults' section found - Hydra composition may not work")
         if isinstance(config.get("defaults"), list):
@@ -223,7 +273,7 @@ def validate_hydra_config(
                             sub_config_path = (
                                 Path(project_path) / "configs" / key / f"{value}.yaml"
                             )
-                            if not sub_config_path.exists():
+                            if not filesystem.exists(sub_config_path):
                                 issues.append(f"Missing config file: {sub_config_path}")
         return {
             "success": len(issues) == 0,
@@ -236,6 +286,17 @@ def validate_hydra_config(
         return {"success": False, "error": f"Invalid YAML: {str(exc)}"}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
+
+
+def validate_hydra_config(
+    project_path: str, config_path: str = "configs/config.yaml"
+) -> dict[str, Any]:
+    """Validate Hydra configuration."""
+    return _validate_hydra_config(
+        project_path,
+        config_path,
+        _current_filesystem(),
+    )
 
 
 def tool_specs(root_module: ModuleType) -> tuple[ToolSpec, ...]:
