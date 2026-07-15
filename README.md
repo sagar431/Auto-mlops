@@ -87,7 +87,7 @@ git clone https://github.com/sagar431/Auto-mlops.git
 cd Auto-mlops
 
 # Install with uv (recommended)
-uv sync
+uv sync --extra dev --locked
 
 # Or with pip
 pip install -e .
@@ -101,27 +101,27 @@ cp .env.example .env
 
 ```bash
 # Initialize a new ML project
-mlops-agent init ./my-project
+uv run mlops-agent init ./my-project
 
 # Run the agent with natural language
-mlops-agent "Set up MLOps pipeline for my cat-dog classifier"
+uv run mlops-agent "Set up MLOps pipeline for my cat-dog classifier"
 
 # Interactive mode
-mlops-agent --interactive
+uv run mlops-agent --interactive
 
 # Deploy a model
-mlops-agent deploy gradio --model ./models/best_model.pt
+uv run mlops-agent deploy gradio --model ./models/best_model.pt
 ```
 
 ### Run Tests
 
 ```bash
 # Test all MCP tools
-pytest tests/
+uv run pytest tests/
 
 # Test specific tool categories
-python -m tests.root_migrated.test_mlops_tools --tool hydra
-python -m tests.root_migrated.test_mlops_tools --tool deployment
+uv run python -m tests.root_migrated.test_mlops_tools --tool hydra
+uv run python -m tests.root_migrated.test_mlops_tools --tool deployment
 ```
 
 ---
