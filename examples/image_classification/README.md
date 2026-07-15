@@ -3,14 +3,15 @@
 The verified path in this example is a small local CPU slice:
 
 ```text
-deterministic synthetic tensors
+deterministically generated red/blue PNG files
+→ local DVC lineage
 → real PyTorch checkpoint
 → FastAPI
 → local CPU Docker image
 → observed /health and /predict responses
 ```
 
-It requires no external dataset, GPU, cloud service, registry, LLM key, DVC, or MLflow server. The canonical technical contract and the pre-change inconsistency audit are in [docs/golden_slice.md](docs/golden_slice.md).
+It requires no external dataset, GPU, cloud service, registry, LLM key, DVC remote, or MLflow server. The canonical technical contract and the pre-change inconsistency audit are in [docs/golden_slice.md](docs/golden_slice.md).
 
 ## Install
 
@@ -24,7 +25,19 @@ PyTorch and TorchVision use the official CPU wheel index recorded in `pyproject.
 
 ## Fast Local API Verification
 
-Generate the bounded artifact:
+Reproduce the file-backed dataset and training lineage:
+
+```bash
+cd examples/image_classification/project
+uv run dvc repro
+uv run dvc status
+uv run dvc metrics show
+cd ../../..
+```
+
+The two stages create 80 deterministic PNG files, verify their SHA-256 manifest, train from those files, and produce `artifacts/dvc-golden/model.pt`. The checkpoint contains the aggregate dataset checksum, manifest checksum, split counts, and all per-file checksums. Generated data, checkpoints, and the local DVC cache remain ignored; `dvc.yaml`, `params.yaml`, and `dvc.lock` are versioned.
+
+For the fastest backward-compatible serving smoke test, generate the bounded in-memory artifact:
 
 ```bash
 uv run python -m examples.image_classification.project.golden_train
@@ -35,7 +48,7 @@ The command uses seed 17, three epochs, 64 training samples, 16 validation sampl
 Run the focused contract tests:
 
 ```bash
-uv run pytest examples/image_classification/tests/test_golden_training.py examples/image_classification/tests/test_inference.py examples/image_classification/tests/test_serve.py -q
+uv run pytest examples/image_classification/tests/test_golden_dvc_lineage.py examples/image_classification/tests/test_golden_training.py examples/image_classification/tests/test_inference.py examples/image_classification/tests/test_serve.py -q
 ```
 
 Or run training and those tests with one safe command:
@@ -84,6 +97,7 @@ examples/image_classification/
 │   └── walkthrough.md
 ├── project/
 │   ├── golden_train.py
+│   ├── golden_data.py
 │   ├── model.py
 │   ├── inference.py
 │   ├── serve.py
@@ -96,9 +110,12 @@ examples/image_classification/
 │   ├── dataset.py
 │   ├── requirements.txt
 │   ├── dvc.yaml
+│   ├── dvc.lock
+│   ├── params.yaml
 │   └── configs/
 └── tests/
     ├── test_golden_training.py
+    ├── test_golden_dvc_lineage.py
     ├── test_inference.py
     ├── test_serve.py
     ├── test_training.py
@@ -110,10 +127,10 @@ examples/image_classification/
 
 ## Historical Example Surface
 
-The repository still contains the earlier CIFAR-10, Hydra, and DVC teaching surface so existing configuration and structural tests remain meaningful. It includes the `CIFAR10CNN` and `ResNet18` model options plus the `baseline`, `quick_test`, `high_accuracy`, and `resnet_baseline` experiment configurations.
+The repository still contains the earlier CIFAR-10 and Hydra teaching surface so existing configuration and structural tests remain meaningful. It includes the `CIFAR10CNN` and `ResNet18` model options plus the `baseline`, `quick_test`, `high_accuracy`, and `resnet_baseline` experiment configurations.
 
-That historical surface is not the verified golden path. Its CIFAR-10 commands may download an external dataset and its broader agent/deployment prose represented future ambitions. Do not use it as evidence that DVC/S3, MLflow/HPO, KServe, Lambda, Spaces, or a complete capstone is ready.
+That historical surface is not the verified golden path. Its CIFAR-10 commands may download an external dataset and its broader agent/deployment prose represented future ambitions. Local DVC lineage is now verified, but do not use it as evidence that an S3 remote, MLflow/HPO, KServe, Lambda, Spaces, or a complete capstone is ready.
 
 ## Future Capstone Work
 
-Later milestones may connect this verified serving foundation to dataset lineage, experiment tracking, tuning, production deployment, and operations. Those capabilities are explicitly deferred; this milestone proves only local bounded training, strict artifact loading, FastAPI inference, and local Docker execution.
+Later milestones may connect this verified local lineage and serving foundation to MLflow experiment tracking, an S3 DVC remote, tuning, real capstone datasets, agent workflow integration, production deployment, and operations. Those capabilities remain explicitly deferred.

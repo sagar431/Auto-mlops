@@ -38,6 +38,8 @@ def test_bounded_training_creates_complete_checkpoint(tmp_path):
     assert checkpoint["training_config"]["device"] == "cpu"
     assert checkpoint["training_config"]["train_samples"] == 32
     assert checkpoint["metrics"]["validation_accuracy"] == pytest.approx(1.0)
+    assert checkpoint["dataset_lineage"]["source"] == "deterministic-synthetic-tensors"
+    assert len(checkpoint["dataset_lineage"]["dataset_checksum"]) == 64
     assert checkpoint["state_dict"]
     assert Path(result["training_config_path"]).is_file()
     assert Path(result["metrics_path"]).is_file()
@@ -69,6 +71,7 @@ def test_checkpoint_load_returns_validated_model(tmp_path):
     assert loaded.architecture == GOLDEN_ARCHITECTURE
     assert loaded.class_names == CLASS_NAMES
     assert loaded.model.training is False
+    assert loaded.dataset_lineage["source"] == "deterministic-synthetic-tensors"
 
 
 def test_missing_and_corrupt_checkpoints_fail_clearly(tmp_path):
@@ -87,6 +90,16 @@ def test_missing_and_corrupt_checkpoints_fail_clearly(tmp_path):
         ("architecture", "resnet18", "Incompatible checkpoint architecture"),
         ("class_names", ["red", "red"], "Invalid checkpoint class metadata"),
         ("state_dict", {}, "state dictionary is incompatible"),
+        ("dataset_lineage", {}, "dataset lineage is missing or invalid"),
+        (
+            "dataset_lineage",
+            {
+                "schema_version": "test.v1",
+                "source": "test",
+                "dataset_checksum": "not-a-sha256",
+            },
+            "dataset lineage is missing or invalid",
+        ),
     ],
 )
 def test_malformed_checkpoint_metadata_fails_clearly(tmp_path, field, value, message):
