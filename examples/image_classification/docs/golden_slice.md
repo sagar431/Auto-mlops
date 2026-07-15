@@ -26,7 +26,9 @@ Before this contract was introduced, the example had no reproducible train-to-se
 | Device | CPU only |
 | Checkpoint schema | `golden-image-classifier.v1` |
 | Dataset schema | `golden-red-blue-dataset.v1`, with a SHA-256 manifest for every image |
-| DVC stages | `prepare_golden_data` → `train_golden` |
+| DVC stages | `prepare_golden_data` → `train_golden`; the training command logs and verifies one MLflow run |
+| MLflow experiment | `golden-image-classification` |
+| MLflow backend | Ignored `.mlflow/tracking.db` SQLite database with ignored `.mlflow/artifacts/` |
 | Checkpoint file | `project/artifacts/dvc-golden/model.pt` (generated, DVC-cached, and ignored by Git) |
 | Other artifacts | `training_config.json`, `metrics.json`, `lineage.json`, and `sample-red.png` under the same ignored directory |
 | API port | 8000 in the container |
@@ -48,7 +50,36 @@ uv run dvc metrics show
 cd ../../..
 ```
 
-This creates 64 training and 16 validation PNG files under ignored `data/golden/`, verifies their checksums before training, and writes the ignored checkpoint under `artifacts/dvc-golden/`. `dvc.lock` records the exact stage dependencies, parameters, and output hashes. Repeating `uv run dvc repro` reports that the pipeline is up to date; forced reproductions produce byte-identical tracked outputs.
+This creates 64 training and 16 validation PNG files under ignored `data/golden/`, verifies their checksums before training, writes the ignored checkpoint under `artifacts/dvc-golden/`, and creates a verified local MLflow run. `dvc.lock` records the exact stage dependencies, parameters, and output hashes. Repeating `uv run dvc repro` reports that the pipeline is up to date; forced reproductions produce byte-identical DVC outputs while run IDs, timestamps, database bytes, and duration metrics may differ.
+
+## Local MLflow Contract
+
+Each file-backed `golden_train.py` execution, including every real `train_golden` DVC execution, logs one finished run to the stable `golden-image-classification` experiment. The local SQLite backend is `.mlflow/tracking.db`, and copied run artifacts are under `.mlflow/artifacts/`; both are ignored. No tracking server, credential, network connection, or cloud service is required. The separate in-memory command remains an untracked serving smoke fixture because it has no DVC manifest to link.
+
+The run records seed, epochs, batch size, learning rate, architecture, image size, ordered class names, and train/validation sample counts as parameters. It records observed validation accuracy, validation loss, and training duration as metrics. Tags identify the dataset schema, aggregate dataset checksum, manifest checksum, checkpoint schema, checkpoint SHA-256, DVC pipeline and stage, and the Git commit when available. Registered artifacts are the checkpoint, lineage, metrics, training configuration, and dataset manifest.
+
+Query the latest run and strictly compare it with the current DVC outputs:
+
+```bash
+cd examples/image_classification/project
+uv run python golden_mlflow.py verify --artifact-dir artifacts/dvc-golden --dataset-dir data/golden --storage-dir .mlflow
+cd ../../..
+```
+
+Open the local UI at `http://127.0.0.1:5000` (stop it with Ctrl-C):
+
+```bash
+cd examples/image_classification/project
+uv run mlflow ui --backend-store-uri "sqlite:///$PWD/.mlflow/tracking.db" --host 127.0.0.1 --port 5000
+```
+
+To safely remove only the generated local tracking database and copied artifacts, run from the repository root:
+
+```bash
+rm -rf -- examples/image_classification/project/.mlflow
+```
+
+The next `uv run dvc repro --force` recreates the tracking state and a verified run without changing deterministic DVC output bytes.
 
 The original bounded in-memory command remains available for the fastest serving smoke test:
 
@@ -59,7 +90,7 @@ uv run python -m examples.image_classification.project.golden_train
 Focused training, checkpoint, inference, and FastAPI tests:
 
 ```bash
-uv run pytest examples/image_classification/tests/test_golden_dvc_lineage.py examples/image_classification/tests/test_golden_training.py examples/image_classification/tests/test_inference.py examples/image_classification/tests/test_serve.py -q
+uv run pytest examples/image_classification/tests/test_golden_dvc_lineage.py examples/image_classification/tests/test_golden_training.py examples/image_classification/tests/test_golden_mlflow.py examples/image_classification/tests/test_inference.py examples/image_classification/tests/test_serve.py -q
 ```
 
 Single local verifier (training plus focused tests):
@@ -117,7 +148,7 @@ uv run python examples/image_classification/verify_golden.py --docker
 
 ## Expected Verification
 
-- `dvc repro` prepares the declared PNG files, trains from them, and exits zero without network access.
+- `dvc repro` prepares the declared PNG files, trains from them, logs a locally queryable MLflow run, verifies its lineage/checkpoint evidence, and exits zero without network access.
 - The dataset manifest, checkpoint, lineage JSON, metrics, and `dvc.lock` have deterministic content hashes.
 - The checkpoint and JSON metadata files exist only under the ignored artifact directory.
 - Validation accuracy is observed from real model execution.
@@ -127,4 +158,4 @@ uv run python examples/image_classification/verify_golden.py --docker
 
 ## Explicit Non-Goals
 
-This slice does not provide CIFAR-10 or any external dataset download, a DVC remote or S3, MLflow or HPO, GPU/CUDA, Kubernetes or KServe, Helm, ArgoCD or GitOps, Lambda, Hugging Face Spaces, a container registry or image push, self-healing, production authentication, generalized model architecture discovery, or complete capstone readiness.
+This slice does not provide CIFAR-10 or any external dataset download, a DVC remote or S3, hosted or remote MLflow, HPO or a learning-rate finder, GPU/CUDA, Kubernetes or KServe, Helm, ArgoCD or GitOps, Lambda, Hugging Face Spaces, a container registry or image push, self-healing, production authentication, generalized model architecture discovery, or complete capstone readiness.

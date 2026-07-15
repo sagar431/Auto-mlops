@@ -24,6 +24,7 @@ IMAGE_TAG = "auto-mlops-golden-image:local"
 FOCUSED_TESTS = (
     "examples/image_classification/tests/test_golden_dvc_lineage.py",
     "examples/image_classification/tests/test_golden_training.py",
+    "examples/image_classification/tests/test_golden_mlflow.py",
     "examples/image_classification/tests/test_inference.py",
     "examples/image_classification/tests/test_serve.py",
 )
