@@ -280,6 +280,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--batch-size", type=int, default=TrainingConfig.batch_size)
     parser.add_argument("--learning-rate", type=float, default=TrainingConfig.learning_rate)
+    parser.add_argument(
+        "--mlflow-storage-dir",
+        type=Path,
+        default=Path(__file__).resolve().parent / ".mlflow",
+    )
     return parser
 
 
@@ -299,6 +304,18 @@ def main() -> int:
                 learning_rate=args.learning_rate,
             ),
         )
+        if args.dataset_dir is not None:
+            try:
+                from .golden_mlflow import log_golden_mlflow_run
+            except ImportError:  # Support direct execution from the project directory.
+                from golden_mlflow import log_golden_mlflow_run
+
+            result["mlflow"] = log_golden_mlflow_run(
+                artifact_dir=args.output_dir,
+                dataset_dir=args.dataset_dir,
+                duration_seconds=float(result["duration_seconds"]),
+                storage_dir=args.mlflow_storage_dir,
+            )
     except Exception as exc:
         print(json.dumps({"status": "failed", "error": str(exc)}, sort_keys=True))
         return 1

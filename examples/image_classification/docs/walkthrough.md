@@ -17,6 +17,7 @@ cd examples/image_classification/project
 uv run dvc repro
 uv run dvc status
 uv run dvc metrics show
+uv run python golden_mlflow.py verify --artifact-dir artifacts/dvc-golden --dataset-dir data/golden --storage-dir .mlflow
 cd ../../..
 ```
 
@@ -77,4 +78,4 @@ Docker is opt-in because it builds an image and starts a local container. The ve
 
 ## 7. Interpret the Boundary
 
-Passing this walkthrough proves deterministic local DVC dataset preparation, file-backed CPU training with checksum lineage, and the existing train-to-serve path. It does not prove external dataset handling, an S3 DVC remote, MLflow/HPO, GPU use, Kubernetes/KServe, Helm, ArgoCD, Lambda, Hugging Face Spaces, registry push, self-healing, or complete capstone readiness. Those remain future milestones.
+Passing this walkthrough proves deterministic local DVC dataset preparation, file-backed CPU training with checksum lineage, local SQLite MLflow evidence, and the existing train-to-serve path. It does not prove external dataset handling, an S3 DVC remote, hosted MLflow, HPO, GPU use, Kubernetes/KServe, Helm, ArgoCD, Lambda, Hugging Face Spaces, registry push, self-healing, or complete capstone readiness. Those remain future milestones.

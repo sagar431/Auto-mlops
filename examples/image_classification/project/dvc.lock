@@ -23,7 +23,7 @@ stages:
     cmd: uv run python golden_train.py --dataset-dir data/golden --manifest 
       data/golden/manifest.json --output-dir artifacts/dvc-golden --seed 17 
       --epochs 3 --train-samples 64 --validation-samples 16 --batch-size 8 
-      --learning-rate 0.05
+      --learning-rate 0.05 --mlflow-storage-dir .mlflow
     deps:
     - path: data/golden
       hash: md5
@@ -34,10 +34,14 @@ stages:
       hash: md5
       md5: 87aa317f8de5abb14c206c8141a67049
       size: 10612
+    - path: golden_mlflow.py
+      hash: md5
+      md5: 9955b43a3e7534c91a43659f1a75bcfd
+      size: 14955
     - path: golden_train.py
       hash: md5
-      md5: 63ee122e185015b0e708c104517d1ef0
-      size: 12693
+      md5: 0f8ad0350a0bbe0b69044feaf561e23b
+      size: 13393
     - path: model.py
       hash: md5
       md5: 0d01c962ce443b1e26bdcb2e86ddf9d8

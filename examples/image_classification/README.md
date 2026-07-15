@@ -6,12 +6,13 @@ The verified path in this example is a small local CPU slice:
 deterministically generated red/blue PNG files
 → local DVC lineage
 → real PyTorch checkpoint
+→ verified local MLflow run
 → FastAPI
 → local CPU Docker image
 → observed /health and /predict responses
 ```
 
-It requires no external dataset, GPU, cloud service, registry, LLM key, DVC remote, or MLflow server. The canonical technical contract and the pre-change inconsistency audit are in [docs/golden_slice.md](docs/golden_slice.md).
+It requires no external dataset, GPU, cloud service, registry, LLM key, DVC remote, or hosted MLflow server. Tracking uses an ignored local SQLite database and local artifact directory. The canonical technical contract and the pre-change inconsistency audit are in [docs/golden_slice.md](docs/golden_slice.md).
 
 ## Install
 
@@ -35,7 +36,30 @@ uv run dvc metrics show
 cd ../../..
 ```
 
-The two stages create 80 deterministic PNG files, verify their SHA-256 manifest, train from those files, and produce `artifacts/dvc-golden/model.pt`. The checkpoint contains the aggregate dataset checksum, manifest checksum, split counts, and all per-file checksums. Generated data, checkpoints, and the local DVC cache remain ignored; `dvc.yaml`, `params.yaml`, and `dvc.lock` are versioned.
+The two stages create 80 deterministic PNG files, verify their SHA-256 manifest, train from those files, produce `artifacts/dvc-golden/model.pt`, and record a verified run in the stable `golden-image-classification` MLflow experiment. The checkpoint contains the aggregate dataset checksum, manifest checksum, split counts, and all per-file checksums. Generated data, checkpoints, local MLflow state, and the DVC cache remain ignored; `dvc.yaml`, `params.yaml`, and `dvc.lock` are versioned.
+
+## Local MLflow Tracking
+
+Query and verify the latest run against the current DVC dataset and checkpoint:
+
+```bash
+cd examples/image_classification/project
+uv run python golden_mlflow.py verify --artifact-dir artifacts/dvc-golden --dataset-dir data/golden --storage-dir .mlflow
+cd ../../..
+```
+
+Open the local MLflow UI at `http://127.0.0.1:5000` (stop it with Ctrl-C):
+
+```bash
+cd examples/image_classification/project
+uv run mlflow ui --backend-store-uri "sqlite:///$PWD/.mlflow/tracking.db" --host 127.0.0.1 --port 5000
+```
+
+To remove only the generated local tracking state, run this from the repository root:
+
+```bash
+rm -rf -- examples/image_classification/project/.mlflow
+```
 
 For the fastest backward-compatible serving smoke test, generate the bounded in-memory artifact:
 
@@ -48,7 +72,7 @@ The command uses seed 17, three epochs, 64 training samples, 16 validation sampl
 Run the focused contract tests:
 
 ```bash
-uv run pytest examples/image_classification/tests/test_golden_dvc_lineage.py examples/image_classification/tests/test_golden_training.py examples/image_classification/tests/test_inference.py examples/image_classification/tests/test_serve.py -q
+uv run pytest examples/image_classification/tests/test_golden_dvc_lineage.py examples/image_classification/tests/test_golden_training.py examples/image_classification/tests/test_golden_mlflow.py examples/image_classification/tests/test_inference.py examples/image_classification/tests/test_serve.py -q
 ```
 
 Or run training and those tests with one safe command:
@@ -98,6 +122,7 @@ examples/image_classification/
 ├── project/
 │   ├── golden_train.py
 │   ├── golden_data.py
+│   ├── golden_mlflow.py
 │   ├── model.py
 │   ├── inference.py
 │   ├── serve.py
@@ -116,6 +141,7 @@ examples/image_classification/
 └── tests/
     ├── test_golden_training.py
     ├── test_golden_dvc_lineage.py
+    ├── test_golden_mlflow.py
     ├── test_inference.py
     ├── test_serve.py
     ├── test_training.py
@@ -129,8 +155,8 @@ examples/image_classification/
 
 The repository still contains the earlier CIFAR-10 and Hydra teaching surface so existing configuration and structural tests remain meaningful. It includes the `CIFAR10CNN` and `ResNet18` model options plus the `baseline`, `quick_test`, `high_accuracy`, and `resnet_baseline` experiment configurations.
 
-That historical surface is not the verified golden path. Its CIFAR-10 commands may download an external dataset and its broader agent/deployment prose represented future ambitions. Local DVC lineage is now verified, but do not use it as evidence that an S3 remote, MLflow/HPO, KServe, Lambda, Spaces, or a complete capstone is ready.
+That historical surface is not the verified golden path. Its CIFAR-10 commands may download an external dataset and its broader agent/deployment prose represented future ambitions. Local DVC lineage and local MLflow tracking are now verified, but do not use them as evidence that an S3 remote, hosted MLflow, HPO, KServe, Lambda, Spaces, or a complete capstone is ready.
 
 ## Future Capstone Work
 
-Later milestones may connect this verified local lineage and serving foundation to MLflow experiment tracking, an S3 DVC remote, tuning, real capstone datasets, agent workflow integration, production deployment, and operations. Those capabilities remain explicitly deferred.
+Later milestones may connect this verified tracked baseline to Hydra-controlled HPO and a learning-rate finder, then an S3 DVC remote, real capstone datasets, agent workflow integration, production deployment, and operations. Those capabilities remain explicitly deferred.

@@ -27,10 +27,12 @@ stages:
       --validation-samples ${prepare.validation_samples}
       --batch-size ${train.batch_size}
       --learning-rate ${train.learning_rate}
+      --mlflow-storage-dir .mlflow
     deps:
       - data/golden
       - golden_data.py
       - golden_train.py
+      - golden_mlflow.py
       - model.py
     params:
       - prepare.train_samples
