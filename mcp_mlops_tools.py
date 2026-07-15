@@ -51,7 +51,9 @@ from pydantic import BaseModel, Field
 
 from mcp_servers.mlops.common.paths import ensure_directory, relative_to_project
 from mcp_servers.mlops.domains import hydra as hydra_domain
+from mcp_servers.mlops.domains import mlflow as mlflow_domain
 from mcp_servers.mlops.schemas import hydra as hydra_schemas
+from mcp_servers.mlops.schemas import mlflow as mlflow_schemas
 from mcp_servers.mlops.server import build_tool_registry
 
 HydraDependencies = hydra_domain.HydraDependencies
@@ -65,6 +67,25 @@ AnalyzeProjectConfigInput = hydra_schemas.AnalyzeProjectConfigInput
 CreateHydraConfigInput = hydra_schemas.CreateHydraConfigInput
 UpdateHydraConfigInput = hydra_schemas.UpdateHydraConfigInput
 ValidateHydraConfigInput = hydra_schemas.ValidateHydraConfigInput
+
+MLflowDependencies = mlflow_domain.MLflowDependencies
+configure_mlflow_dependencies = mlflow_domain.configure_dependencies
+init_mlflow_experiment = mlflow_domain.init_mlflow_experiment
+start_mlflow_run = mlflow_domain.start_mlflow_run
+log_mlflow_params = mlflow_domain.log_mlflow_params
+log_mlflow_metrics = mlflow_domain.log_mlflow_metrics
+log_mlflow_artifact = mlflow_domain.log_mlflow_artifact
+register_mlflow_model = mlflow_domain.register_mlflow_model
+get_best_mlflow_run = mlflow_domain.get_best_mlflow_run
+end_mlflow_run = mlflow_domain.end_mlflow_run
+InitMLflowExperimentInput = mlflow_schemas.InitMLflowExperimentInput
+StartMLflowRunInput = mlflow_schemas.StartMLflowRunInput
+LogMLflowParamsInput = mlflow_schemas.LogMLflowParamsInput
+LogMLflowMetricsInput = mlflow_schemas.LogMLflowMetricsInput
+LogMLflowArtifactInput = mlflow_schemas.LogMLflowArtifactInput
+RegisterMLflowModelInput = mlflow_schemas.RegisterMLflowModelInput
+GetBestMLflowRunInput = mlflow_schemas.GetBestMLflowRunInput
+EndMLflowRunInput = mlflow_schemas.EndMLflowRunInput
 
 # ============================================================================
 # Helper Functions
@@ -95,81 +116,6 @@ def check_tool_installed(tool_name: str) -> bool:
 # ============================================================================
 # Pydantic Input Models
 # ============================================================================
-
-# --- MLflow Experiment Tracking Tools ---
-
-
-class InitMLflowExperimentInput(BaseModel):
-    """Initialize MLflow experiment."""
-
-    experiment_name: str = Field(..., description="Name of the experiment")
-    tracking_uri: str | None = Field(default=None, description="MLflow tracking URI")
-    artifact_location: str | None = Field(default=None, description="Artifact storage location")
-    tags: dict[str, str] | None = Field(default=None, description="Experiment tags")
-
-
-class LogMLflowParamsInput(BaseModel):
-    """Log parameters to MLflow."""
-
-    run_id: str | None = Field(
-        default=None, description="Run ID (uses active run if not specified)"
-    )
-    params: dict[str, Any] = Field(..., description="Parameters to log")
-
-
-class LogMLflowMetricsInput(BaseModel):
-    """Log metrics to MLflow."""
-
-    run_id: str | None = Field(
-        default=None, description="Run ID (uses active run if not specified)"
-    )
-    metrics: dict[str, float] = Field(..., description="Metrics to log")
-    step: int | None = Field(default=None, description="Step number for the metrics")
-
-
-class LogMLflowArtifactInput(BaseModel):
-    """Log artifact to MLflow."""
-
-    artifact_path: str = Field(..., description="Local path to artifact file or directory")
-    artifact_dest: str | None = Field(
-        default=None, description="Destination path in artifact store"
-    )
-    run_id: str | None = Field(
-        default=None, description="Run ID (uses active run if not specified)"
-    )
-
-
-class RegisterMLflowModelInput(BaseModel):
-    """Register model in MLflow Model Registry."""
-
-    model_path: str = Field(..., description="Path to the model artifact")
-    model_name: str = Field(..., description="Name for the registered model")
-    run_id: str | None = Field(default=None, description="Run ID containing the model")
-    tags: dict[str, str] | None = Field(default=None, description="Model tags")
-
-
-class GetBestMLflowRunInput(BaseModel):
-    """Get best run from experiment based on metric."""
-
-    experiment_name: str = Field(..., description="Name of the experiment")
-    metric_name: str = Field(default="accuracy", description="Metric to optimize")
-    maximize: bool = Field(default=True, description="Whether to maximize the metric")
-
-
-class StartMLflowRunInput(BaseModel):
-    """Start a new MLflow run."""
-
-    experiment_name: str = Field(..., description="Name of the experiment")
-    run_name: str | None = Field(default=None, description="Name for the run")
-    tags: dict[str, str] | None = Field(default=None, description="Run tags")
-
-
-class EndMLflowRunInput(BaseModel):
-    """End an MLflow run."""
-
-    run_id: str | None = Field(default=None, description="Run ID to end")
-    status: str = Field(default="FINISHED", description="Run status: FINISHED, FAILED, KILLED")
-
 
 # --- DVC Data Versioning Tools ---
 
@@ -1410,246 +1356,7 @@ class RollbackDeploymentInput(BaseModel):
 # Tool Implementation Functions
 # ============================================================================
 
-# Hydra implementations are imported above and re-exported from this compatibility facade.
-
-# --- MLflow Experiment Tracking Tools ---
-
-
-def init_mlflow_experiment(
-    experiment_name: str,
-    tracking_uri: str | None = None,
-    artifact_location: str | None = None,
-    tags: dict[str, str] | None = None,
-    project_path: str | None = None,
-) -> dict[str, Any]:
-    """Initialize MLflow experiment."""
-    try:
-        import mlflow
-
-        if project_path and tracking_uri is None:
-            tracking_uri = str(Path(project_path) / "mlruns")
-        if tracking_uri:
-            mlflow.set_tracking_uri(tracking_uri)
-
-        # Create or get experiment
-        experiment = mlflow.get_experiment_by_name(experiment_name)
-
-        if experiment is None:
-            experiment_id = mlflow.create_experiment(
-                experiment_name, artifact_location=artifact_location, tags=tags
-            )
-        else:
-            experiment_id = experiment.experiment_id
-
-        mlflow.set_experiment(experiment_name)
-
-        return {
-            "success": True,
-            "experiment_id": experiment_id,
-            "experiment_name": experiment_name,
-            "tracking_uri": mlflow.get_tracking_uri(),
-            "verification_results": [
-                {
-                    "check_name": "mlflow_experiment_exists",
-                    "evidence_type": "declared",
-                    "source_step": "initialize_mlflow_experiment",
-                    "passed": True,
-                    "evidence": f"MLflow experiment '{experiment_name}' is available.",
-                }
-            ],
-            "message": f"Experiment '{experiment_name}' initialized (ID: {experiment_id})",
-        }
-    except ImportError:
-        return {"success": False, "error": "MLflow not installed. Run: pip install mlflow"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-def start_mlflow_run(
-    experiment_name: str, run_name: str | None = None, tags: dict[str, str] | None = None
-) -> dict[str, Any]:
-    """Start a new MLflow run."""
-    try:
-        import mlflow
-
-        mlflow.set_experiment(experiment_name)
-        run = mlflow.start_run(run_name=run_name, tags=tags)
-
-        return {
-            "success": True,
-            "run_id": run.info.run_id,
-            "run_name": run_name or run.info.run_name,
-            "experiment_name": experiment_name,
-            "artifact_uri": run.info.artifact_uri,
-            "message": f"Started run {run.info.run_id}",
-        }
-    except ImportError:
-        return {"success": False, "error": "MLflow not installed"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-def log_mlflow_params(params: dict[str, Any], run_id: str | None = None) -> dict[str, Any]:
-    """Log parameters to MLflow."""
-    try:
-        import mlflow
-
-        if run_id:
-            with mlflow.start_run(run_id=run_id):
-                mlflow.log_params(params)
-        else:
-            mlflow.log_params(params)
-
-        return {
-            "success": True,
-            "params_logged": list(params.keys()),
-            "message": f"Logged {len(params)} parameters",
-        }
-    except ImportError:
-        return {"success": False, "error": "MLflow not installed"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-def log_mlflow_metrics(
-    metrics: dict[str, float], step: int | None = None, run_id: str | None = None
-) -> dict[str, Any]:
-    """Log metrics to MLflow."""
-    try:
-        import mlflow
-
-        if run_id:
-            with mlflow.start_run(run_id=run_id):
-                mlflow.log_metrics(metrics, step=step)
-        else:
-            mlflow.log_metrics(metrics, step=step)
-
-        return {
-            "success": True,
-            "metrics_logged": metrics,
-            "step": step,
-            "message": f"Logged {len(metrics)} metrics",
-        }
-    except ImportError:
-        return {"success": False, "error": "MLflow not installed"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-def log_mlflow_artifact(
-    artifact_path: str, artifact_dest: str | None = None, run_id: str | None = None
-) -> dict[str, Any]:
-    """Log artifact to MLflow."""
-    try:
-        import mlflow
-
-        path = Path(artifact_path)
-        if not path.exists():
-            return {"success": False, "error": f"Artifact path {artifact_path} does not exist"}
-
-        if run_id:
-            with mlflow.start_run(run_id=run_id):
-                if path.is_dir():
-                    mlflow.log_artifacts(artifact_path, artifact_dest)
-                else:
-                    mlflow.log_artifact(artifact_path, artifact_dest)
-        else:
-            if path.is_dir():
-                mlflow.log_artifacts(artifact_path, artifact_dest)
-            else:
-                mlflow.log_artifact(artifact_path, artifact_dest)
-
-        return {
-            "success": True,
-            "artifact_path": artifact_path,
-            "message": f"Logged artifact from {artifact_path}",
-        }
-    except ImportError:
-        return {"success": False, "error": "MLflow not installed"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-def register_mlflow_model(
-    model_path: str,
-    model_name: str,
-    run_id: str | None = None,
-    tags: dict[str, str] | None = None,
-) -> dict[str, Any]:
-    """Register model in MLflow Model Registry."""
-    try:
-        import mlflow
-
-        model_uri = f"runs:/{run_id}/{model_path}" if run_id else model_path
-
-        result = mlflow.register_model(model_uri, model_name, tags=tags)
-
-        return {
-            "success": True,
-            "model_name": result.name,
-            "model_version": result.version,
-            "model_uri": model_uri,
-            "message": f"Registered model '{model_name}' version {result.version}",
-        }
-    except ImportError:
-        return {"success": False, "error": "MLflow not installed"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-def get_best_mlflow_run(
-    experiment_name: str, metric_name: str = "accuracy", maximize: bool = True
-) -> dict[str, Any]:
-    """Get best run from experiment based on metric."""
-    try:
-        from mlflow.tracking import MlflowClient
-
-        client = MlflowClient()
-        experiment = client.get_experiment_by_name(experiment_name)
-
-        if experiment is None:
-            return {"success": False, "error": f"Experiment '{experiment_name}' not found"}
-
-        order = "DESC" if maximize else "ASC"
-        runs = client.search_runs(
-            experiment_ids=[experiment.experiment_id],
-            order_by=[f"metrics.{metric_name} {order}"],
-            max_results=1,
-        )
-
-        if not runs:
-            return {"success": False, "error": "No runs found in experiment"}
-
-        best_run = runs[0]
-
-        return {
-            "success": True,
-            "run_id": best_run.info.run_id,
-            "run_name": best_run.info.run_name,
-            "metrics": best_run.data.metrics,
-            "params": best_run.data.params,
-            "best_metric": {metric_name: best_run.data.metrics.get(metric_name)},
-            "artifact_uri": best_run.info.artifact_uri,
-        }
-    except ImportError:
-        return {"success": False, "error": "MLflow not installed"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-def end_mlflow_run(run_id: str | None = None, status: str = "FINISHED") -> dict[str, Any]:
-    """End an MLflow run."""
-    try:
-        import mlflow
-
-        mlflow.end_run(status=status)
-
-        return {"success": True, "status": status, "message": f"Run ended with status {status}"}
-    except ImportError:
-        return {"success": False, "error": "MLflow not installed"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
+# Hydra and basic MLflow implementations are imported and re-exported above.
 
 # --- DVC Data Versioning Tools ---
 

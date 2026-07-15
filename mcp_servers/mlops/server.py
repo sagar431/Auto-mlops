@@ -7,6 +7,7 @@ from types import ModuleType
 
 from .compatibility import RootModuleHandler
 from .domains.hydra import tool_specs as hydra_tool_specs
+from .domains.mlflow import tool_specs as mlflow_tool_specs
 from .registry import ToolRegistry, ToolSpec
 
 
@@ -22,54 +23,6 @@ class RootToolDefinition:
 
 
 ROOT_TOOL_DEFINITIONS: tuple[RootToolDefinition, ...] = (
-    RootToolDefinition(
-        name='init_mlflow_experiment',
-        description='Initialize MLflow experiment with tracking URI and tags',
-        input_model_name='InitMLflowExperimentInput',
-        handler_name='init_mlflow_experiment',
-    ),
-    RootToolDefinition(
-        name='start_mlflow_run',
-        description='Start a new MLflow run in an experiment',
-        input_model_name='StartMLflowRunInput',
-        handler_name='start_mlflow_run',
-    ),
-    RootToolDefinition(
-        name='log_mlflow_params',
-        description='Log parameters to MLflow run',
-        input_model_name='LogMLflowParamsInput',
-        handler_name='log_mlflow_params',
-    ),
-    RootToolDefinition(
-        name='log_mlflow_metrics',
-        description='Log metrics to MLflow run with optional step',
-        input_model_name='LogMLflowMetricsInput',
-        handler_name='log_mlflow_metrics',
-    ),
-    RootToolDefinition(
-        name='log_mlflow_artifact',
-        description='Log artifact file or directory to MLflow',
-        input_model_name='LogMLflowArtifactInput',
-        handler_name='log_mlflow_artifact',
-    ),
-    RootToolDefinition(
-        name='register_mlflow_model',
-        description='Register model in MLflow Model Registry',
-        input_model_name='RegisterMLflowModelInput',
-        handler_name='register_mlflow_model',
-    ),
-    RootToolDefinition(
-        name='get_best_mlflow_run',
-        description='Get best run from experiment based on metric',
-        input_model_name='GetBestMLflowRunInput',
-        handler_name='get_best_mlflow_run',
-    ),
-    RootToolDefinition(
-        name='end_mlflow_run',
-        description='End an MLflow run with status',
-        input_model_name='EndMLflowRunInput',
-        handler_name='end_mlflow_run',
-    ),
     RootToolDefinition(
         name='init_dvc_repo',
         description='Initialize DVC in a repository',
@@ -593,6 +546,7 @@ ROOT_TOOL_DEFINITIONS: tuple[RootToolDefinition, ...] = (
 def build_tool_registry(root_module: ModuleType) -> ToolRegistry:
     """Build the ordered registry used by both catalog and dispatch."""
     specs = list(hydra_tool_specs(root_module))
+    specs.extend(mlflow_tool_specs(root_module))
     specs.extend(
         ToolSpec(
             name=definition.name,

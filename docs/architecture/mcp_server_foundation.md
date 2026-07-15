@@ -43,11 +43,11 @@ model, invokes the paired handler, awaits it when necessary, and serializes the
 result as the established single `TextContent` JSON response. Unknown names and
 validation or handler exceptions retain the established error structures.
 
-The four extracted Hydra specs live with the Hydra domain. The remaining 94
-specs are declared in `mcp_servers.mlops.server` and adapt implementations that
-intentionally remain in the root facade. Both `list_tools()` and `call_tool()`
-on the root MCP server delegate to the one built registry in deterministic
-historical order.
+The four extracted Hydra specs and eight basic MLflow specs live with their
+domains. The remaining 86 specs are declared in `mcp_servers.mlops.server` and
+adapt implementations that intentionally remain in the root facade. Both
+`list_tools()` and `call_tool()` on the root MCP server delegate to the one built
+registry in deterministic historical order.
 
 ## Adding a tool
 
@@ -95,6 +95,35 @@ project-relative callbacks resolve the root helpers dynamically. Patching
 legacy seams are deliberately retired. `mcp_mlops_tools.py` also re-exports the
 extracted models and functions under their historical names.
 
+## Basic MLflow extraction and compatibility
+
+`mcp_servers.mlops.schemas.mlflow` owns the unchanged input models for the eight
+basic experiment-tracking tools: experiment initialization, run start,
+parameter and metric logging, artifact logging, model registration, best-run
+lookup, and run end. The later `track_training_in_mlflow` capstone orchestration
+tool remains in the root facade and is deliberately outside this boundary.
+
+`mcp_servers.mlops.domains.mlflow` owns the eight historical handler functions
+and their ordered ToolSpecs. The root facade re-exports both handlers and input
+models, and the ToolSpecs use dynamic root resolution so monkeypatches of those
+root handler names remain observable during incremental migration. Public
+function signatures, return dictionaries, error messages, explicit-run context
+handling, metric steps, artifact destinations, model URIs, search ordering, and
+the historically ignored `end_mlflow_run.run_id` argument remain unchanged.
+
+`mcp_servers.mlops.domains.mlflow_dependencies` defines three narrow protocols:
+the MLflow module calls used by seven handlers, the tracking-client calls used
+by best-run lookup, and the two local artifact-path checks used before upload.
+The frozen `MLflowDependencies` stores lazy SDK and client factories plus the
+real local filesystem adapter. Scoped `use_dependencies()` overrides use a
+resettable `ContextVar`, allowing recording or failing fakes without importing
+MLflow, contacting a backend, or leaking dependency state between tests.
+
+MLflow and `MlflowClient` are imported only inside the production factory that
+needs them. Importing the modules or constructing dependencies, ToolSpecs, or
+the registry therefore performs no MLflow call, filesystem write, network or
+database access, experiment creation, or run creation.
+
 ## Dependency boundaries for later domains
 
 Extracted domains must not capture mutable root globals implicitly. Follow the
@@ -118,21 +147,22 @@ filesystem mutation, network access, subprocesses, and privileged operations.
 
 ## Deliberate scope and extraction order
 
-All non-Hydra schemas and implementations, shared command/template helpers,
-legacy public and private helpers, optional SDK imports, the `Server` object,
-stdio startup, and executable `main()` intentionally remain in
-`mcp_mlops_tools.py`. Empty `common.commands` or `common.results` abstractions
-were not created before a real domain needs them.
+All schemas and implementations outside Hydra and the eight basic MLflow tools,
+shared command/template helpers, legacy public and private helpers, other
+optional SDK imports, the `Server` object, stdio startup, and executable
+`main()` intentionally remain in `mcp_mlops_tools.py`. The basic MLflow
+extraction reduces the facade from 14,613 to 14,320 lines. Empty
+`common.commands` or `common.results` abstractions were not created before a
+real domain needs them.
 
 The recommended next order is:
 
-1. basic MLflow tools;
-2. basic DVC tools;
-3. Docker and GitHub Actions tools;
-4. data quality and monitoring;
-5. training and capstone data;
-6. LitServe and other serving targets;
-7. Kubernetes, KServe, Helm, and AWS.
+1. basic DVC tools;
+2. Docker and GitHub Actions tools;
+3. data quality and monitoring;
+4. training and capstone data;
+5. LitServe and other serving targets;
+6. Kubernetes, KServe, Helm, and AWS.
 
 This foundation does not add tools, HPO, learning-rate finding, cloud or
 deployment behavior, or alter agent/workflow routing.
